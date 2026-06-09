@@ -1,22 +1,24 @@
-import { supabase } from '../lib/supabase'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/AuthProvider'
-import Logo from '../components/Logo'
+import AppHeader from '../components/AppHeader'
 
-// Placeholder authed landing page. Blank by design for now; the real app shell comes later.
 export default function Home() {
   const { session } = useAuth()
 
   return (
-    <div className="min-h-screen grid place-items-center px-6">
-      <div className="text-center">
-        <Logo className="mx-auto mb-6 h-10 w-auto" />
-        <p className="text-sm text-muted">
-          Signed in as <span className="font-semibold text-ink">{session?.user?.email}</span>
+    <div className="min-h-screen bg-page">
+      <AppHeader />
+      <main className="mx-auto max-w-3xl px-4 py-10">
+        <h1 className="text-2xl font-bold">Welcome to the ICFAI Founders Network</h1>
+        <p className="mt-1 text-sm text-muted">
+          Signed in as <span className="font-semibold text-ink">{session?.user?.email}</span>.
         </p>
-        <button className="btn-outline mt-4" onClick={() => supabase.auth.signOut()}>
-          Log out
-        </button>
-      </div>
+        <div className="mt-6 flex gap-3">
+          <Link to="/profile" className="btn-primary">Your profile</Link>
+          <Link to="/settings" className="btn-outline">Settings</Link>
+        </div>
+        <p className="mt-8 text-sm text-faint">The feed, pipeline, and the rest of the app land here next.</p>
+      </main>
     </div>
   )
 }

@@ -5,6 +5,11 @@ import './index.css'
 import App from './App.jsx'
 import { AuthProvider } from './lib/AuthProvider'
 
+// Apply the saved theme before first paint to avoid a flash.
+if (localStorage.getItem('theme') === 'dark') {
+  document.documentElement.classList.add('dark')
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
