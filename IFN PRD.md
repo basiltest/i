@@ -228,3 +228,150 @@ No backend/mail. Any "raise request / send mail" (calendar event, etc.) → item
 ---
 ## 7. Open questions
 **All resolved.** PRD is build-ready.
+
+---
+
+# Product Review — 2026-06-09 (PM · Startup Advisor · UX · Incubator Program Design)
+
+> Appendix only — does **not** edit the locked spec above. Source of truth stays the repo PRD.
+> Lens: product success, adoption, mentorship quality, founder outcomes — not features or code.
+
+## Core thesis (read this first)
+
+**The product is over-scoped and front-loads friction, while under-investing in what keeps a campus
+community alive.** Two existential risks dominate everything below:
+
+1. **Cold-start (item 13).** The product assumes students arrive with startup ideas. Most don't. Nine
+   surfaces launching half-empty on one campus reads as "dead app" → bounce → no critical mass.
+2. **The core value (mentorship pipeline) is throttled by its own design** — heavy entry friction
+   (item 3), an admin bottleneck (item 9), and invisible async state (item 5, no notifications).
+
+**What is the actual product?** The **Idea Pipeline + Mentorship** (idea → mentor → G1–G6 →
+incubation). That is the one thing a college incubator uniquely does; everything else (Feed,
+Directory, Team Board) is commodity social-network plumbing that exists to *feed* the pipeline.
+Protect the core; trim or defer the rest.
+
+**Recommended v1 scope:** unified Feed (Problem as a post-type) · lightweight Pipeline entry +
+Mentorship with an async channel · Directory (privacy-fixed) · minimal notifications · basic
+report/remove moderation. **Defer:** standalone Problem Hub, Idea Autopsy, full Calendar, tag
+governance machinery, reputation. This is fewer surfaces, launched alive — not feature-complete and
+dead.
+
+## Verdict summary
+
+| # | Area | Verdict | When | One-line |
+|---|------|---------|------|----------|
+| 1 | Product focus / scope | **Simplify** | now (scope call) | Ship the pipeline core + feed/directory; defer 4 surfaces |
+| 2 | Feed vs Problem Hub | **Merge** | now | Two boards split a small community → both look dead; make "Problem" a post-type filter |
+| 3 | Pipeline weight | **Add light entry** | now | Heavy basic-details + PDF at submit kills top-of-funnel; gate *progression*, not *entry* |
+| 4 | Mentorship vs evaluation | **Add async channel** | soon (high) | Rubric+approve = grading, not mentoring; needs back-and-forth |
+| 5 | Notifications | **Implement (in-app)** | now | Async multi-actor workflow is invisible without it → pipeline stalls |
+| 6 | Team Board lifecycle | **Add statuses** | later | Apply→void is a lead list, not a workflow; add sent/accepted/rejected + withdraw |
+| 7 | Success badge governance | **Define criteria** | later (define now) | Undefined "success" = gameable/arbitrary → badge loses signal |
+| 8 | Directory privacy | **Implement** | now | Phone visible to all by default = safety/trust red flag; hide + per-field control |
+| 9 | Admin dependency | **De-bottleneck** | now | Single inactive admin freezes the whole pipeline; multi-admin + mentor pull-queue |
+| 10 | Calendar | **Demote** | later | Read-only notice board; keep the sidebar list for v1, build RSVP/reminders later |
+| 11 | Engagement mechanics | **Selective** | mixed | @mentions + bookmarks now; follow/activity later; **reject** reputation for MVP |
+| 12 | Moderation & safety | **Basic report/remove** | now (if anon ships) | Anonymous posting + zero moderation = abuse + institutional risk |
+| 13 | Adoption / cold-start | **Top priority** | now | Design the lurk→vote→post→pipeline ladder; never show an empty app |
+
+## Detail (problem → risk → impact → complexity → recommendation)
+
+**1 — Scope.** *Problem:* 9 features at launch. *Risk:* not build effort — **empty surfaces**; a
+campus has dozens of active users, not thousands, so spreading them thin makes everything look
+abandoned. *Impact:* high — concentration vs death-spiral. *Complexity:* low (a scoping decision, not
+code). *Recommend:* **now — simplify.** Core v1 = Feed + Pipeline/Mentorship + Directory. Defer
+Problem Hub, Autopsy, full Calendar, tag governance.
+
+**2 — Feed/Problem split.** *Problem:* two near-identical boards by content type; the idea/problem
+line is subtle, users will mispost. *Risk:* activity diluted across two boards → **both sparse** →
+classic community cold-start failure. *Impact:* high. *Complexity:* low (a filter chip, not a page).
+*Recommend:* **now — merge.** One feed, "Problem" as a post type + filter. Reject the standalone Hub
+for v1.
+
+**3 — Pipeline weight.** *Problem:* entry demands mandatory who+contact, domain+sector, market size,
+feasibility self-assessment, **and** a PDF — before any mentor is involved. *Risk:* students rarely
+have a deck/market-sizing on day one → they never start; the **core feature's funnel dies at the
+top.** *Impact:* high (this is the product). *Complexity:* medium. *Recommend:* **now — add a
+lightweight entry** (title + one-liner + problem → G1). Push the heavy basic-details/PDF/feasibility
+to G2–G3 when a mentor is engaged and the effort is earned. Keep the gate machine; move the friction
+to *progression*, not *entry*. Low completion to G6 is fine (incubation is selective) — but don't
+gate the front door.
+
+**4 — Mentorship vs evaluation.** *Problem:* mentor flow = review → rubric → approve/revise. That's a
+**judge, not a mentor.** *Risk:* the platform produces graded homework, not relationships; mentors
+find form-filling dull and disengage — gutting the one differentiator. *Impact:* high on the core
+value prop. *Complexity:* medium. *Recommend:* **soon (high priority)** — add a lightweight, private,
+**async mentor↔founder thread** per idea (author/mentor/admin), usable anytime, not just at gates.
+Reframe the rubric as *one input*, not the whole interaction. (Pairs with notifications #5 and the
+ADR-008 dossier-notes hook.)
+
+**5 — Notifications.** *Problem:* fake toasts only; no cross-user signal. *Risk:* **fatal for an async
+workflow** — a mentor never learns they were assigned, a student never learns they were reviewed →
+ideas stall silently → the pipeline appears broken. *Impact:* high (core workflow won't function).
+*Complexity:* low–medium. *Recommend:* **now — minimal in-app notifications** (assigned, reviewed,
+approved/rejected, application received, tag/event approved) + unread badge; email for the top 2–3
+events later. Toasts stay for instant feedback; they cannot carry async events.
+
+**6 — Team Board.** *Problem:* apply → toast, no status, no management, no withdraw. *Risk:* applicants
+ghosted, posters can't act → frustration, feature feels broken. *Impact:* medium. *Complexity:* low.
+*Recommend:* **later** — add application status (sent→accepted/rejected) visible to the applicant,
+poster accept/decline, applicant withdraw. Don't over-build (no scheduling/chat).
+
+**7 — Success badge.** *Problem:* "Success" undefined; request→approve on admin whim. *Risk:* badge
+gets farmed for vanity or applied arbitrarily → loses all signal, and success stories are an
+incubator's best marketing. *Impact:* medium (trust/brand). *Complexity:* low. *Recommend:* **define
+criteria now (cheap), enforce later** — tiered, evidence-backed (revenue / paying users / funding /
+incorporation / accelerator) with a required evidence field + admin rubric. Define before granting
+many, or you set bad precedent.
+
+**8 — Privacy.** *Problem:* phone + LinkedIn shown to all members by default. *Risk:* harassment,
+spam, real safety concern on a university platform → people won't complete profiles or will leave;
+institutional liability. *Impact:* high (trust + safety). *Complexity:* low. *Recommend:* **now** —
+phone **hidden by default**, per-field visibility toggles, consider a contact/connect request instead
+of exposing raw numbers. Non-deferrable.
+
+**9 — Admin dependency.** *Problem:* admin is the sole actor for mentor-assign (G1→G2), tags, events,
+locks. *Risk:* a busy/absent admin (guaranteed during exams/holidays for staff-run tools) **freezes
+the entire pipeline** — nothing advances past G1. *Impact:* high (throttles the core). *Complexity:*
+low–medium. *Recommend:* **now** — support **multiple admins**, and switch G1→G2 to a **mentor
+pull-queue** (mentors self-pick from unassigned ideas) so the core path doesn't wait on one person.
+Auto/mentor-approve low-risk tags later.
+
+**10 — Calendar.** *Problem:* read-only, admin-gated, no RSVP/reminders. *Risk:* low — just an empty
+surface to maintain. *Impact:* low. *Complexity:* low (to demote). *Recommend:* **later** — for v1
+keep the "Upcoming Events" sidebar list (already specced); build the full calendar + RSVP + reminders
+(reminders depend on #5) post-MVP. Attendance tracking: likely **reject** (low value).
+
+**11 — Engagement.** *Problem:* only votes + comments; few return loops. *Risk:* passive users have no
+reason to come back. *Impact:* medium. *Complexity:* mixed. *Recommend:* **@mentions + bookmarks
+now** (cheap, real retention; mentions feed notifications), **follow users/startups + activity feed
+later** (need scale), **reject reputation + contributor badges for MVP** (gamification is premature
+and invites vanity-farming like the Success badge).
+
+**12 — Moderation & safety.** *Problem:* no report/remove/enforcement — **while anonymous posting is
+enabled.** *Risk:* anon + no moderation = harassment/spam with no response but manual DB surgery;
+hostile environment + university liability. *Impact:* high (safety). *Complexity:* low–medium.
+*Recommend:* **now if anon ships in v1** — a Report button → admin queue → hide/remove (admin already
+sees anon identity); user suspension + auto-spam later. If moderation can't ship, **delay anonymous
+posting** until it can.
+
+**13 — Adoption / cold-start.** *Problem:* the product's main CTA is "create an idea"; most students
+won't, and arrive to a possibly-empty app. *Risk:* **existential** — no activation → no content → no
+community → death. *Impact:* highest, tied with #1. *Complexity:* medium (design + onboarding).
+*Recommend:* **now — design the engagement ladder**: lurk → upvote/comment → post a problem → post an
+idea → enter pipeline. First-run onboarding sells *passive* value (browse ideas, find people, see
+events) before asking to post; guarantee the feed is never empty (rich seed + staff/mentor seeding);
+let alumni/mentors be initial draws. #2 (merged feed), #3 (light pipeline entry), and #5
+(notifications) all serve this.
+
+## Net product recommendation
+Build **fewer surfaces, launched alive, around the mentorship pipeline.** Sequence:
+1. **v1 now:** unified Feed (Problem as type) · lightweight Pipeline entry · Mentorship + async
+   channel · Directory with privacy controls · minimal notifications · report/remove moderation ·
+   adoption onboarding + multi-admin/mentor pull-queue.
+2. **Fast-follow:** Team Board statuses · @mentions + bookmarks · Success criteria enforcement ·
+   email notifications.
+3. **Later:** full Calendar + RSVP/reminders · Idea Autopsy · follow/activity feed · tag governance.
+4. **Reject for MVP:** reputation system · contributor badges · attendance tracking · standalone
+   Problem Hub.

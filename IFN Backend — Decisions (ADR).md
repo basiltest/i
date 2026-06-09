@@ -153,4 +153,146 @@ described in PRD §4.7 / §4.8.
 
 ---
 
+# Design Review — 2026-06-09
+
+A second-pass review of 16 proposed changes + 7 candidate ADRs against the architecture, data
+model, and ADR-001…017. Principle applied: **product value over architectural purity; no MVP
+complexity that isn't earned.** Each item gets a verdict (now / later / never) with the trade-off.
+Accepted-now decisions are written up as ADR-018…ADR-025 below the table.
+
+## Verdict summary
+
+| # | Proposal | Verdict | When | One-line rationale |
+|---|----------|---------|------|--------------------|
+| 1 | IFN counter → PG sequence | **Keep current** | never (until contention) | `UPDATE … SET ifn_counter = ifn_counter+1 RETURNING` is already atomic (row lock); a sequence trades the no-gap property the product expects |
+| 2 | In-app notification system | **Accept** | now (in-app) / later (email) | Real product value; toggles already exist in `user_settings` → ADR-020 |
+| 3 | ORM strategy ADR | **Accept** | now (docs only) | Stack already uses **knex**; just undocumented → ADR-018 |
+| 4 | Rate limiting | **Accept** | now (auth) / later (rest) | Magic-link + register are an email-flood/abuse vector → ADR-019 |
+| 5 | Session metadata (ip, last_seen, revoked) | **Partial** | later | `last_seen_at` + `ip_address` cheap & useful; `revoked_at` redundant (delete-on-logout per ADR-003) |
+| 6 | Attachment SHA-256 | **Optional** | later | Cheap (bytes already read for mime sniff); dedup value is marginal for a small doc store |
+| 7 | `UNIQUE(team_post_id, applicant_id)` | **Accept** | now | App-level check is check-then-insert (race); DB constraint is trivial & correct → ADR-021 |
+| 8 | JSONB review | **Mostly keep** | later (conditional) | Access pattern is read-whole (ADR-005 holds); `mentor_criteria` likely dead (superseded by `idea_reviews`); `idea_reviews.criteria` is the one future-normalization candidate |
+| 9 | Split idea fields off `posts` | **Keep hybrid** | later (conditional) | ADR-005 already de-sparsed; ideas are the dominant kind so the extra join would cost more than the ~5 sparse cols save |
+| 10 | `badges text[]` → `post_badges` | **Keep array** | later (conditional) | Set is tiny + fixed + metadata-free; `#Success` lifecycle already lives in `success_request` |
+| 11 | ENUM strategy | **Accept (CHECK)** | later | Add CHECK constraints, not ENUM types or lookup tables → ADR-022 |
+| 12 | Re-evaluate ADR-008 (no DM) | **Keep, with hook** | later (conditional) | Dossier review loop is the async channel; add threaded dossier notes only if mentors need clarifying Q&A |
+| 13 | Re-evaluate ADR-009 (no notifs) | **Amend** | now | Superseded by ADR-020 (minimal in-app notifications) |
+| 14 | Dossier complexity (ADR-017) | **Keep design** | phase the build | Complexity *is* the mentoring product; per-gate templates keep early stages light — phase implementation (G1–G3 first), don't fork a lighter model |
+| 15 | Redis readiness | **Document** | never (until scale) | Forward-looking path only; DB sessions fine now → ADR-023 |
+| 16 | Background jobs / queue | **Document** | later (until volume) | Synchronous email is fine at MVP volume → ADR-024 |
+| — | File + audit retention | **Accept** | now (docs) | Define delete/cascade + retention policy → ADR-025 |
+
+Detail on the rejected/deferred items (1, 5, 6, 8, 9, 10, 12, 14) lives in the table rationale; the
+accepted decisions follow.
+
+## ADR-018 — Persistence layer: knex (query builder + migrations)
+**Context.** The architecture never named an ORM; the code in fact uses **knex** (`knexfile.js`,
+numbered migrations + seeds under `src/db/`). Prisma/Drizzle were implicitly on the table.
+**Decision.** Keep **knex** as the persistence layer. No heavy ORM. **Migration ownership:** numbered,
+forward-only files in `src/db/migrations` (`NN_name.js`), each with `up`/`down`; migrations run on
+every deploy via the api entrypoint (ADR-016). **Rollback:** `knex migrate:rollback` for the last
+batch in dev; in prod, forward-fix migrations are preferred over destructive rollbacks. **Seed:**
+idempotent, guarded on an empty `users` table; env-split per ADR-011 (amended — see note).
+**Consequences.** No ORM rewrite; SQL stays explicit and reviewable; the team owns schema evolution
+end-to-end. Trade-off: more hand-written SQL than Prisma; acceptable given the schema is already
+authored. Cost: documentation only — **zero code change.**
+> Note: ADR-011's runtime default has since shifted toward bootstrap-only seeding in all envs; the
+> dev_full demo dataset remains available for tests and an on-demand admin reseed. Treat ADR-011 as
+> "seed is idempotent + guarded," with env selection a deployment choice.
+
+## ADR-019 — Rate limiting on abuse-prone endpoints
+**Context.** Magic-link login and registration both trigger outbound email for any submitted address.
+Unthrottled, they enable email flooding of a victim, SMTP-quota exhaustion, and token-guessing volume.
+Tag requests and team applications are lower-severity spam vectors.
+**Decision.** Add `express-rate-limit` (in-memory store for now) on `POST /auth/login`,
+`POST /auth/register` (strict: a few requests per IP+email per window), and a looser limit on
+`POST /tag-requests` and `POST /team-posts/:id/apply`.
+**Consequences.** Closes the email-flood vector cheaply (one middleware). Trade-off: an in-memory
+limiter is per-instance — when the api scales horizontally it must move to a shared store (Redis, see
+ADR-023). **Implement now for the auth pair; the rest is a fast-follow.**
+
+## ADR-020 — Minimal in-app notifications (amends ADR-009)
+**Context.** ADR-009 deferred notifications when nothing consumed them. The dossier workflow
+(ADR-017) created real "you have an update" moments — mentor review submitted, idea approved/rejected,
+tag approved/rejected, team application received, event approved — and `user_settings` already carries
+the (UI-only) `email_events` / `email_gate` / `inapp_votes` / `inapp_mentions` toggles. Without
+delivery, users must hunt for state changes.
+**Decision.** Add a `notifications` table: `id, user_id (FK), type, title, body, link, read_at (null),
+created_at`. Writes happen inline in the relevant service on the listed events. Delivery is **in-app,
+polling-based** (reuse the ~15s poll from ADR-009; a `GET /notifications` + unread count). **Email is
+deferred** — when added, it reuses the existing SMTP path (ADR-002) and respects the `user_settings`
+toggles; high-volume fan-out should go through the queue (ADR-024).
+**Consequences.** Genuine product value for a low table + a handful of inline writes. Trade-off:
+polling is slightly stale and adds light read load (mitigate with the cache path in ADR-023 later).
+Wire the toggles that already exist to real behavior. **Implement in-app now; email later.**
+
+## ADR-021 — Team application uniqueness (amends ADR-013)
+**Context.** `team_applications` enforces "one application per user per post" in application code
+(check-then-insert), which races under concurrent requests.
+**Decision.** Add `UNIQUE(team_post_id, applicant_id)` to `team_applications`; keep the app-level
+check for a friendly error, but let the constraint be the source of truth (catch the unique-violation
+→ 409).
+**Consequences.** Eliminates the duplicate-application race at the DB level; trivial migration.
+**Implement now.**
+
+## ADR-022 — Value integrity via CHECK constraints (not ENUM types or lookup tables)
+**Context.** `role, status, decision, success_request, pipeline_state, gate_status` are free text.
+zod already validates them at the API boundary (ADR-014), so the only ways a bad value lands are
+seeds, manual SQL, or a bug — i.e. paths that bypass zod.
+**Decision.** Add `CHECK (col IN (…))` constraints for these fixed sets. **Reject** PG `ENUM` types
+(adding/removing values is migration-awkward) and **reject** lookup tables (overkill for fixed,
+metadata-free sets; reserve that pattern for user-managed vocabularies like `tags`). zod stays the
+friendly first line; CHECK is the DB backstop.
+**Consequences.** DB-enforced validity that's still easy to evolve (drop+recreate the CHECK).
+Low risk, low value-add today (zod guards the live write path) → **implement later as hardening.**
+
+## ADR-023 — Redis readiness (forward-looking; no implementation now)
+**Context.** Sessions are DB-backed (ADR-003); there is no cache or queue. All are fine at current
+scale.
+**Decision.** Document, don't build, the Redis migration path. Introduce Redis when a concrete trigger
+fires: (a) the api runs **multiple instances** → move the rate-limit store (ADR-019) and optionally
+sessions to Redis, or keep DB sessions + sticky routing; (b) read load on feed/tags/directory grows →
+cache-aside with short TTLs; (c) a job queue is needed (ADR-024). Sessions can stay in Postgres even
+then — Redis is not a prerequisite for v1.
+**Consequences.** No new infra now; a clear, costed path later. Trade-off: none until a trigger fires.
+**Never until scale; documented now.**
+
+## ADR-024 — Background jobs / queue (forward-looking)
+**Context.** Outbound email (magic-link, future notifications) runs inside the request. At MVP volume
+a synchronous SMTP send (~1s) is acceptable.
+**Decision.** Keep email synchronous for now. Introduce a worker + queue (BullMQ on the Redis from
+ADR-023) when a trigger fires: email volume/latency hurts the request path, retries/backoff are
+needed, or notification fan-out (ADR-020 email) becomes bulky. The worker would be a separate process
+sharing the codebase.
+**Consequences.** Avoids standing up Redis + a worker tier prematurely. Trade-off: a slow/again-failing
+SMTP currently blocks the triggering request — tolerable at low volume, and the cue to adopt the queue.
+**Later, when volume justifies it.**
+
+## ADR-025 — File & audit retention
+**Context.** Attachments (file volume + `attachments` rows) and the append-only `gate_transitions`
+audit both grow unbounded, with no stated lifecycle.
+**Decision.** **Attachments:** cascade-delete `attachments` rows when their parent post is deleted;
+the physical bytes on the volume are cleaned by a periodic sweep (or, later, the ADR-024 worker) that
+removes files with no referencing row — no synchronous unlink in the request. **Audit
+(`gate_transitions`) + reviews:** retain indefinitely for MVP (low volume, high value for disputes);
+revisit archival only if the tables grow large. **Magic tokens / expired sessions:** a periodic
+cleanup deletes consumed/expired rows.
+**Consequences.** Defined ownership for cleanup; no orphaned files or unbounded token tables. Trade-off:
+the volume sweep is eventually-consistent (brief orphan window) — acceptable. **Document now; the
+sweep job lands with ADR-024.**
+
+## Net implementation order
+1. **Now (cheap, high value):** ADR-021 (unique constraint), ADR-018 (document knex), ADR-019 (auth
+   rate limit), ADR-020 (in-app notifications), ADR-025 (retention policy doc).
+2. **Fast-follow:** ADR-022 (CHECK constraints), rate limits on tag/team endpoints, session
+   `last_seen_at`/`ip_address`, attachment SHA-256.
+3. **Phase, don't defer:** ADR-017 dossier build (G1–G3 first).
+4. **Document only, build on trigger:** ADR-023 (Redis), ADR-024 (queue), email notifications,
+   dossier notes (ADR-008 hook), idea-fields extraction (#9), `post_badges` (#10).
+5. **Rejected:** IFN sequence (#1 — current allocation already atomic; sequence breaks no-gap),
+   `revoked_at` (#5 — redundant with delete-on-logout), ENUM types / lookup tables for fixed sets
+   (#11 — CHECK is the right weight).
+
+---
+
 Related: [[IFN Backend — Architecture]] · [[IFN Backend — Data Model]] · [[IFN Backend — Sequence Flows]] · [[IFN PRD]]
