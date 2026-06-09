@@ -196,7 +196,7 @@ Severity: Critical, High, Medium, Low. Status: Open or Handled.
 | S5 | Role self-escalation via profile update or signup metadata | High | Handled | RLS revokes update on `role`; trigger sets role by DB default and never reads role from metadata |
 | S6 | Account enumeration on register/login/forgot | Medium | Handled | Supabase obfuscates existing-email signup; login returns generic error; forgot shows generic message |
 | S7 | Anon key shipped in frontend | Info | Handled | Public by design; safe because RLS guards rows. Keep RLS on every table |
-| S8 | Rate limiting / email flooding | Medium | Config (user) | Supabase enforces auth rate limits server-side; tighten in Dashboard, Auth, Rate Limits (sign-ups, email sends, OTP/magic-link, token verifications). No app code needed |
+| S8 | Rate limiting / email flooding | Medium | Deferred | Not addressing now (planning to move off Supabase). Full detail and plan in section 7 |
 | S9 | CSRF | Info | N/A | Token in localStorage (Authorization header), not a cookie, so CSRF does not apply |
 
 ### Validation
@@ -236,3 +236,37 @@ Severity: Critical, High, Medium, Low. Status: Open or Handled.
 Email confirmation required, generic anti-enumeration responses, role escalation blocked at the DB,
 one-profile-per-user, double-submit prevented, reset link guarded, password hashing handled by
 Supabase (bcrypt), and the guard waits on the initial session check so there is no auth flash.
+
+## 7. Rate limiting (S8): detail and plan
+
+**Status: deferred.** Not addressing this now, because the plan is to move off Supabase. Revisit when
+the new backend lands. This section is the record so it is not lost.
+
+### The risk
+The auth endpoints do work and send outbound email for any submitted address, so without limits:
+- **forgot-password** and **register** can be hit repeatedly to email-bomb a victim or burn the email quota.
+- **login** can be brute-forced.
+- **token verification** can be guessed at volume.
+
+### Fix while on Supabase (no app code, dashboard only)
+Supabase enforces auth rate limits server-side. Tighten them in Dashboard, Authentication, Rate Limits:
+- sign-ups per hour (per IP)
+- **emails sent per hour** (the main email-bomb control)
+- OTP / magic-link requests
+- token verifications and token refresh
+
+Lowering the email-send and sign-up caps is the high-value change for a campus-scale app.
+
+### Fix after moving off Supabase (own backend, the real plan)
+Once auth runs on your own backend, rate limiting is your responsibility:
+- Add a middleware limiter (for example `express-rate-limit`) on `login`, `register`, `forgot-password`, `reset`.
+- **Per-IP limits plus a per-email cooldown** (for example one reset email per 60s, capped per hour).
+- Use a **shared store (Redis)** once you run more than one instance, so the limits hold across instances.
+- Cap outbound email at the mailer layer (a hard ceiling per address per window).
+
+This matches reference ADR-019 (rate limiting) in `reference/`.
+
+### Why deferred
+No production traffic yet, and the auth layer is changing providers. Setting Supabase limits now would
+be throwaway work. Carry this as a launch-checklist item for the new backend.
+
