@@ -206,9 +206,9 @@ export default function Profile() {
 
 function Field({ label, value }) {
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="text-xs font-medium text-muted">{label}</dt>
-      <dd className="mt-0.5 text-sm text-ink">{value || 'Not set'}</dd>
+      <dd className="mt-0.5 break-words text-sm text-ink">{value || 'Not set'}</dd>
     </div>
   )
 }
