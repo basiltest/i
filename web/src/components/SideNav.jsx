@@ -1,7 +1,8 @@
 import { NavLink } from 'react-router-dom'
 import { Home, Lightbulb, Workflow, Users, Calendar, LayoutGrid } from 'lucide-react'
 
-// Twitter-style left rail. Built sections are links; the rest are placeholders until built.
+// Twitter-style left rail. Built sections are links; the rest are placeholders until built,
+// styled like real items (full contrast) with a small SOON tag.
 const ITEMS = [
   { to: '/', label: 'Feed', icon: Home, end: true },
   { label: 'Problem Hub', icon: Lightbulb, soon: true },
@@ -11,6 +12,8 @@ const ITEMS = [
   { label: 'Directory', icon: LayoutGrid, soon: true },
 ]
 
+const base = 'flex items-center gap-3 rounded-full px-4 py-2.5 text-[15px] font-semibold transition-colors'
+
 export default function SideNav({ onNavigate }) {
   return (
     <nav className="flex flex-col gap-1">
@@ -18,14 +21,12 @@ export default function SideNav({ onNavigate }) {
         const Ic = it.icon
         if (it.soon) {
           return (
-            <span
-              key={it.label}
-              title="Coming soon"
-              className="flex cursor-not-allowed items-center gap-3 rounded-full px-4 py-2.5 text-[15px] font-semibold text-faint"
-            >
-              <Ic size={20} />
+            <span key={it.label} title="Coming soon" className={`${base} cursor-default text-ink`}>
+              <Ic size={22} />
               <span>{it.label}</span>
-              <span className="ml-auto text-[10px] font-bold uppercase tracking-wide">soon</span>
+              <span className="ml-auto rounded-full bg-line px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">
+                soon
+              </span>
             </span>
           )
         }
@@ -36,12 +37,10 @@ export default function SideNav({ onNavigate }) {
             end={it.end}
             onClick={onNavigate}
             className={({ isActive }) =>
-              `flex items-center gap-3 rounded-full px-4 py-2.5 text-[15px] font-semibold transition-colors ${
-                isActive ? 'bg-accent-soft text-accent' : 'text-ink hover:bg-black/5'
-              }`
+              `${base} ${isActive ? 'bg-accent-soft text-accent' : 'text-ink hover:bg-black/5'}`
             }
           >
-            <Ic size={20} />
+            <Ic size={22} />
             <span>{it.label}</span>
           </NavLink>
         )

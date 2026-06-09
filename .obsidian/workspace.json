@@ -185,6 +185,8 @@
   },
   "active": "2707205078d35a64",
   "lastOpenFiles": [
+    "web/src/index.css.tmp.20282.3b01309bf100",
+    "web/src/components/SideNav.jsx.tmp.20282.bc682719920c",
     "web/dist/index.html",
     "web/dist/assets/index-C7iFY-xf.css",
     "web/dist/assets/index-BWjyaPJY.js",
@@ -194,8 +196,6 @@
     "web/src/pages/Settings.jsx.tmp.20282.708aff13720a",
     "web/src/pages/Settings.jsx.tmp.20282.01bf0dc66ae8",
     "web/src/pages/Profile.jsx.tmp.20282.b9516217b89d",
-    "web/src/pages/Profile.jsx.tmp.20282.0803138879cf",
-    "web/src/pages/Profile.jsx.tmp.20282.d96ddc697472",
     "web/node_modules/lucide-react/README.md",
     "architecture.md"
   ]

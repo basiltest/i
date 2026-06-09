@@ -96,3 +96,8 @@
            px-2.5 py-1 text-xs font-semibold;
   }
 }
+
+/* Dark mode: flip black hover overlays to subtle white (else invisible on dark). */
+.dark .hover\:bg-black\/5:hover {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
