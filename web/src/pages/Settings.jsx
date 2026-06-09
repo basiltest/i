@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
-import AppHeader from '../components/AppHeader'
 import RoleBadge from '../components/RoleBadge'
 
 export default function Settings() {
@@ -31,10 +30,8 @@ export default function Settings() {
   }
 
   return (
-    <div className="min-h-screen bg-page">
-      <AppHeader />
-      <main className="mx-auto max-w-2xl space-y-4 px-4 py-6">
-        <h1 className="text-xl font-bold">Settings</h1>
+    <div className="max-w-2xl space-y-4">
+      <h1 className="text-xl font-bold">Settings</h1>
 
         {/* Account */}
         <section className="card p-5">
@@ -75,7 +72,6 @@ export default function Settings() {
           <p className="mb-3 text-sm text-muted">Sign out of this device.</p>
           <button className="btn-outline text-down" onClick={() => supabase.auth.signOut()}>Log out</button>
         </section>
-      </main>
     </div>
   )
 }

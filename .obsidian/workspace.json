@@ -185,17 +185,18 @@
   },
   "active": "2707205078d35a64",
   "lastOpenFiles": [
-    "web/src/components/Logo.jsx.tmp.20282.59ef06e73bde",
-    "web/src/pages/Profile.jsx.tmp.20282.e50f6a457372",
     "web/dist/index.html",
-    "web/dist/assets/index-urmv3eGj.js",
-    "web/dist/assets/index-CJk_-ErX.css",
+    "web/dist/assets/index-C7iFY-xf.css",
+    "web/dist/assets/index-BWjyaPJY.js",
     "web/dist/assets",
-    "web/src/main.jsx.tmp.20282.2ed09492265f",
-    "web/src/App.jsx.tmp.20282.af5d1a80d3e2",
-    "web/src/pages/Home.jsx.tmp.20282.6ce8729d8c28",
-    "web/src/pages/Settings.jsx",
-    "web/src/pages/Settings.jsx.tmp.20282.80a5ae860fb3",
+    "web/src/App.jsx.tmp.20282.7e53262eab9a",
+    "web/src/pages/Settings.jsx.tmp.20282.f8dd49de941f",
+    "web/src/pages/Settings.jsx.tmp.20282.708aff13720a",
+    "web/src/pages/Settings.jsx.tmp.20282.01bf0dc66ae8",
+    "web/src/pages/Profile.jsx.tmp.20282.b9516217b89d",
+    "web/src/pages/Profile.jsx.tmp.20282.0803138879cf",
+    "web/src/pages/Profile.jsx.tmp.20282.d96ddc697472",
+    "web/node_modules/lucide-react/README.md",
     "architecture.md"
   ]
 }

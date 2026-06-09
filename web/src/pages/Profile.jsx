@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import { REGIONS, SECTORS, DOMAINS } from '../lib/options'
-import AppHeader from '../components/AppHeader'
 import RoleBadge from '../components/RoleBadge'
 
 export default function Profile() {
@@ -91,12 +90,10 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-screen bg-page">
-      <AppHeader />
-      <main className="mx-auto max-w-3xl px-4 py-6">
-        {loading ? (
-          <p className="text-sm text-muted">Loading...</p>
-        ) : !profile ? (
+    <>
+      {loading ? (
+        <p className="text-sm text-muted">Loading...</p>
+      ) : !profile ? (
           <p className="text-sm text-down">{error || 'Profile not found.'}</p>
         ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
@@ -203,8 +200,7 @@ export default function Profile() {
             </div>
           </div>
         )}
-      </main>
-    </div>
+    </>
   )
 }
 
