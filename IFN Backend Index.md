@@ -1,6 +1,9 @@
 ---
 title: IFN Backend Index
 tags: [ifn, backend, index]
+status: Approved
+owner: IFN Team
+updated: 2026-06-09
 ---
 
 # IFN Backend — Documentation Index
@@ -15,6 +18,11 @@ Architecture + design docs for the planned **PERN** backend (PostgreSQL · Expre
 - [[IFN Backend — Decisions (ADR)]] — locked architecture decisions with context + consequences
 - [[IFN — Workflows]] — every user workflow (W1–W39) + PlantUML, mapped to the Playwright E2E suite
 - [[IFN PRD]] — verbatim copy of the decision-locked product spec
+- [[IFN — v1 Scope]] — locked v1 product cuts (what ships / deferred / rejected)
+- [[IFN Backend — Authorization Matrix]] — who can do what (Action × Role)
+- [[IFN Backend — Runbook]] — deploy, rollback, migrate, secret rotation, incident response
+- [[IFN Backend — Backup & Restore]] — backup schedule + tested restore
+- [[IFN Backend — Security & Threats]] — consolidated security posture + residual risks
 
 ## Quick reference — locked decisions
 

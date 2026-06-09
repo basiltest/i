@@ -1,6 +1,9 @@
 ---
 title: IFN Backend — Sequence Flows
 tags: [ifn, backend, sequence, flows]
+status: Approved
+owner: IFN Team
+updated: 2026-06-09
 ---
 
 # IFN Backend — Sequence Flows

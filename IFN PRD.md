@@ -2,6 +2,9 @@
 title: IFN PRD (copy)
 tags: [ifn, prd, product]
 source: ~/lumenor/ifn/PRD.md
+status: Approved
+owner: IFN Team
+updated: 2026-06-09
 ---
 
 > [!info] Verbatim copy of the decision-locked PRD from the repo. Source of truth stays `~/lumenor/ifn/PRD.md`.
