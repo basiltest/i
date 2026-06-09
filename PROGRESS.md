@@ -8,7 +8,33 @@
 **Mode:** mentor — the user writes the code; Claude directs + reviews. Do **not** write app code for them.
 **Stack:** Vite SPA on Vercel ↔ Supabase (Auth + Postgres + RLS). No backend. (see architecture.md)
 
-## Current stage
+## Current state (2026-06-10)
+**Auth module complete + audited; Profile and Settings built.** Repo: github.com/basiltest/i
+(monorepo, app in web/, deployed on Vercel at ifn-gilt.vercel.app; Supabase project ref
+uyepkmdpakwkpqxsofoi).
+
+Done:
+- Stage 1 register (minimal: name/email/password; trigger creates profiles row, role=student).
+- Stage 2 login + session (AuthProvider) + ProtectedRoute + PublicOnlyRoute + redirect to /.
+- Stage 3 forgot/reset password.
+- Removed @ifheindia.org check entirely (re-add server-side later if wanted).
+- Audit: auth-architecture.md (PlantUML + findings). Fixed E1 (try/catch all auth calls), V1
+  (email validate), E4 (public-only guard), S1 (CSP + security headers in web/vercel.json).
+  Deferred: S8 (rate limit, leaving Supabase), S3 (re-auth on pw change), S4 (pw min len in Supabase).
+- Profile page (/profile): read/edit own profiles row via RLS; email+role read-only.
+- Settings page (/settings): account, dark-mode toggle (persisted, applied in main.jsx), log out.
+- Logo: inline via svgr (src/assets/icfai-founders.svg), currentColor so it works in dark mode.
+- Shared: AppHeader, RoleBadge, lib/options.js (REGIONS/SECTORS/DOMAINS).
+
+Next options: feed/posts, idea pipeline, directory, onboarding "complete profile" prompt, or the
+@ifheindia.org server enforcement.
+
+DB note: profiles table + handle_new_user trigger (security definer) + RLS (read/update own; role
+column update revoked) live in Supabase (not in repo). Run via SQL editor when recreating.
+
+---
+
+## History
 **Stage 3 — Forgot password** (built, pending test + push).
 
 ### Stage 3 built
