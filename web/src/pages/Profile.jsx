@@ -54,15 +54,25 @@ export default function Profile() {
   async function save() {
     setError('')
     setMsg('')
-    if (!form.name.trim()) return setError('Name is required.')
+    const name = form.name.trim()
+    const phone = form.phone.trim()
+    const linkedin = form.linkedin.trim()
+    const startup = form.startup.trim()
+    const bio = form.bio.trim()
+    if (!name) return setError('Name is required.')
+    if (name.length > 80) return setError('Name must be 80 characters or fewer.')
+    if (phone && !/^[+\d][\d\s().-]{5,19}$/.test(phone)) return setError('Enter a valid phone number.')
+    if (linkedin && !/^https?:\/\/\S+$/i.test(linkedin)) return setError('LinkedIn must be a full URL (https://...).')
+    if (startup.length > 80) return setError('Startup must be 80 characters or fewer.')
+    if (bio.length > 500) return setError('About must be 500 characters or fewer.')
     setSaving(true)
     try {
       const updates = {
-        name: form.name.trim(),
-        phone: form.phone.trim() || null,
-        bio: form.bio.trim() || null,
-        startup: form.startup.trim() || null,
-        linkedin: form.linkedin.trim() || null,
+        name,
+        phone: phone || null,
+        bio: bio || null,
+        startup: startup || null,
+        linkedin: linkedin || null,
         region: form.region || null,
         sector: form.sector || null,
         domain: form.domain || null,
@@ -102,9 +112,9 @@ export default function Profile() {
               <div className="grid h-20 w-20 place-items-center rounded-full bg-accent-soft text-2xl font-bold text-accent">
                 {(profile.name || '?').charAt(0).toUpperCase()}
               </div>
-              <h2 className="mt-3 text-lg font-bold">{profile.name || 'Unnamed'}</h2>
+              <h2 className="mt-3 w-full break-words text-lg font-bold">{profile.name || 'Unnamed'}</h2>
               <div className="mt-1"><RoleBadge role={profile.role} /></div>
-              {profile.startup && <p className="mt-1 text-sm font-semibold text-muted">{profile.startup}</p>}
+              {profile.startup && <p className="mt-1 w-full break-words text-sm font-semibold text-muted">{profile.startup}</p>}
               {profile.linkedin ? (
                 <a href={profile.linkedin} target="_blank" rel="noreferrer" className="btn-outline mt-4 w-full">
                   Connect on LinkedIn
@@ -145,16 +155,16 @@ export default function Profile() {
               ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Edit label="Full name">
-                    <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                    <input className="input" maxLength={80} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
                   </Edit>
                   <Edit label="Email (locked)">
                     <input className="input bg-page text-faint" value={email} disabled />
                   </Edit>
                   <Edit label="Phone">
-                    <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                    <input className="input" maxLength={20} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
                   </Edit>
                   <Edit label="Startup">
-                    <input className="input" value={form.startup} onChange={(e) => setForm({ ...form, startup: e.target.value })} />
+                    <input className="input" maxLength={80} value={form.startup} onChange={(e) => setForm({ ...form, startup: e.target.value })} />
                   </Edit>
                   <Edit label="Region">
                     <select className="input" value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })}>
@@ -175,12 +185,12 @@ export default function Profile() {
                     </select>
                   </Edit>
                   <Edit label="LinkedIn">
-                    <input className="input" value={form.linkedin} placeholder="https://linkedin.com/in/..."
+                    <input className="input" maxLength={200} value={form.linkedin} placeholder="https://linkedin.com/in/..."
                       onChange={(e) => setForm({ ...form, linkedin: e.target.value })} />
                   </Edit>
                   <div className="sm:col-span-2">
                     <Edit label="About">
-                      <textarea className="input min-h-[80px] resize-y" value={form.bio}
+                      <textarea className="input min-h-[80px] resize-y" maxLength={500} value={form.bio}
                         onChange={(e) => setForm({ ...form, bio: e.target.value })} />
                     </Edit>
                   </div>

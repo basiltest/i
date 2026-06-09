@@ -17,6 +17,7 @@ export default function Register() {
 
     // client-side validation (UX only; server does the authoritative checks)
     if (!name.trim()) return setError('Please enter your name.')
+    if (name.trim().length > 80) return setError('Name must be 80 characters or fewer.')
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError('Please enter a valid email.')
     if (password.length < 8) return setError('Password must be at least 8 characters.')
 
@@ -74,7 +75,7 @@ export default function Register() {
 
         <div className="mb-3.5 flex flex-col gap-1.5">
           <label htmlFor="name" className="text-xs font-medium text-muted">Full name</label>
-          <input id="name" type="text" className="input" value={name} placeholder="Alex Chen"
+          <input id="name" type="text" className="input" maxLength={80} value={name} placeholder="Alex Chen"
             autoComplete="name" onChange={(e) => setName(e.target.value)} />
         </div>
 
