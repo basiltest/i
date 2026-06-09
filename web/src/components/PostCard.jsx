@@ -39,6 +39,14 @@ export default function PostCard({ post }) {
         </div>
       )}
 
+      {post.tags?.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {post.tags.map((t) => (
+            <span key={t} className="chip">#{t}</span>
+          ))}
+        </div>
+      )}
+
       {post.edited && <div className="mt-2 text-xs text-faint">edited</div>}
     </article>
   )

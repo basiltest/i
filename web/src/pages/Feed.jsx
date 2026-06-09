@@ -16,6 +16,7 @@ export default function Feed() {
   const [filter, setFilter] = useState('all')
   const [q, setQ] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
+  const [notice, setNotice] = useState('')
 
   const load = useCallback(async (kind) => {
     setLoading(true)
@@ -60,6 +61,12 @@ export default function Feed() {
         ))}
       </div>
 
+      {notice && (
+        <div className="mb-4 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">
+          {notice}
+        </div>
+      )}
+
       {loading ? (
         <p className="text-sm text-muted">Loading...</p>
       ) : error ? (
@@ -81,9 +88,11 @@ export default function Feed() {
       <CreatePostModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreated={() => {
+        onCreated={(status) => {
           setCreateOpen(false)
+          setNotice(status === 'draft' ? 'Saved as draft.' : 'Posted.')
           load(filter)
+          setTimeout(() => setNotice(''), 3000)
         }}
       />
     </div>

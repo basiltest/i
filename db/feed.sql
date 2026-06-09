@@ -1,6 +1,6 @@
--- feed_posts: published posts joined with author name/role, masking anonymous authors.
--- security definer so it can read profiles regardless of profiles RLS; the masking is enforced
--- inside the query (real identity only for the author themselves or an admin). Run in Supabase.
+-- feed_posts: published posts joined with author name/role + approved tags, masking anonymous
+-- authors. security definer so it can read profiles/tags regardless of RLS; the masking is
+-- enforced inside the query (real identity only for the author themselves or an admin). Run in Supabase.
 
 create or replace function public.feed_posts(p_kind text default null)
 returns table (
@@ -18,7 +18,8 @@ returns table (
   created_at timestamptz,
   author_name text,
   author_role text,
-  is_mine boolean
+  is_mine boolean,
+  tags text[]
 )
 language sql
 stable
@@ -36,7 +37,14 @@ as $$
          then null else a.name end as author_name,
     case when p.anonymous and me.role is distinct from 'admin' and p.author_id <> me.uid
          then null else a.role end as author_role,
-    (p.author_id = me.uid) as is_mine
+    (p.author_id = me.uid) as is_mine,
+    coalesce(
+      (select array_agg(t.name order by t.name)
+       from public.post_tags pt
+       join public.tags t on t.id = pt.tag_id
+       where pt.post_id = p.id and t.approved),
+      '{}'
+    ) as tags
   from public.posts p
   join public.profiles a on a.id = p.author_id
   cross join me

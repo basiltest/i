@@ -45,7 +45,7 @@ Unified feed (ideas + problems).
 - [ ] `feed_posts` RPC (security definer): join author name/role and mask anonymous authors (admins see real identity). Keeps profiles RLS strict.
 - [ ] `post_votes` (per-user -1/1, composite PK, score = sum) + RLS (one vote per user per post).
 - [ ] `comments` + `sub_threads` (threads/replies) + RLS.
-- [ ] `tags` + `post_tags` + `tag_requests` + RLS (new-tag and #Success go to an admin approval queue).
+- [x] `tags` + `post_tags` + `tag_requests` + RLS + `create_post` RPC (db/tags.sql). New tags become pending tag_requests. Drafts = posts.status='draft'. Admin approval queue + #Success still TODO.
 - [ ] `notifications` table (ADR-020) + RLS (read own); inline writes on key events.
 - [ ] `reports` table (moderation) + RLS; admin resolve/hide.
 - [ ] `is_admin()` security-definer helper + admin policies (pin, gate override, moderate) without RLS recursion.
