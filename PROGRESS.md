@@ -24,7 +24,12 @@ Done:
 - Profile page (/profile): read/edit own profiles row via RLS; email+role read-only.
 - Settings page (/settings): account, dark-mode toggle (persisted, applied in main.jsx), log out.
 - Logo: inline via svgr (src/assets/icfai-founders.svg), currentColor so it works in dark mode.
-- Shared: AppHeader, RoleBadge, lib/options.js (REGIONS/SECTORS/DOMAINS).
+- App shell: Layout (Outlet) + Topbar (notifications + profile dropdown) + SideNav (left rail).
+  Shared: RoleBadge, lib/options.js, lib/format.js.
+- Feed (slice 1): db/posts.sql (posts table + RLS) + db/feed.sql (feed_posts RPC that masks
+  anonymous authors). Feed page = list via RPC, filter All/Ideas/Problems, client search,
+  CreatePostModal (insert). "/" route is now the Feed. DB architecture + TODO in db/README.md.
+  Next feed slices: votes, comments, tags.
 
 Next options: feed/posts, idea pipeline, directory, onboarding "complete profile" prompt, or the
 @ifheindia.org server enforcement.
