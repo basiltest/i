@@ -189,14 +189,14 @@ Severity: Critical, High, Medium, Low. Status: Open or Handled.
 ### Security
 | ID | Finding | Severity | Status | Fix |
 |----|---------|----------|--------|-----|
-| S1 | Session JWT in localStorage; readable by JS, so XSS can steal it | Medium | Accepted tradeoff | Add a strict CSP, avoid untrusted scripts; move to httpOnly cookies via Next.js + @supabase/ssr if XSS risk grows |
+| S1 | Session JWT in localStorage; readable by JS, so XSS can steal it | Medium | Mitigated | Strict CSP added via vercel.json (script-src 'self', no inline/eval) plus nosniff, frame-deny, referrer headers. Residual risk: move to httpOnly cookies (Next.js SSR) if it grows |
 | S2 | Email domain restriction | n/a | Removed on request | Domain check removed (any email can register). If re-added, do it server-side (auth hook or trigger), not client-only |
 | S3 | Logged-in session can change password with no re-auth (`updateUser({password})`); a hijacked session can lock the user out | Medium | Open | Require recent re-authentication for password change; keep JWT expiry short |
 | S4 | Password min length mismatch: client requires 8, Supabase server default is lower, so a direct API call can set a weaker password | Medium | Open | Set Supabase Auth min password length to 8 (and consider complexity) |
 | S5 | Role self-escalation via profile update or signup metadata | High | Handled | RLS revokes update on `role`; trigger sets role by DB default and never reads role from metadata |
 | S6 | Account enumeration on register/login/forgot | Medium | Handled | Supabase obfuscates existing-email signup; login returns generic error; forgot shows generic message |
 | S7 | Anon key shipped in frontend | Info | Handled | Public by design; safe because RLS guards rows. Keep RLS on every table |
-| S8 | Rate limiting / email flooding | Medium | Partial | Relies on Supabase default auth rate limits; review and tighten in Auth settings |
+| S8 | Rate limiting / email flooding | Medium | Config (user) | Supabase enforces auth rate limits server-side; tighten in Dashboard, Auth, Rate Limits (sign-ups, email sends, OTP/magic-link, token verifications). No app code needed |
 | S9 | CSRF | Info | N/A | Token in localStorage (Authorization header), not a cookie, so CSRF does not apply |
 
 ### Validation

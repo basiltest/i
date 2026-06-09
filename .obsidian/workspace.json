@@ -185,6 +185,9 @@
   },
   "active": "2707205078d35a64",
   "lastOpenFiles": [
+    "auth-architecture.md.tmp.20282.5f4018483ca4",
+    "auth-architecture.md.tmp.20282.3df3b763e862",
+    "web/vercel.json.tmp.20282.814a5e7cbb94",
     "web/src/pages/ForgotPassword.jsx.tmp.20282.5ec8a5f4d222",
     "web/dist/index.html",
     "web/dist/assets/index-DoInX-P9.js",
@@ -193,9 +196,6 @@
     "auth-architecture.md.tmp.20282.4f3553d76a0c",
     "auth-architecture.md.tmp.20282.da8a1c4ffb21",
     "auth-architecture.md.tmp.20282.2eed59aa0049",
-    "auth-architecture.md.tmp.20282.534a1a918e20",
-    "web/src/App.jsx.tmp.20282.fd44e3fad790",
-    "web/src/components/PublicOnlyRoute.jsx",
     "architecture.md"
   ]
 }
