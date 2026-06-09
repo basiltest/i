@@ -15,7 +15,7 @@ export default function Register() {
     e.preventDefault()
     setError('')
 
-    // client-side validation (UX only — real domain enforcement is server-side, Stage 1f)
+    // client-side validation (UX only, real domain enforcement is server-side, Stage 1f)
     if (!name.trim()) return setError('Please enter your name.')
     if (!email.toLowerCase().endsWith(EMAIL_DOMAIN))
       return setError(`Email must end with ${EMAIL_DOMAIN}.`)
@@ -58,9 +58,13 @@ export default function Register() {
   return (
     <div className="min-h-screen grid place-items-center px-6">
       <form onSubmit={handleSubmit} noValidate className="card w-full max-w-sm p-8 animate-pop-in">
-        <h1 className="text-grad text-3xl font-bold tracking-tight">IFN</h1>
-        <h2 className="mt-4 text-lg font-semibold">Create your account</h2>
-        <p className="mb-5 text-sm text-muted">ICFAI Founders Network — students only.</p>
+        <img
+          src="/icfai-founders.svg"
+          alt="ICFAI Founders Network"
+          className="mb-5 h-12 w-auto"
+        />
+        <h2 className="text-lg font-semibold">Create your account</h2>
+        <p className="mb-5 text-sm text-muted">Join the ICFAI Founders Network.</p>
 
         {error && (
           <div className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">

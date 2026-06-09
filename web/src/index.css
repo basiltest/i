@@ -15,7 +15,7 @@
   --c-accent-hover: 55 48 163; /* #3730A3 */
   --c-accent-soft: 238 239 254; /* #EEEFFE */
 
-  /* brand gradient — crimson → magenta → royal blue */
+  /* brand gradient: crimson, magenta, royal blue */
   --grad: linear-gradient(90deg, #e0114a 0%, #8a1c9a 50%, #2233c4 100%);
   --glow: 0 4px 14px -3px rgba(138, 28, 154, 0.38), 0 2px 8px -4px rgba(34, 51, 196, 0.34);
   --glow-strong: 0 12px 28px -6px rgba(224, 17, 74, 0.38), 0 8px 20px -6px rgba(34, 51, 196, 0.46);

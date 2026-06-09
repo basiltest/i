@@ -20,14 +20,24 @@
 Minimal signup (name+email+password). role auto='student' (NOT user-settable). region/sector/domain/etc
 nullable, filled later via edit-profile (onboarding). Lower friction (adoption). Trigger creates the row.
 
-### Stage 1 plan
-- 1a concept: auth.users (managed) vs public.profiles (your fields), 1:1 by id — DONE explaining
-- 1b design public.profiles columns — user designing
-- 1c trigger handle_new_user → insert profiles from signUp metadata
-- 1d RLS on profiles (read/edit own; admin read all)
-- 1e register form + signUp({email,password,options:{data:{...}}})
-- 1f @ifheindia.org enforcement (before-user-created auth hook, or trigger guard)
-- 1g email-confirm flow + what the user sees
+### Stage 1 plan/status
+- 1a concept: auth.users (managed) vs public.profiles (1:1 by id) -> DONE
+- 1b/1c/1d SQL: profiles table + handle_new_user trigger (security definer) + RLS (read/update own,
+  revoke update on role/id/created_at to block self-escalation). SQL written/given. STATUS: user to
+  RUN + confirm in Supabase SQL editor (signup will not create a profile until this is run).
+- 1e register form: DONE. web/src/pages/Register.jsx. Minimal signup (name+email+password),
+  supabase.auth.signUp with name in options.data, emailRedirectTo /login, check-your-email success
+  state, client validation (name, @ifheindia.org, pw>=8). role defaults student (admin promotes mentors).
+- Logo: public/icfai-founders.svg (official ICFAI vector wordmark + red bar, GROUP swapped to
+  FOUNDERS NETWORK), used as <img h-12> in Register. Tailwind v3 + oldcode theme tokens in place.
+- NO em-dashes anywhere (user rule, saved to memory).
+- 1f @ifheindia.org server enforcement (auth hook / trigger guard) -> TODO
+- 1g end-to-end test: register -> confirm email -> profiles row appears with role=student -> TODO
+
+### Two reminders the user must do (cannot be done from here)
+1. Vercel env vars VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY set + redeploy.
+2. Supabase Auth -> URL Configuration -> Redirect URLs: add the Vercel URL + /login (and
+   http://localhost:5173/login) so the email confirm link works.
 
 ## Next stages
 1. Register form fields + `public.profiles` table + signup trigger + `@ifheindia.org` rule.
