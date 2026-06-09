@@ -9,12 +9,21 @@
 **Stack:** Vite SPA on Vercel ↔ Supabase (Auth + Postgres + RLS). No backend. (see architecture.md)
 
 ## Current stage
-**Stage 0 — walking skeleton** (prove SPA → Supabase reachable).
-- Step 1: create Supabase project + keys — ⏳ user doing
-- Step 2: deploy Vite SPA on Vercel (auto-deploy) — ⏳
-- Step 3: set `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` env vars — ⏳
-- Step 4: one supabase-js client module — pending
-- Step 5: `getSession()` returns `session:null` cleanly = pipe proven — pending
+**Stage 1 — Register + profiles table + signup trigger** (IN PROGRESS).
+
+### Stage 0 — walking skeleton ✅ DONE
+- Supabase project `ifn` created (project ref uyepkmdpakwkpqxsofoi), Email provider + confirm on.
+- Vite app in `web/`, deployed on Vercel, env vars set (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
+- `web/src/lib/supabase.js` singleton client; `getSession()` → `session:null, error:null` confirmed.
+
+### Stage 1 plan
+- 1a concept: auth.users (managed) vs public.profiles (your fields), 1:1 by id — DONE explaining
+- 1b design public.profiles columns — user designing
+- 1c trigger handle_new_user → insert profiles from signUp metadata
+- 1d RLS on profiles (read/edit own; admin read all)
+- 1e register form + signUp({email,password,options:{data:{...}}})
+- 1f @ifheindia.org enforcement (before-user-created auth hook, or trigger guard)
+- 1g email-confirm flow + what the user sees
 
 ## Next stages
 1. Register form fields + `public.profiles` table + signup trigger + `@ifheindia.org` rule.
