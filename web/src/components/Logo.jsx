@@ -4,5 +4,13 @@
 import LogoSvg from '../assets/icfai-founders.svg?react'
 
 export default function Logo({ className = '' }) {
-  return <LogoSvg className={className} role="img" aria-label="ICFAI Founders Network" />
+  // The ICFAI letters use currentColor: navy in light, light indigo in dark (the red bar
+  // and white "FOUNDERS NETWORK" keep their own fills).
+  return (
+    <LogoSvg
+      className={`text-[#2c2a82] dark:text-[#a5b4fc] ${className}`}
+      role="img"
+      aria-label="ICFAI Founders Network"
+    />
+  )
 }

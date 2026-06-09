@@ -185,6 +185,7 @@
   },
   "active": "2707205078d35a64",
   "lastOpenFiles": [
+    "web/src/components/Logo.jsx.tmp.20282.59ef06e73bde",
     "web/src/pages/Profile.jsx.tmp.20282.e50f6a457372",
     "web/dist/index.html",
     "web/dist/assets/index-urmv3eGj.js",
@@ -195,7 +196,6 @@
     "web/src/pages/Home.jsx.tmp.20282.6ce8729d8c28",
     "web/src/pages/Settings.jsx",
     "web/src/pages/Settings.jsx.tmp.20282.80a5ae860fb3",
-    "web/src/pages/Profile.jsx",
     "architecture.md"
   ]
 }
