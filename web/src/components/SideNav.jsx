@@ -1,11 +1,10 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Lightbulb, Workflow, Users, Calendar, LayoutGrid } from 'lucide-react'
+import { Home, Workflow, Users, Calendar, LayoutGrid } from 'lucide-react'
 
 // Twitter-style left rail. Built sections are links; the rest are placeholders until built,
 // styled like real items (full contrast) with a small SOON tag.
 const ITEMS = [
   { to: '/', label: 'Feed', icon: Home, end: true },
-  { label: 'Problem Hub', icon: Lightbulb, soon: true },
   { label: 'Idea Pipeline', icon: Workflow, soon: true },
   { label: 'Team Board', icon: Users, soon: true },
   { label: 'Calendar', icon: Calendar, soon: true },

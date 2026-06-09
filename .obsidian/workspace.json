@@ -185,6 +185,8 @@
   },
   "active": "2707205078d35a64",
   "lastOpenFiles": [
+    "web/src/components/SideNav.jsx.tmp.20282.8f8d3aaebf20",
+    "web/src/components/SideNav.jsx.tmp.20282.d1068e952eff",
     "PROGRESS.md.tmp.20282.4f3ecdc5d7e9",
     "web/dist/index.html",
     "web/dist/assets/index-CLLfVP_v.css",
@@ -194,8 +196,6 @@
     "web/src/App.jsx.tmp.20282.6d2962a88583",
     "web/src/pages/Feed.jsx",
     "web/src/pages/Feed.jsx.tmp.20282.304243596656",
-    "web/src/components/CreatePostModal.jsx",
-    "web/src/components/CreatePostModal.jsx.tmp.20282.862d85703d9a",
     "db/README.md",
     "web/node_modules/lucide-react/README.md",
     "architecture.md"
