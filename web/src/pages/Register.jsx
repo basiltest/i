@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 const EMAIL_DOMAIN = '@ifheindia.org'
@@ -105,7 +106,7 @@ export default function Register() {
 
         <p className="mt-4 text-center text-sm text-muted">
           Already have an account?{' '}
-          <a href="/login" className="font-semibold text-accent hover:underline">Log in</a>
+          <Link to="/login" className="font-semibold text-accent hover:underline">Log in</Link>
         </p>
       </form>
     </div>

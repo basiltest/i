@@ -9,7 +9,23 @@
 **Stack:** Vite SPA on Vercel ↔ Supabase (Auth + Postgres + RLS). No backend. (see architecture.md)
 
 ## Current stage
-**Stage 1 — Register + profiles table + signup trigger** (IN PROGRESS).
+**Stage 2 — Login + session + guarded redirect** (built, pending test + push).
+
+### Stage 2 built
+- react-router-dom added. BrowserRouter + AuthProvider wrap the app (main.jsx).
+- Routes (App.jsx): /register, /login, / (guarded). web/vercel.json adds SPA fallback so deep
+  links and the email redirect do not 404 on Vercel.
+- lib/AuthProvider.jsx: session context via getSession + onAuthStateChange (live across reloads).
+- components/ProtectedRoute.jsx: no session -> Navigate to /login; waits on loading to avoid flash.
+- pages/Login.jsx: signInWithPassword -> navigate('/'); generic error.
+- pages/Home.jsx: blank authed page + email + logout (signOut) to test the cycle.
+- Register "Log in" link now uses <Link>. Session is localStorage JWT (httpOnly still deferred).
+- TODO: test locally (register/confirm/login/guard/logout), then commit + push.
+
+---
+
+## Earlier stage
+**Stage 1 — Register + profiles table + signup trigger**.
 
 ### Stage 0 — walking skeleton ✅ DONE
 - Supabase project `ifn` created (project ref uyepkmdpakwkpqxsofoi), Email provider + confirm on.
