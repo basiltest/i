@@ -3,8 +3,6 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import Logo from '../components/Logo'
 
-const EMAIL_DOMAIN = '@ifheindia.org'
-
 export default function Register() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -17,26 +15,31 @@ export default function Register() {
     e.preventDefault()
     setError('')
 
-    // client-side validation (UX only, real domain enforcement is server-side, Stage 1f)
+    // client-side validation (UX only; server does the authoritative checks)
     if (!name.trim()) return setError('Please enter your name.')
-    if (!email.toLowerCase().endsWith(EMAIL_DOMAIN))
-      return setError(`Email must end with ${EMAIL_DOMAIN}.`)
-    if (password.length < 8)
-      return setError('Password must be at least 8 characters.')
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError('Please enter a valid email.')
+    if (password.length < 8) return setError('Password must be at least 8 characters.')
 
     setLoading(true)
-    const { error: signUpError } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        data: { name: name.trim() }, // -> raw_user_meta_data -> trigger -> profiles.name
-        emailRedirectTo: `${window.location.origin}/login`,
-      },
-    })
-    setLoading(false)
-
-    if (signUpError) setError(signUpError.message)
-    else setDone(true)
+    try {
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: { name: name.trim() }, // -> raw_user_meta_data -> trigger -> profiles.name
+          emailRedirectTo: `${window.location.origin}/login`,
+        },
+      })
+      if (signUpError) {
+        setError(signUpError.message)
+        return
+      }
+      setDone(true)
+    } catch {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (done) {
@@ -77,7 +80,7 @@ export default function Register() {
 
         <div className="mb-3.5 flex flex-col gap-1.5">
           <label htmlFor="email" className="text-xs font-medium text-muted">Email</label>
-          <input id="email" type="email" className="input" value={email} placeholder={`name${EMAIL_DOMAIN}`}
+          <input id="email" type="email" className="input" value={email} placeholder="you@example.com"
             autoComplete="email" onChange={(e) => setEmail(e.target.value)} />
         </div>
 

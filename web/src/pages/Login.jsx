@@ -14,18 +14,22 @@ export default function Login() {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    })
-    setLoading(false)
-
-    if (signInError) {
-      // Supabase already returns a generic "Invalid login credentials" (no enumeration).
-      setError(signInError.message)
-      return
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      })
+      if (signInError) {
+        // Supabase returns a generic "Invalid login credentials" (no enumeration).
+        setError(signInError.message)
+        return
+      }
+      navigate('/', { replace: true })
+    } catch {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setLoading(false)
     }
-    navigate('/', { replace: true })
   }
 
   return (
@@ -45,7 +49,7 @@ export default function Login() {
           <label htmlFor="email" className="text-xs font-medium text-muted">Email</label>
           <input
             id="email" type="email" className="input" value={email}
-            placeholder="name@ifheindia.org" autoComplete="email"
+            placeholder="you@example.com" autoComplete="email"
             onChange={(e) => setEmail(e.target.value)}
           />
         </div>

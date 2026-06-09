@@ -20,13 +20,18 @@ export default function ResetPassword() {
     if (password !== confirm) return setError('Passwords do not match.')
 
     setBusy(true)
-    const { error: updateError } = await supabase.auth.updateUser({ password })
-    setBusy(false)
-    if (updateError) {
-      setError(updateError.message)
-      return
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({ password })
+      if (updateError) {
+        setError(updateError.message)
+        return
+      }
+      setDone(true)
+    } catch {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setBusy(false)
     }
-    setDone(true)
   }
 
   // The reset link signs the user into a temporary recovery session. Wait for that to resolve.

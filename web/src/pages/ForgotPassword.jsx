@@ -13,16 +13,21 @@ export default function ForgotPassword() {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/reset-password`,
-    })
-    setLoading(false)
-    if (resetError) {
-      setError(resetError.message)
-      return
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/reset-password`,
+      })
+      if (resetError) {
+        setError(resetError.message)
+        return
+      }
+      // Generic success regardless of whether the account exists (no enumeration).
+      setSent(true)
+    } catch {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setLoading(false)
     }
-    // Generic success regardless of whether the account exists (no enumeration).
-    setSent(true)
   }
 
   if (sent) {
@@ -63,7 +68,7 @@ export default function ForgotPassword() {
           <label htmlFor="email" className="text-xs font-medium text-muted">Email</label>
           <input
             id="email" type="email" className="input" value={email}
-            placeholder="name@ifheindia.org" autoComplete="email"
+            placeholder="you@example.com" autoComplete="email"
             onChange={(e) => setEmail(e.target.value)}
           />
         </div>
