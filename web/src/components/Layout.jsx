@@ -3,11 +3,13 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { X } from 'lucide-react'
 import Topbar from './Topbar'
 import SideNav from './SideNav'
+import RightSidebar from './RightSidebar'
 
 // Authed app shell: sticky topbar + left rail (desktop) / drawer (mobile) + page Outlet.
 export default function Layout() {
   const [navOpen, setNavOpen] = useState(false)
   const { pathname } = useLocation()
+  const showRight = pathname === '/' // right rail only on the Feed
 
   useEffect(() => setNavOpen(false), [pathname]) // close drawer on navigation
 
@@ -30,7 +32,11 @@ export default function Layout() {
         </div>
       )}
 
-      <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 px-4 py-5 lg:grid-cols-[250px_minmax(0,1fr)]">
+      <div
+        className={`mx-auto grid max-w-6xl grid-cols-1 gap-6 px-4 py-5 ${
+          showRight ? 'lg:grid-cols-[250px_minmax(0,1fr)_300px]' : 'lg:grid-cols-[250px_minmax(0,1fr)]'
+        }`}
+      >
         <aside className="hidden lg:block">
           <div className="sticky top-[72px]">
             <SideNav />
@@ -39,6 +45,13 @@ export default function Layout() {
         <main className="min-w-0">
           <Outlet />
         </main>
+        {showRight && (
+          <aside className="hidden lg:block">
+            <div className="sticky top-[72px]">
+              <RightSidebar />
+            </div>
+          </aside>
+        )}
       </div>
     </div>
   )

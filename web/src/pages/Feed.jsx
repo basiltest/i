@@ -40,7 +40,7 @@ export default function Feed() {
     : posts
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div>
       <div className="mb-4 flex items-center gap-2">
         <input className="input" placeholder="Search posts" value={q} onChange={(e) => setQ(e.target.value)} />
         <button className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>Create post</button>
