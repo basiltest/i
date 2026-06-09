@@ -16,6 +16,10 @@
 - Vite app in `web/`, deployed on Vercel, env vars set (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
 - `web/src/lib/supabase.js` singleton client; `getSession()` → `session:null, error:null` confirmed.
 
+### Stage 1 approach LOCKED: hybrid
+Minimal signup (name+email+password). role auto='student' (NOT user-settable). region/sector/domain/etc
+nullable, filled later via edit-profile (onboarding). Lower friction (adoption). Trigger creates the row.
+
 ### Stage 1 plan
 - 1a concept: auth.users (managed) vs public.profiles (your fields), 1:1 by id — DONE explaining
 - 1b design public.profiles columns — user designing
