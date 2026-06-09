@@ -49,13 +49,19 @@ export default function Login() {
           />
         </div>
 
-        <div className="mb-4 flex flex-col gap-1.5">
+        <div className="mb-2 flex flex-col gap-1.5">
           <label htmlFor="password" className="text-xs font-medium text-muted">Password</label>
           <input
             id="password" type="password" className="input" value={password}
             placeholder="Your password" autoComplete="current-password"
             onChange={(e) => setPassword(e.target.value)}
           />
+        </div>
+
+        <div className="mb-4 text-right">
+          <Link to="/forgot-password" className="text-xs font-semibold text-accent hover:underline">
+            Forgot password?
+          </Link>
         </div>
 
         <button type="submit" disabled={loading} className="btn-primary w-full">

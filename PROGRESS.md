@@ -9,7 +9,20 @@
 **Stack:** Vite SPA on Vercel ↔ Supabase (Auth + Postgres + RLS). No backend. (see architecture.md)
 
 ## Current stage
-**Stage 2 — Login + session + guarded redirect** (built, pending test + push).
+**Stage 3 — Forgot password** (built, pending test + push).
+
+### Stage 3 built
+- pages/ForgotPassword.jsx: resetPasswordForEmail(email, redirectTo /reset-password); generic
+  "if an account exists, link sent" (no enumeration).
+- pages/ResetPassword.jsx: the reset link creates a recovery session; updateUser({password}) sets
+  new pw; guards: no session -> invalid/expired link; success -> Continue to /.
+- Login.jsx: "Forgot password?" link -> /forgot-password. Routes added in App.jsx.
+- NEEDS redirect URL allowlist: add /reset-password (vercel + localhost) in Supabase.
+
+---
+
+## Earlier stage
+**Stage 2 — Login + session + guarded redirect**.
 
 ### Stage 2 built
 - react-router-dom added. BrowserRouter + AuthProvider wrap the app (main.jsx).
