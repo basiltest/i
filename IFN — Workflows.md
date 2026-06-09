@@ -1,6 +1,9 @@
 ---
 title: IFN — Workflows
 tags: [ifn, workflows, e2e, testing]
+status: Approved
+owner: IFN Team
+updated: 2026-06-09
 ---
 
 # IFN — Workflows

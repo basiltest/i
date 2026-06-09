@@ -1,6 +1,9 @@
 ---
 title: IFN Backend — Decisions (ADR)
 tags: [ifn, backend, adr, decisions]
+status: Approved
+owner: IFN Team
+updated: 2026-06-09
 ---
 
 # IFN Backend — Decisions (ADR)
@@ -280,6 +283,45 @@ cleanup deletes consumed/expired rows.
 **Consequences.** Defined ownership for cleanup; no orphaned files or unbounded token tables. Trade-off:
 the volume sweep is eventually-consistent (brief orphan window) — acceptable. **Document now; the
 sweep job lands with ADR-024.**
+
+## ADR-026 — Gate-mutation concurrency (pessimistic lock)
+**Context.** `ideas_pipeline.gate` is mutated by mentor approval (`gate+1`), admin override
+(`gate=X`), pickup, and resubmit. Concurrent writers (e.g. mentor approves while admin overrides)
+race → lost update + a nonsensical `gate_transitions` trail. Promoted from the Sequence Flow Review
+(item 4).
+**Decision.** Every gate mutation runs in one transaction: `SELECT … FOR UPDATE` on the idea's
+`ideas_pipeline` row → **re-validate the transition is still legal from the locked current gate** →
+`UPDATE` → `INSERT gate_transitions` → `COMMIT`. Pessimistic locking fits (short transactions, low
+contention). Optimistic versioning (a `gate_version` column with `WHERE gate_version = ?`) is the
+fallback only if client-visible conflict messages are later wanted.
+**Consequences.** The gate state machine becomes genuinely atomic; double-advance and lost overrides
+are impossible. Also underpins idempotency for gate/review actions (a retried request sees the
+already-advanced state and no-ops). Trade-off: a brief row lock during the (sub-millisecond) txn.
+
+## ADR-027 — Uniform authentication responses (anti-enumeration)
+**Context.** Login returned `202` for verified accounts and `401 "register first"` otherwise, and
+register reveals existing emails — leaking which `@ifheindia.org` people have accounts (confirmed live
+in the E2E run). Promoted from the Sequence Flow Review (item 1).
+**Decision.** Login and register **always** return the same generic `202` ("If the account exists, a
+login link has been sent."); the mail send happens only inside an `opt` when the account actually
+exists. Never reveal account existence or verification state in the response or status code. Pair with
+ADR-019 rate limiting and keep the found/not-found code paths close in cost to blunt timing
+side-channels.
+**Consequences.** No account enumeration via the auth endpoints. Trade-off: a user who typos their
+email gets a reassuring message but no email — acceptable, and mitigated by clear copy + the verify
+flow's own errors. Supersedes the login alt-branch drawn in [[IFN Backend — Sequence Flows]] flow 2.
+
+## ADR-028 — Submission versioning (draft mutable, submitted immutable)
+**Context.** The pipeline flow said "INSERT/UPDATE idea_submissions" — ambiguous; an in-place update
+of a *submitted* payload would erase what the mentor reviewed, contradicting ADR-017's "submissions
+accumulate" promise. Promoted from the Sequence Flow Review (item 9).
+**Decision.** One **mutable draft** row per `(post_id, gate)` that updates in place while
+`status = draft`; on **submit** it is **frozen immutable** (`status = submitted`); a revision after
+`revision_requested` **INSERTs a new version** row rather than mutating the prior one (order by
+`created_at` / an explicit `version`). `idea_reviews` already keeps review history per ADR-017.
+**Consequences.** The dossier preserves a true, auditable history — feedback always maps to the exact
+submission it referenced. Trade-off: multiple rows per gate over an idea's life (small, bounded). Also
+gives resubmit a clean idempotency story (a duplicate submit is guarded by the `submitted` status).
 
 ## Net implementation order
 1. **Now (cheap, high value):** ADR-021 (unique constraint), ADR-018 (document knex), ADR-019 (auth

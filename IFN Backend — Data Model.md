@@ -1,6 +1,9 @@
 ---
 title: IFN Backend — Data Model
 tags: [ifn, backend, database, schema]
+status: Approved
+owner: IFN Team
+updated: 2026-06-09
 ---
 
 # IFN Backend — Data Model

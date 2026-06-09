@@ -1,6 +1,9 @@
 ---
 title: IFN Backend — Architecture
 tags: [ifn, backend, architecture]
+status: Approved
+owner: IFN Team
+updated: 2026-06-09
 ---
 
 # IFN Backend — Architecture
