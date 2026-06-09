@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import { REGIONS, SECTORS, DOMAINS } from '../lib/options'
 import RoleBadge from '../components/RoleBadge'
+import Spinner from '../components/Spinner'
 
 export default function Profile() {
   const { session } = useAuth()
@@ -102,7 +103,9 @@ export default function Profile() {
   return (
     <>
       {loading ? (
-        <p className="text-sm text-muted">Loading...</p>
+        <div className="flex items-center gap-2 text-sm text-muted">
+          <Spinner /> Loading your profile...
+        </div>
       ) : !profile ? (
           <p className="text-sm text-down">{error || 'Profile not found.'}</p>
         ) : (

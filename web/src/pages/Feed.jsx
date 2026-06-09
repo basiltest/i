@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import PostCard from '../components/PostCard'
+import PostCardSkeleton from '../components/PostCardSkeleton'
 import CreatePostModal from '../components/CreatePostModal'
 
 const FILTERS = [
@@ -68,7 +69,11 @@ export default function Feed() {
       )}
 
       {loading ? (
-        <p className="text-sm text-muted">Loading...</p>
+        <div className="space-y-4">
+          <PostCardSkeleton />
+          <PostCardSkeleton />
+          <PostCardSkeleton />
+        </div>
       ) : error ? (
         <p className="text-sm text-down">{error}</p>
       ) : shown.length === 0 ? (
