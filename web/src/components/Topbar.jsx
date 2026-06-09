@@ -27,8 +27,9 @@ export default function Topbar({ onMenu }) {
         <button onClick={onMenu} className="-ml-1 rounded-full p-2 text-muted hover:bg-black/5 hover:text-ink lg:hidden" aria-label="Open navigation">
           <Menu size={22} />
         </button>
-        <Link to="/" aria-label="Home">
+        <Link to="/" aria-label="Home" className="flex items-center gap-2.5">
           <Logo className="h-7 w-auto" />
+          <span className="hidden text-base font-bold tracking-tight sm:block">ICFAI Founders Network</span>
         </Link>
 
         <div className="ml-auto flex items-center gap-1">
