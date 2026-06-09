@@ -12,7 +12,7 @@ const ITEMS = [
   { label: 'Directory', icon: LayoutGrid, soon: true },
 ]
 
-const base = 'flex items-center gap-3 rounded-full px-4 py-2.5 text-[15px] font-semibold transition-colors'
+const base = 'flex items-center gap-3.5 rounded-full px-4 py-3 text-base font-semibold transition-colors'
 
 export default function SideNav({ onNavigate }) {
   return (
@@ -22,7 +22,7 @@ export default function SideNav({ onNavigate }) {
         if (it.soon) {
           return (
             <span key={it.label} title="Coming soon" className={`${base} cursor-default text-ink`}>
-              <Ic size={22} />
+              <Ic size={24} />
               <span>{it.label}</span>
               <span className="ml-auto rounded-full bg-line px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">
                 soon
@@ -40,7 +40,7 @@ export default function SideNav({ onNavigate }) {
               `${base} ${isActive ? 'bg-accent-soft text-accent' : 'text-ink hover:bg-black/5'}`
             }
           >
-            <Ic size={22} />
+            <Ic size={24} />
             <span>{it.label}</span>
           </NavLink>
         )

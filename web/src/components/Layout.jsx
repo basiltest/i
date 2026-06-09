@@ -30,7 +30,7 @@ export default function Layout() {
         </div>
       )}
 
-      <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 px-4 py-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+      <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 px-4 py-5 lg:grid-cols-[250px_minmax(0,1fr)]">
         <aside className="hidden lg:block">
           <div className="sticky top-[72px]">
             <SideNav />
