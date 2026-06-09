@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import Logo from '../components/Logo'
 
 const EMAIL_DOMAIN = '@ifheindia.org'
 
@@ -58,7 +59,7 @@ export default function Register() {
   return (
     <div className="min-h-screen grid place-items-center px-6">
       <form onSubmit={handleSubmit} noValidate className="card w-full max-w-sm p-8 animate-pop-in">
-        <img src="/icfai-founders.svg" alt="ICFAI Founders Network" className="mb-5 h-12 w-auto" />
+        <Logo className="mb-5 h-12 w-auto" />
         <h2 className="text-lg font-semibold">Create your account</h2>
         <p className="mb-5 text-sm text-muted">Join the ICFAI Founders Network.</p>
 

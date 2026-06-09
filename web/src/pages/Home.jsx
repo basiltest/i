@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
+import Logo from '../components/Logo'
 
 // Placeholder authed landing page. Blank by design for now; the real app shell comes later.
 export default function Home() {
@@ -8,7 +9,7 @@ export default function Home() {
   return (
     <div className="min-h-screen grid place-items-center px-6">
       <div className="text-center">
-        <img src="/icfai-founders.svg" alt="ICFAI Founders Network" className="mx-auto mb-6 h-10 w-auto" />
+        <Logo className="mx-auto mb-6 h-10 w-auto" />
         <p className="text-sm text-muted">
           Signed in as <span className="font-semibold text-ink">{session?.user?.email}</span>
         </p>
