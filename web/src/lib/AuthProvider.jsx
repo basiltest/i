@@ -39,7 +39,7 @@ export function AuthProvider({ children }) {
   }, [uid])
 
   return (
-    <AuthContext.Provider value={{ session, loading, profile, isAdmin: profile?.role === 'admin' }}>
+    <AuthContext.Provider value={{ session, loading, profile, isAdmin: profile?.role === 'admin', banned: !!profile?.banned }}>
       {children}
     </AuthContext.Provider>
   )

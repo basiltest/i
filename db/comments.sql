@@ -30,6 +30,7 @@ create policy "comments insert own" on public.comments
   for insert to authenticated with check (
     author_id = auth.uid()
     and not exists (select 1 from public.posts p where p.id = post_id and p.comments_locked)
+    and not exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.banned)
   );
 drop policy if exists "comments delete own" on public.comments;
 create policy "comments delete own" on public.comments

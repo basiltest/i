@@ -68,6 +68,7 @@ declare
   v_tag_id uuid;
 begin
   if v_uid is null then raise exception 'not authenticated'; end if;
+  if exists (select 1 from public.profiles where id = v_uid and banned) then raise exception 'account is banned'; end if;
   if p_kind not in ('idea', 'problem', 'discussion') then raise exception 'invalid kind'; end if;
   -- global feed lock: only admins may post when feed_locked is on
   if coalesce((select feed_locked from public.app_settings where id), false)

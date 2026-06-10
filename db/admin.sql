@@ -20,19 +20,119 @@ $$;
 grant execute on function public.is_admin() to authenticated;
 
 -- ---------------------------------------------------------------------------
+-- Ban support: a flag on the profile (so live sessions are blocked) + a banned_emails list
+-- (so the address cannot re-register). Users cannot self-edit the flag.
+alter table public.profiles add column if not exists banned boolean not null default false;
+revoke update (banned) on public.profiles from authenticated;
+
+create table if not exists public.banned_emails (
+  email text primary key,                  -- stored lowercased
+  reason text,
+  created_at timestamptz not null default now()
+);
+alter table public.banned_emails enable row level security;  -- no policies: definer RPCs only
+
+-- Block a banned address from signing up again (trigger on the auth table).
+create or replace function public.block_banned_signup()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if exists (select 1 from public.banned_emails b where b.email = lower(new.email)) then
+    raise exception 'This email is banned';
+  end if;
+  return new;
+end
+$$;
+drop trigger if exists block_banned_signup on auth.users;
+create trigger block_banned_signup before insert on auth.users
+  for each row execute function public.block_banned_signup();
+
 -- Members list (profiles RLS is read-own, so admins list members via RPC).
 drop function if exists public.admin_members();
 create function public.admin_members()
-returns table (id uuid, email text, name text, role text, startup text, created_at timestamptz)
+returns table (id uuid, email text, name text, role text, startup text, banned boolean, created_at timestamptz)
 language sql stable security definer set search_path = public
 as $$
-  select p.id, u.email::text, p.name, p.role, p.startup, p.created_at
+  select p.id, u.email::text, p.name, p.role, p.startup, p.banned, p.created_at
   from public.profiles p
   join auth.users u on u.id = p.id
   where public.is_admin()
   order by p.created_at
 $$;
 grant execute on function public.admin_members() to authenticated;
+
+-- Read a member's full profile (for the admin edit form; profiles RLS is read-own).
+drop function if exists public.admin_get_profile(uuid);
+create function public.admin_get_profile(p_user uuid)
+returns table (
+  name text, phone text, bio text, startup text,
+  region text, sector text, domain text, linkedin text, incubation_interest boolean
+)
+language sql stable security definer set search_path = public
+as $$
+  select p.name, p.phone, p.bio, p.startup, p.region, p.sector, p.domain, p.linkedin, p.incubation_interest
+  from public.profiles p
+  where public.is_admin() and p.id = p_user
+$$;
+grant execute on function public.admin_get_profile(uuid) to authenticated;
+
+-- Edit any member's profile fields (role and banned have their own RPCs).
+create or replace function public.admin_update_profile(
+  p_user uuid, p_name text, p_phone text, p_bio text, p_startup text,
+  p_region text, p_sector text, p_domain text, p_linkedin text, p_incubation boolean
+) returns void
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if not public.is_admin() then raise exception 'admins only'; end if;
+  if coalesce(trim(p_name), '') = '' then raise exception 'name required'; end if;
+  update public.profiles set
+    name = trim(p_name),
+    phone = nullif(trim(coalesce(p_phone, '')), ''),
+    bio = nullif(trim(coalesce(p_bio, '')), ''),
+    startup = nullif(trim(coalesce(p_startup, '')), ''),
+    region = nullif(trim(coalesce(p_region, '')), ''),
+    sector = nullif(trim(coalesce(p_sector, '')), ''),
+    domain = nullif(trim(coalesce(p_domain, '')), ''),
+    linkedin = nullif(trim(coalesce(p_linkedin, '')), ''),
+    incubation_interest = coalesce(p_incubation, false)
+  where id = p_user;
+end
+$$;
+grant execute on function public.admin_update_profile(uuid, text, text, text, text, text, text, text, text, boolean) to authenticated;
+
+-- Ban a member: flag the profile + add the email to the banned list. Cannot ban yourself.
+create or replace function public.admin_ban_user(p_user uuid, p_reason text default null)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare v_email text;
+begin
+  if not public.is_admin() then raise exception 'admins only'; end if;
+  if p_user = auth.uid() then raise exception 'cannot ban yourself'; end if;
+  select email into v_email from auth.users where id = p_user;
+  if v_email is null then raise exception 'user not found'; end if;
+  update public.profiles set banned = true where id = p_user;
+  insert into public.banned_emails (email, reason) values (lower(v_email), p_reason)
+    on conflict (email) do update set reason = excluded.reason;
+end
+$$;
+grant execute on function public.admin_ban_user(uuid, text) to authenticated;
+
+create or replace function public.admin_unban_user(p_user uuid)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare v_email text;
+begin
+  if not public.is_admin() then raise exception 'admins only'; end if;
+  select email into v_email from auth.users where id = p_user;
+  update public.profiles set banned = false where id = p_user;
+  delete from public.banned_emails where email = lower(v_email);
+end
+$$;
+grant execute on function public.admin_unban_user(uuid) to authenticated;
 
 -- Assign a role (student / mentor / admin). Admins cannot change their own role
 -- (prevents accidentally locking yourself out of the panel).
