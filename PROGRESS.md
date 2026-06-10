@@ -4,58 +4,46 @@
 > Design lives in `architecture.md`; deep reference in `reference/`.
 
 ## Right now
-**Building:** the auth feature (register + login + forgot-password) for IFN.
-**Mode:** mentor — the user writes the code; Claude directs + reviews. Do **not** write app code for them.
+**Mode:** Claude writes the code; the user reviews in the browser and gives feedback.
 **Stack:** Vite SPA on Vercel ↔ Supabase (Auth + Postgres + RLS). No backend. (see architecture.md)
+**Repo:** github.com/basiltest/i (monorepo, app in web/, deployed on Vercel at ifn-gilt.vercel.app;
+Supabase project ref uyepkmdpakwkpqxsofoi). Architecture + PlantUML diagrams: architecture.md.
+Live DB schema + apply order: db/README.md.
 
 ## Current state (2026-06-10)
-**Auth module complete + audited; Profile and Settings built.** Repo: github.com/basiltest/i
-(monorepo, app in web/, deployed on Vercel at ifn-gilt.vercel.app; Supabase project ref
-uyepkmdpakwkpqxsofoi).
+Four of the five left-nav surfaces are live (Feed, Team Acquisition, Calendar, Directory).
+Only Idea Pipeline remains a stub.
 
-Done:
-- Stage 1 register (minimal: name/email/password; trigger creates profiles row, role=student).
-- Stage 2 login + session (AuthProvider) + ProtectedRoute + PublicOnlyRoute + redirect to /.
-- Stage 3 forgot/reset password.
-- Removed @ifheindia.org check entirely (re-add server-side later if wanted).
-- Audit: auth-architecture.md (PlantUML + findings). Fixed E1 (try/catch all auth calls), V1
-  (email validate), E4 (public-only guard), S1 (CSP + security headers in web/vercel.json).
-  Deferred: S8 (rate limit, leaving Supabase), S3 (re-auth on pw change), S4 (pw min len in Supabase).
-- Profile page (/profile): read/edit own profiles row via RLS; email+role read-only.
-- Settings page (/settings): account, dark-mode toggle (persisted, applied in main.jsx), log out.
-- Logo: inline via svgr (src/assets/icfai-founders.svg), currentColor so it works in dark mode.
-- App shell: Layout (Outlet) + Topbar (notifications + profile dropdown) + SideNav (left rail).
-  Shared: RoleBadge, lib/options.js, lib/format.js.
-- App shell: Layout + Topbar (notifications stub + profile dropdown) + SideNav (left rail, items:
-  Feed live, others "soon") + RightSidebar (feed-only: Trending real, Events stub).
-- FEED is fully built to the FRD (db/*.sql + pages/Feed.jsx + components/PostCard, PostCardSkeleton,
-  CreatePostModal): sorts hot(momentum, default)/new/top/by-supertag with id tiebreak; full-text
-  search (tsvector+GIN); supertag filter dropdown + #-suggestions (tags-with-posts only, URL ?tag);
-  upvote/downvote (optimistic, post_votes); trending tags; "X new posts, tap to refresh" banner
-  (posts_since poll); error+retry; pagination (Load more); drafts (status='draft'); supertags
-  (create_post RPC, new tags -> pending tag_requests).
-- POST DETAIL (/post/:id, pages/PostDetail.jsx): full post + votes, creator updates (sub_threads,
-  author-only add), comments (anyone add, delete own), delete own post (cascades). Title + comments
-  button on cards link here.
-- DB files in db/ (apply via Supabase SQL editor): posts.sql, votes.sql, tags.sql, feed.sql,
-  comments.sql. db/README.md = live schema + TODO. profiles table+trigger+RLS still only in Supabase
-  (db/profiles.sql backfill = TODO).
+Built:
+- **Auth + onboarding**: register, login, forgot/reset password, session (AuthProvider),
+  ProtectedRoute / PublicOnlyRoute / OnboardingGate. First-time users complete /onboarding
+  (name/region/sector/domain required) before the app. Audit: auth-architecture.md.
+- **Profile** (/profile): read/edit own profile (email+role read-only).
+- **Settings** (/settings): account, dark-mode, Directory privacy (list me + show email), log out.
+- **Feed** (/, pages/Feed.jsx): kinds idea/problem/discussion; sort hot(momentum)/new/top with id
+  tiebreak; full-text search (tsvector+GIN) + multi-#supertag AND filter from the search box;
+  upvote/downvote (optimistic); trending tags; "X new posts" banner; infinite scroll; back-to-top;
+  compact clamped cards; error+retry; drafts (inside the create modal: load/edit/publish via
+  publish_post); edit post (update_post, original snapshot); feed-lock banner.
+- **Post detail** (/post/:id): post + votes, creator updates (sub_threads), comments, edit/delete,
+  kebab menu, admin pin + comment-lock, #Success request + pending banner.
+- **Team Acquisition** (/team): post role needs, apply with message + contact, withdraw, applicants
+  view (no email exposed), open/closed lifecycle, owner edit, admin delete, uniform popup cards.
+- **Calendar** (/calendar): month grid, admin event CRUD (react-datepicker, dd/MM/yyyy + time),
+  per-event Add-to-Google + .ics export, upcoming events in the right sidebar + notification bell.
+- **Directory** (/directory): search + filter by role/region/sector/domain; no phone shown;
+  opt-in email; hidden unless directory_visible.
+- **Admin Panel** (/admin): searchable members, assign roles, ban/unban (email blocked from
+  re-registering), edit any profile, #Success approval queue, feed-posting lock, per-post comment lock.
+- DB files (apply via Supabase SQL editor, order in db/README.md): posts, votes, tags, feed,
+  comments, admin, teamboard, calendar, directory, onboarding. profiles base table + handle_new_user
+  still only in Supabase (db/profiles.sql backfill = TODO).
 
 ## Pending on the user (Supabase + push)
-- Ensure all db/*.sql have been run in Supabase (latest: re-run feed.sql for momentum sort +
-  feed_tags + posts_since + comment_count).
+- Re-run any changed db/*.sql in Supabase after each pull (a `PGRST202`/"function not found" error
+  means a changed RPC has not been re-run; `Status code: (null)`/CORS means an ad blocker is killing
+  *.supabase.co, not a code bug).
 - git push the latest commits.
-
-- ADMIN PANEL (/admin, pages/AdminPanel.jsx + db/admin.sql): admin-only nav item (Shield);
-  Members tab (list via admin_members RPC incl. email, assign Student/Mentor/Super Admin,
-  never own role); #Success requests tab (approve -> badge, reject). Post kebab gains
-  Pin/Unpin + Delete (admin) and Request #Success (author); admins can delete any comment.
-  Pinned + #Success chips on cards/detail. Regular supertags auto-approve (user decision);
-  ONLY #Success needs approval; 'success' reserved as a tag name. Bootstrap first admin:
-  db/admin.sql one-liner (college email). AuthProvider now exposes profile + isAdmin.
-- DRAFTS live inside the create modal (Drafts (n) -> list -> load -> Save draft/Publish;
-  publish_post RPC resets created_at). Feed: compact clamped cards, infinite scroll,
-  back-to-top, poll pauses when hidden/failing.
 
 ## Next (not built)
 - #IdeaValidation self-badge + Idea Autopsy (FRD D4/W13/W15).

@@ -6,7 +6,49 @@ data safe. SQL files in this folder are the version-controlled record (applied b
 Supabase SQL editor for now).
 
 Reference design (older, Express + magic-link) lives in `../reference/IFN Backend — Data Model.md`.
-Where it conflicts with this file, this file is current.
+Where it conflicts with this file, this file is current. ER overview lives in `../architecture.md`.
+
+## Apply order
+Run in the Supabase SQL editor in this order (later files depend on earlier ones, mainly on
+`profiles` and `is_admin()`). All files are idempotent and safe to re-run.
+
+```plantuml
+@startuml
+left to right direction
+skinparam componentStyle rectangle
+
+[profiles + handle_new_user\n(in Supabase, db/profiles.sql TODO)] as prof
+[posts.sql] as posts
+[votes.sql] as votes
+[tags.sql\ncreate_post / update_post / publish_post] as tags
+[comments.sql\npost_detail / comments / sub_threads] as comments
+[feed.sql\nfeed_posts / trending / feed_tags / posts_since] as feed
+[admin.sql\nis_admin, members, ban, settings, #Success] as admin
+[teamboard.sql] as team
+[calendar.sql] as cal
+[directory.sql] as dir
+[onboarding.sql] as onb
+
+prof --> posts
+posts --> votes
+posts --> tags
+posts --> comments
+posts --> feed
+prof --> admin
+admin --> tags : feed_lock check
+admin --> comments : banned + comment lock
+admin --> team : banned guard + admin_delete
+admin --> dir : banned + is_admin
+prof --> cal
+admin --> cal : is_admin
+prof --> dir
+prof --> onb
+@enduml
+```
+
+Note: when a file changes a function's return type or argument list (for example `feed_posts`
+gaining `comment_count` or `p_tags text[]`), it drops the old signature first, so re-running it
+is the fix for a `PGRST202`/"function not found" error after a deploy.
 
 ## Security model (applies to every table)
 - **anon key** is public (shipped in the frontend); safe only because RLS guards every row.
@@ -25,20 +67,26 @@ Identity: `id`, `email`, `encrypted_password` (bcrypt), confirmation state. Not 
 1:1 with `auth.users` (same `id`). Created by a trigger on signup.
 - Columns: `id` (PK, FK auth.users, cascade), `name`, `role` (default `student`, check
   student|mentor|admin), `region`, `sector`, `domain`, `incubation_interest` (bool),
-  `linkedin`, `phone`, `bio`, `startup`, `created_at`.
+  `linkedin`, `phone`, `bio`, `startup`, `created_at`. Added by later files:
+  `banned` (admin.sql), `show_email` + `directory_visible` (directory.sql), `onboarded` (onboarding.sql).
 - Trigger `handle_new_user` (security definer): inserts the profiles row from signup metadata.
-- RLS: read own, update own. `revoke update (role, id, created_at)` so role cannot be self-changed.
-- Note: not yet captured as a SQL file here (see TODO).
+  `block_banned_signup` (admin.sql) trigger rejects signups whose email is in `banned_emails`.
+- RLS: read own, update own. Revoke update on `role`, `id`, `created_at`, `banned` so they cannot
+  be self-changed (admins set role/banned via definer RPCs). `show_email`, `directory_visible`,
+  `onboarded` are user-settable on their own row.
+- Note: the base table + `handle_new_user` are not yet captured as a SQL file here (see TODO);
+  the column additions and triggers above are in their respective files.
 
 ### public.posts  (db/posts.sql)
-Unified feed (ideas + problems).
-- Columns: `id`, `author_id` (FK profiles, cascade), `kind` (idea|problem), `anonymous`, `startup`,
-  `title`, `problem`, `solution`, `status` (draft|published), `pinned`, `badges[]`,
-  `success_request` (none|pending|approved|rejected), `edited`, `edited_at`, `original` jsonb,
-  `created_at`. Indexed on (kind,status,created_at), author, pinned.
+Unified feed (ideas, problems, discussions).
+- Columns: `id`, `author_id` (FK profiles, cascade), `kind` (idea|problem|discussion), `anonymous`,
+  `startup`, `title`, `problem`, `solution`, `status` (draft|published), `pinned`, `comments_locked`,
+  `badges[]`, `success_request` (none|pending|approved|rejected), `edited`, `edited_at`,
+  `original` jsonb, `search_vec` tsvector (generated, GIN indexed), `created_at`.
+  Indexed on (kind,status,created_at), author, pinned.
 - RLS: read published or own drafts; insert/update/delete own.
-- Revokes: insert (pinned, badges, success_request); update (pinned, badges, success_request,
-  author_id, kind, created_at).
+- Revokes: insert (pinned, comments_locked, badges, success_request); update (pinned,
+  comments_locked, badges, success_request, author_id, kind, created_at).
 
 ## TODO (database work)
 - [ ] Backfill `db/profiles.sql` (profiles table + `handle_new_user` trigger + RLS) so it is tracked, not just in Supabase.

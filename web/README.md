@@ -1,16 +1,47 @@
-# React + Vite
+# IFN web (Vite + React SPA)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The ICFAI Founders Network frontend. Vite + React, Tailwind CSS, React Router, talking directly
+to Supabase (Auth + Postgres + RLS). No separate backend. Design: `../architecture.md`. Live DB
+schema and apply order: `../db/README.md`.
 
-Currently, two official plugins are available:
+## Run locally
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install
+npm run dev      # http://localhost:5173
+npm run build    # production build to dist/
+npm run preview  # serve the build
+npm run lint
+```
 
-## React Compiler
+Environment (`.env` / Vercel env vars):
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```
+VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+VITE_SUPABASE_ANON_KEY=<anon key>
+```
 
-## Expanding the ESLint configuration
+The anon key is public; it is safe only because Row Level Security guards every table. The
+service_role key must never be put here.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Structure
+
+```
+src/
+  lib/         supabase client, AuthProvider, options, format, calendar, postKind
+  components/  Layout, Topbar, SideNav, RightSidebar, ProtectedRoute, OnboardingGate,
+               PostCard, CreatePostModal, Dropdown, RoleBadge, skeletons
+  pages/       Login, Register, ForgotPassword, ResetPassword, Onboarding,
+               Feed, PostDetail, TeamAcquisition, Calendar, Directory,
+               Profile, Settings, AdminPanel
+  assets/      icfai-founders.svg (inlined via vite-plugin-svgr)
+public/        favicon.svg (IFN brand tile)
+vercel.json    SPA fallback rewrite + CSP/security headers
+```
+
+## Notes
+- Routing guards: `PublicOnlyRoute` (login/register), `ProtectedRoute` (session + banned wall),
+  `OnboardingGate` (first-time users to `/onboarding`).
+- The SQL that backs every feature lives in `../db/*.sql` and is applied by hand in the Supabase
+  SQL editor. After pulling changes, re-run any changed `db/*.sql` before the new UI will work.
+- Deployed on Vercel (root dir = `web/`). Pushing to `main` triggers a redeploy.
