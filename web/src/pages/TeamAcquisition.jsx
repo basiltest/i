@@ -46,6 +46,18 @@ export default function TeamAcquisition() {
     setPosts((prev) => prev.filter((p) => p.id !== id))
   }
 
+  async function withdraw(postId) {
+    if (!window.confirm('Withdraw your application?')) return
+    const { error: e } = await supabase
+      .from('team_applications')
+      .delete()
+      .eq('team_post_id', postId)
+      .eq('applicant_id', uid)
+    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    flash('Application withdrawn.')
+    load()
+  }
+
   return (
     <div className="max-w-3xl">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -124,7 +136,7 @@ export default function TeamAcquisition() {
                     View applicants ({Number(t.app_count)})
                   </button>
                 ) : t.i_applied ? (
-                  <button className="btn-outline cursor-default opacity-70" disabled>Applied</button>
+                  <button className="btn-outline" onClick={() => withdraw(t.id)}>Withdraw application</button>
                 ) : (
                   <button className="btn-primary" onClick={() => setApplyTo(t)}>Apply</button>
                 )}
@@ -266,13 +278,19 @@ function PostNeedModal({ onClose, onPosted }) {
 
 function ApplyModal({ post, onClose, onSent }) {
   const [msg, setMsg] = useState('')
+  const [contact, setContact] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
   async function send() {
     if (!msg.trim()) return setError('Write a short message before sending.')
+    if (!contact.trim()) return setError('Add contact info so they can reach you.')
     setBusy(true)
-    const { error: e } = await supabase.rpc('team_apply', { p_post: post.id, p_message: msg.trim() })
+    const { error: e } = await supabase.rpc('team_apply', {
+      p_post: post.id,
+      p_message: msg.trim(),
+      p_contact: contact.trim(),
+    })
     setBusy(false)
     if (e) { console.error(e); return setError(e.message === 'already applied' ? 'You already applied to this.' : GENERIC_ERR) }
     onSent()
@@ -282,7 +300,7 @@ function ApplyModal({ post, onClose, onSent }) {
     <Shell title={`Apply: ${post.title}`} onClose={() => !busy && onClose()}>
       <p className="mt-3 text-sm text-muted">
         Applying to <span className="font-bold text-ink">{post.author_name}</span>
-        {post.startup ? <> for <span className="font-bold text-ink">{post.startup}</span></> : null}. They will see your profile and message. Your email stays private.
+        {post.startup ? <> for <span className="font-bold text-ink">{post.startup}</span></> : null}. They will see your message and the contact info you share here. Your account email stays private.
       </p>
       {error && <div className="mt-3 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
       <label className="mt-3 block">
@@ -293,9 +311,19 @@ function ApplyModal({ post, onClose, onSent }) {
           placeholder="Why you're a fit, links, availability..."
         />
       </label>
+      <label className="mt-3 block">
+        <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-muted">Contact info *</span>
+        <input
+          className="input" maxLength={200} value={contact}
+          onChange={(e) => setContact(e.target.value)}
+          placeholder="Email, phone, or @handle the poster can reach you on"
+        />
+      </label>
       <div className="mt-4 flex justify-end gap-2">
         <button className="btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
-        <button className="btn-primary" onClick={send} disabled={busy || !msg.trim()}>{busy ? 'Sending...' : 'Send application'}</button>
+        <button className="btn-primary" onClick={send} disabled={busy || !msg.trim() || !contact.trim()}>
+          {busy ? 'Sending...' : 'Send application'}
+        </button>
       </div>
     </Shell>
   )
@@ -333,6 +361,10 @@ function ApplicantsModal({ post, onClose }) {
               </div>
               {r.applicant_startup && <div className="mt-1 text-xs font-semibold text-muted">{r.applicant_startup}</div>}
               <p className="mt-2 whitespace-pre-wrap break-words text-sm text-ink">{r.message}</p>
+              <div className="mt-2 break-words rounded-lg bg-page px-3 py-2 text-sm">
+                <span className="text-xs font-bold uppercase tracking-wide text-muted">Contact</span>
+                <div className="font-semibold text-ink">{r.contact || 'Not provided'}</div>
+              </div>
               {r.applicant_linkedin && (
                 <a href={r.applicant_linkedin} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm font-semibold text-accent hover:underline">
                   View LinkedIn
