@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { X, FileText } from 'lucide-react'
+import { X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import PostCard from '../components/PostCard'
 import PostCardSkeleton from '../components/PostCardSkeleton'
 import CreatePostModal from '../components/CreatePostModal'
 import Dropdown, { MenuItem } from '../components/Dropdown'
-import { timeAgo } from '../lib/format'
 
 const PAGE = 20
 const SORTS = [
@@ -66,21 +65,6 @@ export default function Feed() {
 
   const [newestAt, setNewestAt] = useState(null)
   const [newCount, setNewCount] = useState(0)
-
-  // own drafts (RLS: only the author can read status='draft' rows)
-  const [drafts, setDrafts] = useState([])
-  const [draftsOpen, setDraftsOpen] = useState(false)
-  const [editDraft, setEditDraft] = useState(null)
-
-  const loadDrafts = useCallback(async () => {
-    const { data } = await supabase
-      .from('posts')
-      .select('id, kind, title, problem, solution, startup, created_at, post_tags(tags(name))')
-      .eq('status', 'draft')
-      .order('created_at', { ascending: false })
-    setDrafts(data || [])
-  }, [])
-  useEffect(() => { loadDrafts() }, [loadDrafts])
 
   // tags that actually have posts (for # suggestions)
   useEffect(() => {
@@ -176,22 +160,6 @@ export default function Feed() {
     })
   }
 
-  async function publishDraft(id) {
-    const { error: e } = await supabase.rpc('publish_post', { p_id: id })
-    if (e) { console.error('publish_post failed:', e); return }
-    await loadDrafts()
-    reload()
-    setNotice('Posted.')
-    setTimeout(() => setNotice(''), 3000)
-  }
-
-  async function deleteDraft(id) {
-    if (!window.confirm('Delete this draft?')) return
-    const { error: e } = await supabase.from('posts').delete().eq('id', id)
-    if (e) { console.error(e); return }
-    loadDrafts()
-  }
-
   // commit the in-progress #token (or a picked suggestion) as a tag in the box
   function pickTag(name) {
     setQ((prev) => {
@@ -273,48 +241,7 @@ export default function Feed() {
           }
         </Dropdown>
 
-        {drafts.length > 0 && (
-          <button
-            onClick={() => setDraftsOpen((v) => !v)}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
-              draftsOpen ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'
-            }`}
-          >
-            <FileText size={15} /> Drafts ({drafts.length})
-          </button>
-        )}
       </div>
-
-      {/* drafts panel */}
-      {draftsOpen && drafts.length > 0 && (
-        <div className="mb-4 space-y-2">
-          {drafts.map((d) => (
-            <div key={d.id} className="card flex flex-wrap items-center gap-2 p-4">
-              <span
-                className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                  d.kind === 'problem' ? 'bg-warn/20 text-[#8a6d00]' : 'bg-accent-soft text-accent'
-                }`}
-              >
-                {d.kind === 'problem' ? 'Problem' : 'Idea'}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="break-words text-sm font-bold">{d.title}</div>
-                <div className="text-xs text-muted">Saved {timeAgo(d.created_at)}</div>
-              </div>
-              <div className="flex shrink-0 gap-2">
-                <button className="btn-outline px-3 py-1.5 text-xs" onClick={() => setEditDraft(d)}>Edit</button>
-                <button className="btn-primary px-3 py-1.5 text-xs" onClick={() => publishDraft(d.id)}>Publish</button>
-                <button
-                  className="btn-ghost px-3 py-1.5 text-xs text-down"
-                  onClick={() => deleteDraft(d.id)}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* active supertag filters */}
       {filters.tags.length > 0 && (
@@ -386,26 +313,9 @@ export default function Feed() {
           setCreateOpen(false)
           setNotice(status === 'draft' ? 'Saved as draft.' : 'Posted.')
           reload()
-          loadDrafts()
           supabase.rpc('feed_tags').then(({ data }) => setAvailableTags(data || []))
           setTimeout(() => setNotice(''), 3000)
         }}
-      />
-
-      {/* edit a draft (reuses the create modal in edit mode) */}
-      <CreatePostModal
-        open={!!editDraft}
-        editPost={editDraft && {
-          id: editDraft.id,
-          kind: editDraft.kind,
-          title: editDraft.title,
-          problem: editDraft.problem,
-          solution: editDraft.solution,
-          startup: editDraft.startup,
-          tags: editDraft.post_tags?.map((pt) => pt.tags?.name).filter(Boolean) || [],
-        }}
-        onClose={() => setEditDraft(null)}
-        onUpdated={() => { setEditDraft(null); loadDrafts() }}
       />
     </div>
   )
