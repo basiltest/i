@@ -223,10 +223,16 @@ export default function PostDetail() {
                 <span className="truncate text-sm font-bold">{anon ? 'Anonymous Founder' : post.author_name}</span>
                 {!anon && post.author_role && <RoleBadge role={post.author_role} />}
               </div>
-              <div className="text-xs text-muted">{timeAgo(post.created_at)}{post.edited && ' · edited'}</div>
+              <div className="flex items-center gap-1 text-xs text-muted">
+                {post.pinned && (
+                  <span className="flex items-center gap-0.5 font-semibold text-accent">
+                    <Pin size={12} /> Pinned ·
+                  </span>
+                )}
+                {timeAgo(post.created_at)}{post.edited && ' · edited'}
+              </div>
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
-              {post.pinned && <Pin size={16} className="-rotate-45 fill-accent text-accent" aria-label="Pinned" />}
               {post.badges?.includes('Success') && (
                 <span className="rounded-full bg-success/15 px-2.5 py-0.5 text-[11px] font-semibold text-success">#Success</span>
               )}

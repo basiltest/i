@@ -45,12 +45,9 @@ export default function PostCard({ post }) {
   return (
     <article
       onClick={open}
-      className="card relative cursor-pointer p-5 transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-pop"
+      className="card cursor-pointer p-5 transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-pop"
     >
-      {post.pinned && (
-        <Pin size={16} className="absolute right-3 top-3 -rotate-45 fill-accent text-accent" aria-label="Pinned" />
-      )}
-      <header className={`flex items-center gap-2 ${post.pinned ? 'pr-6' : ''}`}>
+      <header className="flex items-center gap-2">
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent">
           {anon ? '?' : post.author_name.charAt(0).toUpperCase()}
         </div>
@@ -59,7 +56,14 @@ export default function PostCard({ post }) {
             <span className="truncate text-sm font-bold">{anon ? 'Anonymous Founder' : post.author_name}</span>
             {!anon && post.author_role && <RoleBadge role={post.author_role} />}
           </div>
-          <div className="text-xs text-muted">{timeAgo(post.created_at)}</div>
+          <div className="flex items-center gap-1 text-xs text-muted">
+            {post.pinned && (
+              <span className="flex items-center gap-0.5 font-semibold text-accent">
+                <Pin size={12} /> Pinned ·
+              </span>
+            )}
+            {timeAgo(post.created_at)}
+          </div>
         </div>
         <span className="ml-auto flex shrink-0 items-center gap-1.5">
           {post.badges?.includes('Success') && (
