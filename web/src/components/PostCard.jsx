@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowBigUp, ArrowBigDown } from 'lucide-react'
+import { ArrowBigUp, ArrowBigDown, MessageCircle } from 'lucide-react'
 import RoleBadge from './RoleBadge'
 import { timeAgo } from '../lib/format'
 import { supabase } from '../lib/supabase'
@@ -101,6 +101,12 @@ export default function PostCard({ post }) {
         >
           <ArrowBigDown size={20} fill={myVote === -1 ? 'currentColor' : 'none'} />
         </button>
+        <Link
+          to={`/post/${post.id}`}
+          className="ml-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-sm font-semibold text-muted transition-colors hover:bg-black/5"
+        >
+          <MessageCircle size={18} /> {post.comment_count ?? 0}
+        </Link>
         {post.edited && <span className="ml-2 text-xs text-faint">edited</span>}
       </footer>
     </article>

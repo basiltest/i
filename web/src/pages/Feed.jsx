@@ -1,12 +1,18 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { X } from 'lucide-react'
+import { X, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import PostCard from '../components/PostCard'
 import PostCardSkeleton from '../components/PostCardSkeleton'
 import CreatePostModal from '../components/CreatePostModal'
 
 const PAGE = 20
+const SORTS = [
+  { s: 'hot', label: 'Hot' },
+  { s: 'new', label: 'Newest' },
+  { s: 'top', label: 'Top' },
+  { s: 'tag', label: 'By Supertag' },
+]
 const KINDS = [
   { k: 'all', label: 'All' },
   { k: 'idea', label: 'Ideas' },
@@ -17,11 +23,14 @@ export default function Feed() {
   const [searchParams, setSearchParams] = useSearchParams()
   const tagFilter = searchParams.get('tag') || ''
 
-  const [sort, setSort] = useState('new')
+  const [sort, setSort] = useState('hot')
   const [kind, setKind] = useState('all')
   const [q, setQ] = useState('')
   const [debounced, setDebounced] = useState('')
-  const [suggestions, setSuggestions] = useState([])
+
+  const [availableTags, setAvailableTags] = useState([])
+  const [tagMenuOpen, setTagMenuOpen] = useState(false)
+  const tagMenuRef = useRef(null)
 
   const [posts, setPosts] = useState([])
   const [offset, setOffset] = useState(0)
@@ -32,27 +41,36 @@ export default function Feed() {
   const [createOpen, setCreateOpen] = useState(false)
   const [notice, setNotice] = useState('')
 
-  // debounce text search; ignore while the user is typing a #tag
+  const [newestAt, setNewestAt] = useState(null)
+  const [newCount, setNewCount] = useState(0)
+
+  // tags that actually have posts (for the dropdown + # suggestions)
+  useEffect(() => {
+    supabase.rpc('feed_tags').then(({ data }) => setAvailableTags(data || []))
+  }, [])
+
+  // close the supertag dropdown on outside click
+  useEffect(() => {
+    function onDoc(e) {
+      if (tagMenuRef.current && !tagMenuRef.current.contains(e.target)) setTagMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [])
+
+  // debounce text search; ignore while typing a #tag
   useEffect(() => {
     const id = setTimeout(() => setDebounced(q.startsWith('#') ? '' : q.trim()), 300)
     return () => clearTimeout(id)
   }, [q])
 
-  // live supertag suggestions when typing "#"
-  useEffect(() => {
-    if (!q.startsWith('#')) { setSuggestions([]); return }
-    const term = q.slice(1).toLowerCase().replace(/[^a-z0-9-]/g, '')
-    if (!term) { setSuggestions([]); return }
-    let active = true
-    supabase
-      .from('tags')
-      .select('name')
-      .eq('approved', true)
-      .ilike('name', `${term}%`)
-      .limit(8)
-      .then(({ data }) => { if (active) setSuggestions((data || []).map((t) => t.name)) })
-    return () => { active = false }
-  }, [q])
+  // # suggestions sourced from tags-that-have-posts
+  const suggestions =
+    q.startsWith('#') && q.length > 1
+      ? availableTags
+          .filter((t) => t.name.startsWith(q.slice(1).toLowerCase().replace(/[^a-z0-9-]/g, '')))
+          .slice(0, 8)
+      : []
 
   const fetchPage = useCallback(
     async (off, replace) => {
@@ -69,12 +87,16 @@ export default function Feed() {
       const rows = data || []
       setPosts((prev) => (replace ? rows : [...prev, ...rows]))
       setHasMore(rows.length === PAGE)
+      if (replace) {
+        setNewestAt(rows[0]?.created_at || new Date().toISOString())
+        setNewCount(0)
+      }
       return rows.length
     },
     [kind, sort, tagFilter, debounced],
   )
 
-  // reload from the top whenever filters/sort/search change
+  // reload from the top when filters/sort/search change
   useEffect(() => {
     setLoading(true)
     fetchPage(0, true).then((count) => {
@@ -83,6 +105,18 @@ export default function Feed() {
     })
   }, [fetchPage])
 
+  // poll for newer posts (banner, no auto-insert)
+  useEffect(() => {
+    if (!newestAt) return
+    const id = setInterval(() => {
+      supabase.rpc('posts_since', { p_since: newestAt }).then(({ data }) => {
+        if (typeof data === 'number') setNewCount(data)
+        else if (data != null) setNewCount(Number(data))
+      })
+    }, 30000)
+    return () => clearInterval(id)
+  }, [newestAt])
+
   async function loadMore() {
     setLoadingMore(true)
     const count = await fetchPage(offset, false)
@@ -90,10 +124,18 @@ export default function Feed() {
     setLoadingMore(false)
   }
 
+  function reload() {
+    setLoading(true)
+    fetchPage(0, true).then((count) => {
+      setOffset(count)
+      setLoading(false)
+    })
+  }
+
   function pickTag(name) {
     setSearchParams({ tag: name })
     setQ('')
-    setSuggestions([])
+    setTagMenuOpen(false)
   }
 
   return (
@@ -109,13 +151,14 @@ export default function Feed() {
           />
           {suggestions.length > 0 && (
             <div className="absolute left-0 right-0 z-20 mt-1 overflow-hidden rounded-xl border border-line bg-card shadow-pop">
-              {suggestions.map((name) => (
+              {suggestions.map((t) => (
                 <button
-                  key={name}
-                  onClick={() => pickTag(name)}
-                  className="block w-full px-3 py-2 text-left text-sm font-semibold text-accent hover:bg-black/5"
+                  key={t.name}
+                  onClick={() => pickTag(t.name)}
+                  className="flex w-full items-center justify-between px-3 py-2 text-left text-sm font-semibold text-accent hover:bg-black/5"
                 >
-                  #{name}
+                  <span>#{t.name}</span>
+                  <span className="text-xs text-muted">{Number(t.cnt)}</span>
                 </button>
               ))}
             </div>
@@ -124,10 +167,10 @@ export default function Feed() {
         <button className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>Create post</button>
       </div>
 
-      {/* sort + kind */}
+      {/* sort + kind + supertag dropdown */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="inline-flex rounded-full border border-line p-0.5">
-          {[{ s: 'new', label: 'Newest' }, { s: 'top', label: 'Top' }].map((o) => (
+          {SORTS.map((o) => (
             <button
               key={o.s}
               onClick={() => setSort(o.s)}
@@ -139,7 +182,8 @@ export default function Feed() {
             </button>
           ))}
         </div>
-        <div className="ml-2 flex gap-2">
+
+        <div className="flex gap-2">
           {KINDS.map((f) => (
             <button
               key={f.k}
@@ -151,6 +195,31 @@ export default function Feed() {
               {f.label}
             </button>
           ))}
+        </div>
+
+        {/* supertag filter dropdown (only tags that have posts) */}
+        <div className="relative" ref={tagMenuRef}>
+          <button
+            onClick={() => setTagMenuOpen((v) => !v)}
+            disabled={availableTags.length === 0}
+            className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-semibold text-muted hover:bg-black/5 disabled:opacity-50"
+          >
+            Supertags <ChevronDown size={15} />
+          </button>
+          {tagMenuOpen && availableTags.length > 0 && (
+            <div className="absolute left-0 z-20 mt-1 max-h-72 w-56 overflow-y-auto rounded-xl border border-line bg-card p-1 shadow-pop">
+              {availableTags.map((t) => (
+                <button
+                  key={t.name}
+                  onClick={() => pickTag(t.name)}
+                  className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-semibold text-accent hover:bg-black/5"
+                >
+                  <span>#{t.name}</span>
+                  <span className="text-xs text-muted">{Number(t.cnt)}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -164,6 +233,16 @@ export default function Feed() {
         </div>
       )}
 
+      {/* new posts banner */}
+      {newCount > 0 && (
+        <button
+          onClick={reload}
+          className="mb-4 w-full rounded-lg bg-accent-soft px-3 py-2 text-sm font-semibold text-accent hover:underline"
+        >
+          {newCount} new {newCount === 1 ? 'post' : 'posts'}, tap to refresh
+        </button>
+      )}
+
       {notice && (
         <div className="mb-4 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">{notice}</div>
       )}
@@ -175,12 +254,18 @@ export default function Feed() {
           <PostCardSkeleton />
         </div>
       ) : error ? (
-        <p className="text-sm text-down">{error}</p>
+        <div className="card p-6 text-center">
+          <p className="text-sm text-down">Could not load the feed.</p>
+          <button className="btn-outline mt-3" onClick={reload}>Retry</button>
+        </div>
       ) : posts.length === 0 ? (
         <div className="card p-8 text-center">
-          <p className="font-semibold">No posts {tagFilter || debounced ? 'match' : 'yet'}.</p>
-          <p className="mt-1 text-sm text-muted">Be the first to share an idea.</p>
-          <button className="btn-primary mt-4" onClick={() => setCreateOpen(true)}>Create post</button>
+          <p className="font-semibold">No posts {tagFilter || debounced ? 'match this filter' : 'yet'}.</p>
+          {tagFilter || debounced ? (
+            <button className="btn-outline mt-3" onClick={() => { setSearchParams({}); setQ('') }}>Clear filter</button>
+          ) : (
+            <button className="btn-primary mt-4" onClick={() => setCreateOpen(true)}>Create post</button>
+          )}
         </div>
       ) : (
         <>
@@ -205,7 +290,8 @@ export default function Feed() {
         onCreated={(status) => {
           setCreateOpen(false)
           setNotice(status === 'draft' ? 'Saved as draft.' : 'Posted.')
-          fetchPage(0, true).then((count) => setOffset(count))
+          reload()
+          supabase.rpc('feed_tags').then(({ data }) => setAvailableTags(data || []))
           setTimeout(() => setNotice(''), 3000)
         }}
       />
