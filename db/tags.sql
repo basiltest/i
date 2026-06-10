@@ -133,14 +133,15 @@ begin
   if coalesce(trim(p_title), '') = '' then raise exception 'title required'; end if;
   if coalesce(trim(p_problem), '') = '' then raise exception 'problem required'; end if;
 
+  -- drafts edit silently; only published posts get the edited mark + original snapshot
   update public.posts set
     title = trim(p_title),
     problem = trim(p_problem),
     solution = case when kind = 'idea' then nullif(trim(coalesce(p_solution, '')), '') else null end,
     startup = nullif(trim(coalesce(p_startup, '')), ''),
-    edited = true,
-    edited_at = now(),
-    original = case when original is null then jsonb_build_object(
+    edited = case when v_post.status = 'published' then true else edited end,
+    edited_at = case when v_post.status = 'published' then now() else edited_at end,
+    original = case when v_post.status = 'published' and original is null then jsonb_build_object(
         'title', v_post.title, 'problem', v_post.problem,
         'solution', v_post.solution, 'startup', v_post.startup
       ) else original end
@@ -163,3 +164,24 @@ begin
 end
 $$;
 grant execute on function public.update_post(uuid, text, text, text, text, text[]) to authenticated;
+
+-- Publish own draft. Resets created_at so it enters the feed as a new post
+-- (created_at is column-revoked for direct updates, hence the definer RPC).
+create or replace function public.publish_post(p_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_post public.posts;
+begin
+  select * into v_post from public.posts where id = p_id;
+  if not found then raise exception 'post not found'; end if;
+  if v_post.author_id <> v_uid then raise exception 'not your post'; end if;
+  if v_post.status <> 'draft' then raise exception 'not a draft'; end if;
+  update public.posts set status = 'published', created_at = now() where id = p_id;
+end
+$$;
+grant execute on function public.publish_post(uuid) to authenticated;
