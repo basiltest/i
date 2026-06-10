@@ -12,7 +12,6 @@ const SORTS = [
   { s: 'hot', label: 'Hot' },
   { s: 'new', label: 'Newest' },
   { s: 'top', label: 'Top' },
-  { s: 'tag', label: 'By Supertag' },
 ]
 const KINDS = [
   { k: 'all', label: 'All types' },
@@ -156,7 +155,7 @@ export default function Feed() {
         <button className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>Create post</button>
       </div>
 
-      {/* controls: sort / type / supertag, all compact dropdowns */}
+      {/* controls: sort / type, compact dropdowns */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Dropdown label={SORTS.find((o) => o.s === sort).label}>
           {(close) =>
@@ -175,28 +174,6 @@ export default function Feed() {
                 {f.label}
               </MenuItem>
             ))
-          }
-        </Dropdown>
-
-        <Dropdown label={tagFilter ? `#${tagFilter}` : 'Supertags'} width="w-56">
-          {(close) =>
-            availableTags.length === 0 ? (
-              <div className="px-3 py-2 text-sm text-muted">No supertags yet</div>
-            ) : (
-              <>
-                {tagFilter && (
-                  <MenuItem onClick={() => { setSearchParams({}); close() }}>
-                    <span className="text-muted">Clear filter</span>
-                  </MenuItem>
-                )}
-                {availableTags.map((t) => (
-                  <MenuItem key={t.name} active={tagFilter === t.name} onClick={() => { pickTag(t.name); close() }}>
-                    <span>#{t.name}</span>
-                    <span className="text-xs text-muted">{Number(t.cnt)}</span>
-                  </MenuItem>
-                ))}
-              </>
-            )
           }
         </Dropdown>
       </div>
