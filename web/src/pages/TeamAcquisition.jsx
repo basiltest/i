@@ -85,7 +85,12 @@ export default function TeamAcquisition() {
       )}
 
       {loading ? (
-        <div className="mt-6 flex items-center gap-2 text-sm text-muted"><Spinner /> Loading...</div>
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <TeamCardSkeleton />
+          <TeamCardSkeleton />
+          <TeamCardSkeleton />
+          <TeamCardSkeleton />
+        </div>
       ) : error ? (
         <div className="card mt-4 p-6 text-center">
           <p className="text-sm text-down">{GENERIC_ERR}</p>
@@ -136,7 +141,12 @@ export default function TeamAcquisition() {
                     View applicants ({Number(t.app_count)})
                   </button>
                 ) : t.i_applied ? (
-                  <button className="btn-outline" onClick={() => withdraw(t.id)}>Withdraw application</button>
+                  <button
+                    onClick={() => withdraw(t.id)}
+                    className="btn inline-flex items-center border border-down/40 px-4 py-2 text-sm text-down transition-colors hover:bg-down/10"
+                  >
+                    Withdraw application
+                  </button>
                 ) : (
                   <button className="btn-primary" onClick={() => setApplyTo(t)}>Apply</button>
                 )}
@@ -174,6 +184,30 @@ export default function TeamAcquisition() {
       {applicantsFor && (
         <ApplicantsModal post={applicantsFor} onClose={() => setApplicantsFor(null)} />
       )}
+    </div>
+  )
+}
+
+function TeamCardSkeleton() {
+  return (
+    <div className="card animate-pulse p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <div className="h-7 w-7 rounded-full bg-line" />
+        <div className="h-3 w-24 rounded bg-line" />
+        <div className="ml-auto h-2.5 w-10 rounded bg-line" />
+      </div>
+      <div className="h-4 w-3/5 rounded bg-line" />
+      <div className="mt-2 h-5 w-20 rounded-full bg-line" />
+      <div className="mt-3 space-y-2">
+        <div className="h-3 w-full rounded bg-line" />
+        <div className="h-3 w-4/5 rounded bg-line" />
+      </div>
+      <div className="mt-4 flex gap-1.5">
+        <div className="h-6 w-14 rounded-full bg-line" />
+        <div className="h-6 w-16 rounded-full bg-line" />
+        <div className="h-6 w-12 rounded-full bg-line" />
+      </div>
+      <div className="mt-4 h-9 w-24 rounded-full bg-line" />
     </div>
   )
 }
