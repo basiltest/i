@@ -111,7 +111,12 @@ export default function Feed() {
       setPosts((prev) => (replace ? rows : [...prev, ...rows]))
       setHasMore(rows.length === PAGE)
       if (replace) {
-        setNewestAt(rows[0]?.created_at || new Date().toISOString())
+        // baseline = newest post actually shown (rows[0] is not newest under Hot/Top sort)
+        const newest = rows.reduce(
+          (m, r) => (r.created_at > m ? r.created_at : m),
+          rows[0]?.created_at || new Date().toISOString(),
+        )
+        setNewestAt(newest)
         setNewCount(0)
       }
       return rows.length
