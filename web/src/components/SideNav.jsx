@@ -7,7 +7,7 @@ import { useAuth } from '../lib/AuthProvider'
 const ITEMS = [
   { to: '/', label: 'Feed', icon: Home, end: true },
   { label: 'Idea Pipeline', icon: Workflow, soon: true },
-  { label: 'Team Board', icon: Users, soon: true },
+  { to: '/team', label: 'Team Acquisition', icon: Users },
   { label: 'Calendar', icon: Calendar, soon: true },
   { label: 'Directory', icon: LayoutGrid, soon: true },
 ]
