@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ArrowBigUp, ArrowBigDown } from 'lucide-react'
 import RoleBadge from './RoleBadge'
 import { timeAgo } from '../lib/format'
@@ -57,7 +58,9 @@ export default function PostCard({ post }) {
         </span>
       </header>
 
-      <h3 className="mt-3 break-words text-base font-bold">{post.title}</h3>
+      <Link to={`/post/${post.id}`} className="mt-3 block break-words text-base font-bold hover:underline">
+        {post.title}
+      </Link>
       {post.startup && <p className="break-words text-sm font-semibold text-muted">{post.startup}</p>}
 
       <p className="mt-2 whitespace-pre-wrap break-words text-sm text-ink">{post.problem}</p>

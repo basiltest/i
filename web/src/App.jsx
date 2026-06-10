@@ -4,6 +4,7 @@ import Login from './pages/Login'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import Feed from './pages/Feed'
+import PostDetail from './pages/PostDetail'
 import Profile from './pages/Profile'
 import Settings from './pages/Settings'
 import Layout from './components/Layout'
@@ -21,6 +22,7 @@ function App() {
       {/* authed app shell: topbar + left rail, pages render in the Outlet */}
       <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<Feed />} />
+        <Route path="post/:id" element={<PostDetail />} />
         <Route path="profile" element={<Profile />} />
         <Route path="settings" element={<Settings />} />
       </Route>

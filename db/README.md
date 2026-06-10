@@ -44,7 +44,8 @@ Unified feed (ideas + problems).
 - [ ] Backfill `db/profiles.sql` (profiles table + `handle_new_user` trigger + RLS) so it is tracked, not just in Supabase.
 - [ ] `feed_posts` RPC (security definer): join author name/role and mask anonymous authors (admins see real identity). Keeps profiles RLS strict.
 - [ ] `post_votes` (per-user -1/1, composite PK, score = sum) + RLS (one vote per user per post).
-- [ ] `comments` + `sub_threads` (threads/replies) + RLS.
+- [x] `comments` + `sub_threads` + RLS + post_detail/post_comments/post_subthreads RPCs (db/comments.sql). Comments by anyone; sub_threads (updates) only by the post author; delete own; post delete cascades.
+- [x] `post_votes` + RLS (db/votes.sql); feed_posts returns score + viewer vote; trending_tags RPC.
 - [x] `tags` + `post_tags` + `tag_requests` + RLS + `create_post` RPC (db/tags.sql). New tags become pending tag_requests. Drafts = posts.status='draft'. Admin approval queue + #Success still TODO.
 - [ ] `notifications` table (ADR-020) + RLS (read own); inline writes on key events.
 - [ ] `reports` table (moderation) + RLS; admin resolve/hide.
