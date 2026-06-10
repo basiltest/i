@@ -135,6 +135,13 @@ export default function Feed() {
             placeholder="Search posts, or type # to filter by supertag"
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && q.startsWith('#')) {
+                e.preventDefault()
+                const name = q.slice(1).toLowerCase().replace(/[^a-z0-9-]/g, '')
+                if (name) pickTag(name)
+              }
+            }}
           />
           {suggestions.length > 0 && (
             <div className="absolute left-0 right-0 z-20 mt-1 overflow-hidden rounded-xl border border-line bg-card shadow-pop">

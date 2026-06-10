@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ArrowBigUp, ArrowBigDown, MessageCircle, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowBigUp, ArrowBigDown, MessageCircle, MoreHorizontal } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import RoleBadge from '../components/RoleBadge'
@@ -12,6 +12,36 @@ const CSORTS = [
   { s: 'new', label: 'Newest' },
   { s: 'old', label: 'Oldest' },
 ]
+const GENERIC_ERR = 'Something went wrong. Please try again.'
+
+// kebab "..." menu with outside-click close; children is a render fn receiving close().
+function Kebab({ children }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    function onDoc(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [])
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-label="More options"
+        className="rounded-full p-1.5 text-muted transition-colors hover:bg-black/5"
+      >
+        <MoreHorizontal size={20} />
+      </button>
+      {open && (
+        <div className="absolute right-0 z-30 mt-1 min-w-[160px] rounded-xl border border-line bg-card p-1 shadow-pop">
+          {children(() => setOpen(false))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function PostDetail() {
   const { id } = useParams()
@@ -23,7 +53,8 @@ export default function PostDetail() {
   const [comments, setComments] = useState([])
   const [updates, setUpdates] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [loadError, setLoadError] = useState(false)
+  const [actionError, setActionError] = useState('')
   const [commentBody, setCommentBody] = useState('')
   const [commentOpen, setCommentOpen] = useState(false)
   const [updateBody, setUpdateBody] = useState('')
@@ -37,19 +68,25 @@ export default function PostDetail() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [d, c, s] = await Promise.all([
-      supabase.rpc('post_detail', { p_id: id }),
-      supabase.rpc('post_comments', { p_id: id }),
-      supabase.rpc('post_subthreads', { p_id: id }),
-    ])
-    if (d.error) setError(d.error.message)
-    const p = d.data?.[0] || null
-    setPost(p)
-    setScore(Number(p?.score) || 0)
-    setMyVote(p?.my_vote ?? 0)
-    setComments(c.data || [])
-    setUpdates(s.data || [])
-    setLoading(false)
+    setLoadError(false)
+    try {
+      const [d, c, s] = await Promise.all([
+        supabase.rpc('post_detail', { p_id: id }),
+        supabase.rpc('post_comments', { p_id: id }),
+        supabase.rpc('post_subthreads', { p_id: id }),
+      ])
+      if (d.error) throw d.error
+      const p = d.data?.[0] || null
+      setPost(p)
+      setScore(Number(p?.score) || 0)
+      setMyVote(p?.my_vote ?? 0)
+      setComments(c.data || [])
+      setUpdates(s.data || [])
+    } catch {
+      setLoadError(true)
+    } finally {
+      setLoading(false)
+    }
   }, [id])
 
   useEffect(() => { load() }, [load])
@@ -81,9 +118,10 @@ export default function PostDetail() {
     const body = commentBody.trim()
     if (!body) return
     setBusy(true)
-    const { error: e2 } = await supabase.from('comments').insert({ post_id: id, author_id: uid, body })
+    const { error } = await supabase.from('comments').insert({ post_id: id, author_id: uid, body })
     setBusy(false)
-    if (e2) return setError(e2.message)
+    if (error) { console.error(error); return setActionError(GENERIC_ERR) }
+    setActionError('')
     setCommentBody('')
     setCommentOpen(false)
     const { data } = await supabase.rpc('post_comments', { p_id: id })
@@ -91,7 +129,8 @@ export default function PostDetail() {
   }
 
   async function deleteComment(cid) {
-    await supabase.from('comments').delete().eq('id', cid)
+    const { error } = await supabase.from('comments').delete().eq('id', cid)
+    if (error) { console.error(error); return setActionError(GENERIC_ERR) }
     setComments((prev) => prev.filter((c) => c.id !== cid))
   }
 
@@ -100,23 +139,25 @@ export default function PostDetail() {
     const body = updateBody.trim()
     if (!body) return
     setBusy(true)
-    const { error: e2 } = await supabase.from('sub_threads').insert({ post_id: id, author_id: uid, body })
+    const { error } = await supabase.from('sub_threads').insert({ post_id: id, author_id: uid, body })
     setBusy(false)
-    if (e2) return setError(e2.message)
+    if (error) { console.error(error); return setActionError(GENERIC_ERR) }
+    setActionError('')
     setUpdateBody('')
     const { data } = await supabase.rpc('post_subthreads', { p_id: id })
     setUpdates(data || [])
   }
 
   async function deleteUpdate(sid) {
-    await supabase.from('sub_threads').delete().eq('id', sid)
+    const { error } = await supabase.from('sub_threads').delete().eq('id', sid)
+    if (error) { console.error(error); return setActionError(GENERIC_ERR) }
     setUpdates((prev) => prev.filter((s) => s.id !== sid))
   }
 
   async function deletePost() {
     if (!window.confirm('Delete this post? This cannot be undone.')) return
-    const { error: e2 } = await supabase.from('posts').delete().eq('id', id)
-    if (e2) return setError(e2.message)
+    const { error } = await supabase.from('posts').delete().eq('id', id)
+    if (error) { console.error(error); return setActionError(GENERIC_ERR) }
     navigate('/', { replace: true })
   }
 
@@ -135,10 +176,22 @@ export default function PostDetail() {
 
       {loading ? (
         <PostDetailSkeleton />
+      ) : loadError ? (
+        <div className="card p-6 text-center">
+          <p className="text-sm text-muted">{GENERIC_ERR}</p>
+          <button className="btn-outline mt-3" onClick={load}>Try again</button>
+        </div>
       ) : !post ? (
-        <p className="text-sm text-down">{error || 'Post not found.'}</p>
+        <div className="card p-6 text-center">
+          <p className="text-sm text-muted">This post does not exist or was removed.</p>
+          <button className="btn-outline mt-3" onClick={() => navigate('/')}>Back to feed</button>
+        </div>
       ) : (
         <>
+          {actionError && (
+            <div className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{actionError}</div>
+          )}
+
           {/* post header */}
           <div className="flex items-center gap-2">
             <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent">
@@ -151,13 +204,24 @@ export default function PostDetail() {
               </div>
               <div className="text-xs text-muted">{timeAgo(post.created_at)}{post.edited && ' · edited'}</div>
             </div>
-            <span
-              className={`ml-auto shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                post.kind === 'problem' ? 'bg-warn/20 text-[#8a6d00]' : 'bg-accent-soft text-accent'
-              }`}
-            >
-              {post.kind === 'problem' ? 'Problem' : 'Idea'}
-            </span>
+            <div className="ml-auto flex shrink-0 items-center gap-1.5">
+              <span
+                className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                  post.kind === 'problem' ? 'bg-warn/20 text-[#8a6d00]' : 'bg-accent-soft text-accent'
+                }`}
+              >
+                {post.kind === 'problem' ? 'Problem' : 'Idea'}
+              </span>
+              {post.is_mine && (
+                <Kebab>
+                  {(close) => (
+                    <MenuItem onClick={() => { close(); deletePost() }}>
+                      <span className="text-down">Delete post</span>
+                    </MenuItem>
+                  )}
+                </Kebab>
+              )}
+            </div>
           </div>
 
           {/* title + body */}
@@ -204,15 +268,6 @@ export default function PostDetail() {
             <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-3 py-2 text-sm font-semibold text-muted">
               <MessageCircle size={18} /> {comments.length}
             </span>
-
-            {post.is_mine && (
-              <button
-                onClick={deletePost}
-                className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-3 py-2 text-sm font-semibold text-muted transition-colors hover:bg-black/5 hover:text-down"
-              >
-                <Trash2 size={16} /> Delete
-              </button>
-            )}
           </div>
 
           {/* creator updates (unchanged feature) */}
@@ -247,11 +302,27 @@ export default function PostDetail() {
             )}
           </section>
 
-          {/* comment composer */}
-          <form onSubmit={addComment} className="mt-6">
+          {/* comments header + sort */}
+          <div className="mb-3 mt-6 flex items-center justify-between">
+            <h3 className="text-sm font-bold">{comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}</h3>
+            {comments.length > 1 && (
+              <Dropdown label={`Sort: ${CSORTS.find((o) => o.s === csort).label}`}>
+                {(close) =>
+                  CSORTS.map((o) => (
+                    <MenuItem key={o.s} active={csort === o.s} onClick={() => { setCsort(o.s); close() }}>
+                      {o.label}
+                    </MenuItem>
+                  ))
+                }
+              </Dropdown>
+            )}
+          </div>
+
+          {/* comment composer (under the Comments header) */}
+          <form onSubmit={addComment} className="mb-4">
             <input
               className="w-full rounded-full border border-line bg-card px-4 py-2.5 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none"
-              placeholder="Join the conversation"
+              placeholder="Add a comment"
               maxLength={2000}
               value={commentBody}
               onChange={(e) => setCommentBody(e.target.value)}
@@ -271,25 +342,9 @@ export default function PostDetail() {
             )}
           </form>
 
-          {/* comments header + sort */}
-          <div className="mb-1 mt-6 flex items-center justify-between">
-            <h3 className="text-sm font-bold">{comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}</h3>
-            {comments.length > 1 && (
-              <Dropdown label={`Sort: ${CSORTS.find((o) => o.s === csort).label}`}>
-                {(close) =>
-                  CSORTS.map((o) => (
-                    <MenuItem key={o.s} active={csort === o.s} onClick={() => { setCsort(o.s); close() }}>
-                      {o.label}
-                    </MenuItem>
-                  ))
-                }
-              </Dropdown>
-            )}
-          </div>
-
-          {/* comments */}
+          {/* comments list */}
           {comments.length === 0 ? (
-            <p className="py-4 text-sm text-muted">No comments yet. Be the first.</p>
+            <p className="py-2 text-sm text-muted">No comments yet. Be the first.</p>
           ) : (
             <ul className="divide-y divide-line">
               {sortedComments.map((c) => (
