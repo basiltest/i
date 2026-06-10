@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { X, ChevronDown } from 'lucide-react'
+import { X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import PostCard from '../components/PostCard'
 import PostCardSkeleton from '../components/PostCardSkeleton'
 import CreatePostModal from '../components/CreatePostModal'
+import Dropdown, { MenuItem } from '../components/Dropdown'
 
 const PAGE = 20
 const SORTS = [
@@ -14,7 +15,7 @@ const SORTS = [
   { s: 'tag', label: 'By Supertag' },
 ]
 const KINDS = [
-  { k: 'all', label: 'All' },
+  { k: 'all', label: 'All types' },
   { k: 'idea', label: 'Ideas' },
   { k: 'problem', label: 'Problems' },
 ]
@@ -29,8 +30,6 @@ export default function Feed() {
   const [debounced, setDebounced] = useState('')
 
   const [availableTags, setAvailableTags] = useState([])
-  const [tagMenuOpen, setTagMenuOpen] = useState(false)
-  const tagMenuRef = useRef(null)
 
   const [posts, setPosts] = useState([])
   const [offset, setOffset] = useState(0)
@@ -47,15 +46,6 @@ export default function Feed() {
   // tags that actually have posts (for the dropdown + # suggestions)
   useEffect(() => {
     supabase.rpc('feed_tags').then(({ data }) => setAvailableTags(data || []))
-  }, [])
-
-  // close the supertag dropdown on outside click
-  useEffect(() => {
-    function onDoc(e) {
-      if (tagMenuRef.current && !tagMenuRef.current.contains(e.target)) setTagMenuOpen(false)
-    }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
   }, [])
 
   // debounce text search; ignore while typing a #tag
@@ -135,7 +125,6 @@ export default function Feed() {
   function pickTag(name) {
     setSearchParams({ tag: name })
     setQ('')
-    setTagMenuOpen(false)
   }
 
   return (
@@ -167,60 +156,49 @@ export default function Feed() {
         <button className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>Create post</button>
       </div>
 
-      {/* sort + kind + supertag dropdown */}
+      {/* controls: sort / type / supertag, all compact dropdowns */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-full border border-line p-0.5">
-          {SORTS.map((o) => (
-            <button
-              key={o.s}
-              onClick={() => setSort(o.s)}
-              className={`rounded-full px-3 py-1.5 text-sm font-semibold transition-colors ${
-                sort === o.s ? 'bg-accent-soft text-accent' : 'text-muted'
-              }`}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
+        <Dropdown label={SORTS.find((o) => o.s === sort).label}>
+          {(close) =>
+            SORTS.map((o) => (
+              <MenuItem key={o.s} active={sort === o.s} onClick={() => { setSort(o.s); close() }}>
+                {o.label}
+              </MenuItem>
+            ))
+          }
+        </Dropdown>
 
-        <div className="flex gap-2">
-          {KINDS.map((f) => (
-            <button
-              key={f.k}
-              onClick={() => setKind(f.k)}
-              className={`rounded-full px-3 py-1.5 text-sm font-semibold transition-colors ${
-                kind === f.k ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-black/5'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+        <Dropdown label={KINDS.find((f) => f.k === kind).label}>
+          {(close) =>
+            KINDS.map((f) => (
+              <MenuItem key={f.k} active={kind === f.k} onClick={() => { setKind(f.k); close() }}>
+                {f.label}
+              </MenuItem>
+            ))
+          }
+        </Dropdown>
 
-        {/* supertag filter dropdown (only tags that have posts) */}
-        <div className="relative" ref={tagMenuRef}>
-          <button
-            onClick={() => setTagMenuOpen((v) => !v)}
-            disabled={availableTags.length === 0}
-            className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-semibold text-muted hover:bg-black/5 disabled:opacity-50"
-          >
-            Supertags <ChevronDown size={15} />
-          </button>
-          {tagMenuOpen && availableTags.length > 0 && (
-            <div className="absolute left-0 z-20 mt-1 max-h-72 w-56 overflow-y-auto rounded-xl border border-line bg-card p-1 shadow-pop">
-              {availableTags.map((t) => (
-                <button
-                  key={t.name}
-                  onClick={() => pickTag(t.name)}
-                  className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-semibold text-accent hover:bg-black/5"
-                >
-                  <span>#{t.name}</span>
-                  <span className="text-xs text-muted">{Number(t.cnt)}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <Dropdown label={tagFilter ? `#${tagFilter}` : 'Supertags'} width="w-56">
+          {(close) =>
+            availableTags.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-muted">No supertags yet</div>
+            ) : (
+              <>
+                {tagFilter && (
+                  <MenuItem onClick={() => { setSearchParams({}); close() }}>
+                    <span className="text-muted">Clear filter</span>
+                  </MenuItem>
+                )}
+                {availableTags.map((t) => (
+                  <MenuItem key={t.name} active={tagFilter === t.name} onClick={() => { pickTag(t.name); close() }}>
+                    <span>#{t.name}</span>
+                    <span className="text-xs text-muted">{Number(t.cnt)}</span>
+                  </MenuItem>
+                ))}
+              </>
+            )
+          }
+        </Dropdown>
       </div>
 
       {/* active tag filter */}
