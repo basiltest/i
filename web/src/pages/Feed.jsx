@@ -134,11 +134,19 @@ export default function Feed() {
     })
   }, [fetchPage])
 
-  // poll for newer posts (banner, no auto-insert)
+  // poll for newer posts (banner, no auto-insert); skip hidden tabs, give up after 3 straight failures
   useEffect(() => {
     if (!newestAt) return
+    let fails = 0
     const id = setInterval(() => {
-      supabase.rpc('posts_since', { p_since: newestAt }).then(({ data }) => {
+      if (document.hidden) return
+      supabase.rpc('posts_since', { p_since: newestAt }).then(({ data, error: e }) => {
+        if (e) {
+          fails += 1
+          if (fails >= 3) clearInterval(id)
+          return
+        }
+        fails = 0
         if (data != null) setNewCount(Number(data))
       })
     }, 30000)
