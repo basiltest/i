@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Plus, Search, X, Trash2 } from 'lucide-react'
+import { Plus, Search, X, Trash2, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import RoleBadge from '../components/RoleBadge'
@@ -47,6 +47,13 @@ export default function TeamAcquisition() {
       : await supabase.rpc('admin_delete_team_post', { p_id: id })
     if (e) { console.error(e); return setError(GENERIC_ERR) }
     setPosts((prev) => prev.filter((p) => p.id !== id))
+  }
+
+  async function toggleClosed(post) {
+    const { error: e } = await supabase.rpc('set_team_closed', { p_id: post.id, p_closed: !post.closed })
+    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    flash(post.closed ? 'Role reopened.' : 'Role closed.')
+    load()
   }
 
   async function withdraw(postId) {
@@ -110,7 +117,7 @@ export default function TeamAcquisition() {
             <button
               key={t.id}
               onClick={() => setDetail(t)}
-              className="card flex h-52 cursor-pointer flex-col overflow-hidden p-4 text-left transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-pop"
+              className={`card flex h-52 cursor-pointer flex-col overflow-hidden p-4 text-left transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-pop ${t.closed ? 'opacity-60' : ''}`}
             >
               <div className="mb-2 flex items-center gap-2">
                 <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
@@ -118,6 +125,7 @@ export default function TeamAcquisition() {
                 </div>
                 <span className="truncate text-sm font-bold">{t.author_name}</span>
                 {t.author_role && <RoleBadge role={t.author_role} />}
+                {t.closed && <span className="rounded-full bg-down/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-down">Closed</span>}
                 <span className="ml-auto shrink-0 text-xs text-faint">{timeAgo(t.created_at)}</span>
               </div>
 
@@ -141,12 +149,14 @@ export default function TeamAcquisition() {
               )}
 
               <div className="mt-auto flex items-center gap-2 pt-3 text-xs font-semibold text-muted">
-                {t.is_mine
-                  ? `${Number(t.app_count)} ${Number(t.app_count) === 1 ? 'applicant' : 'applicants'}`
-                  : t.i_applied
-                    ? <span className="text-accent">Applied</span>
-                    : 'Tap to view and apply'}
-                <span className="ml-auto text-accent">Open</span>
+                {t.closed
+                  ? <span className="text-down">Closed</span>
+                  : t.is_mine
+                    ? `${Number(t.app_count)} ${Number(t.app_count) === 1 ? 'applicant' : 'applicants'}`
+                    : t.i_applied
+                      ? <span className="text-accent">Applied</span>
+                      : 'Tap to view and apply'}
+                <ChevronRight size={16} className="ml-auto text-faint" />
               </div>
             </button>
           ))}
@@ -162,6 +172,7 @@ export default function TeamAcquisition() {
           onWithdraw={() => { withdraw(detail.id); setDetail(null) }}
           onEdit={() => { setEditPost(detail); setDetail(null) }}
           onApplicants={() => { setApplicantsFor(detail); setDetail(null) }}
+          onToggleClosed={() => { toggleClosed(detail); setDetail(null) }}
           onDelete={() => { deletePost(detail.id, detail.is_mine); setDetail(null) }}
         />
       )}
@@ -193,7 +204,7 @@ export default function TeamAcquisition() {
   )
 }
 
-function DetailModal({ post, isAdmin, onClose, onApply, onWithdraw, onEdit, onApplicants, onDelete }) {
+function DetailModal({ post, isAdmin, onClose, onApply, onWithdraw, onEdit, onApplicants, onToggleClosed, onDelete }) {
   return (
     <Shell title={post.title} onClose={onClose}>
       <div className="mt-3 flex items-center gap-2">
@@ -202,6 +213,7 @@ function DetailModal({ post, isAdmin, onClose, onApply, onWithdraw, onEdit, onAp
         </div>
         <span className="truncate text-sm font-bold">{post.author_name}</span>
         {post.author_role && <RoleBadge role={post.author_role} />}
+        {post.closed && <span className="rounded-full bg-down/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-down">Closed</span>}
         <span className="ml-auto shrink-0 text-xs text-faint">{timeAgo(post.created_at)}</span>
       </div>
 
@@ -227,21 +239,27 @@ function DetailModal({ post, isAdmin, onClose, onApply, onWithdraw, onEdit, onAp
         </div>
       )}
 
-      <div className="mt-5 flex items-center gap-2 border-t border-line pt-4">
+      <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-line pt-4">
         {post.is_mine ? (
           <>
             <button className="btn-outline" onClick={onApplicants}>Applicants ({Number(post.app_count)})</button>
             <button className="btn-outline" onClick={onEdit}>Edit</button>
+            <button className="btn-outline" onClick={onToggleClosed}>{post.closed ? 'Reopen' : 'Close'}</button>
           </>
         ) : post.i_applied ? (
           <button onClick={onWithdraw} className="btn inline-flex items-center border border-down/40 px-4 py-2 text-sm text-down transition-colors hover:bg-down/10">
             Withdraw application
           </button>
+        ) : post.closed ? (
+          <span className="text-sm font-semibold text-down">This role is closed.</span>
         ) : (
           <button className="btn-primary" onClick={onApply}>Apply</button>
         )}
         {isAdmin && !post.is_mine && (
-          <button className="btn-outline" onClick={onApplicants}>Applicants ({Number(post.app_count)})</button>
+          <>
+            <button className="btn-outline" onClick={onApplicants}>Applicants ({Number(post.app_count)})</button>
+            <button className="btn-outline" onClick={onToggleClosed}>{post.closed ? 'Reopen' : 'Close'}</button>
+          </>
         )}
         {(post.is_mine || isAdmin) && (
           <button onClick={onDelete} aria-label="Delete" className="ml-auto rounded-full p-2 text-muted transition-colors hover:bg-black/5 hover:text-down">
