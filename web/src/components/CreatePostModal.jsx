@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { X, FileText, ArrowLeft } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { timeAgo } from '../lib/format'
+import { kindLabel, kindChipClass } from '../lib/postKind'
+
+const KINDS = ['idea', 'problem', 'discussion']
 
 const MAX_TAGS = 10
 
@@ -98,7 +101,7 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
   async function save(status) {
     setError('')
     if (!title.trim()) return setError('Title is required.')
-    if (!problem.trim()) return setError('Problem statement is required.')
+    if (!problem.trim()) return setError(kind === 'discussion' ? 'Body is required.' : 'Problem statement is required.')
 
     setBusy(true)
     try {
@@ -109,7 +112,7 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
           p_title: title.trim(),
           p_problem: problem.trim(),
           p_solution: kind === 'idea' ? solution.trim() : null,
-          p_startup: startup.trim() || null,
+          p_startup: kind === 'discussion' ? null : (startup.trim() || null),
           p_tags: tags,
         })
         if (rpcErr) { console.error(rpcErr); setError('Something went wrong. Please try again.'); return }
@@ -126,7 +129,7 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
           p_title: title.trim(),
           p_problem: problem.trim(),
           p_solution: kind === 'idea' ? solution.trim() : null,
-          p_startup: startup.trim() || null,
+          p_startup: kind === 'discussion' ? null : (startup.trim() || null),
           p_anonymous: anonymous,
           p_status: status,
           p_tags: tags,
@@ -180,12 +183,8 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
               {drafts.map((d) => (
                 <li key={d.id} className="flex items-center gap-2 py-2.5">
                   <button type="button" onClick={() => loadDraft(d)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                    <span
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                        d.kind === 'problem' ? 'bg-warn/20 text-[#8a6d00]' : 'bg-accent-soft text-accent'
-                      }`}
-                    >
-                      {d.kind === 'problem' ? 'Problem' : 'Idea'}
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${kindChipClass(d.kind)}`}>
+                      {kindLabel(d.kind)}
                     </span>
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-bold">{d.title}</span>
@@ -211,7 +210,7 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
         ) : (
           <>
             <div className="mt-4 inline-flex rounded-full border border-line p-0.5">
-              {['idea', 'problem'].map((k) => (
+              {KINDS.map((k) => (
                 <button
                   key={k}
                   type="button"
@@ -221,17 +220,23 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
                     kind === k ? 'bg-accent-soft text-accent' : 'text-muted'
                   } ${kindLocked ? 'cursor-not-allowed opacity-60' : ''}`}
                 >
-                  {k === 'idea' ? 'Idea' : 'Problem'}
+                  {kindLabel(k)}
                 </button>
               ))}
             </div>
 
             <div className="mt-4 space-y-3">
               <input className="input" placeholder="Title" maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} />
-              <input className="input" placeholder="Startup name (optional)" maxLength={100} value={startup} onChange={(e) => setStartup(e.target.value)} />
+              {kind !== 'discussion' && (
+                <input className="input" placeholder="Startup name (optional)" maxLength={100} value={startup} onChange={(e) => setStartup(e.target.value)} />
+              )}
               <textarea
                 className="input min-h-[80px] resize-y"
-                placeholder={kind === 'idea' ? 'The problem you are solving' : 'Describe the problem'}
+                placeholder={
+                  kind === 'idea' ? 'The problem you are solving'
+                    : kind === 'problem' ? 'Describe the problem'
+                      : 'Share an update, a question, or a win'
+                }
                 maxLength={5000} value={problem} onChange={(e) => setProblem(e.target.value)}
               />
               {kind === 'idea' && (

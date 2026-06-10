@@ -4,7 +4,7 @@
 create table if not exists public.posts (
   id uuid primary key default gen_random_uuid(),
   author_id uuid not null references public.profiles(id) on delete cascade,
-  kind text not null check (kind in ('idea', 'problem')),
+  kind text not null check (kind in ('idea', 'problem', 'discussion')),
   anonymous boolean not null default false,
   startup text,
   title text not null,
@@ -24,6 +24,10 @@ create table if not exists public.posts (
 create index if not exists posts_feed_idx on public.posts (kind, status, created_at desc);
 create index if not exists posts_author_idx on public.posts (author_id);
 create index if not exists posts_pinned_idx on public.posts (pinned) where pinned;
+
+-- migration: allow the 'discussion' kind on installs created before it existed
+alter table public.posts drop constraint if exists posts_kind_check;
+alter table public.posts add constraint posts_kind_check check (kind in ('idea', 'problem', 'discussion'));
 
 alter table public.posts enable row level security;
 

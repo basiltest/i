@@ -8,6 +8,7 @@ import Dropdown, { MenuItem } from '../components/Dropdown'
 import PostDetailSkeleton from '../components/PostDetailSkeleton'
 import CreatePostModal from '../components/CreatePostModal'
 import { timeAgo } from '../lib/format'
+import { kindLabel, kindChipClass } from '../lib/postKind'
 
 const CSORTS = [
   { s: 'new', label: 'Newest' },
@@ -231,12 +232,8 @@ export default function PostDetail() {
               {post.badges?.includes('Success') && (
                 <span className="rounded-full bg-success/15 px-2.5 py-0.5 text-[11px] font-semibold text-success">#Success</span>
               )}
-              <span
-                className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                  post.kind === 'problem' ? 'bg-warn/20 text-[#8a6d00]' : 'bg-accent-soft text-accent'
-                }`}
-              >
-                {post.kind === 'problem' ? 'Problem' : 'Idea'}
+              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${kindChipClass(post.kind)}`}>
+                {kindLabel(post.kind)}
               </span>
               {(post.is_mine || isAdmin) && (
                 <Kebab>

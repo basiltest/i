@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowBigUp, ArrowBigDown, MessageCircle } from 'lucide-react'
 import RoleBadge from './RoleBadge'
 import { timeAgo } from '../lib/format'
+import { kindLabel, kindChipClass } from '../lib/postKind'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 
@@ -64,12 +65,8 @@ export default function PostCard({ post }) {
           {post.badges?.includes('Success') && (
             <span className="rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-semibold text-success">#Success</span>
           )}
-          <span
-            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-              post.kind === 'problem' ? 'bg-warn/20 text-[#8a6d00]' : 'bg-accent-soft text-accent'
-            }`}
-          >
-            {post.kind === 'problem' ? 'Problem' : 'Idea'}
+          <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${kindChipClass(post.kind)}`}>
+            {kindLabel(post.kind)}
           </span>
         </span>
       </header>

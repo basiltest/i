@@ -17,6 +17,7 @@ const KINDS = [
   { k: 'all', label: 'All types' },
   { k: 'idea', label: 'Ideas' },
   { k: 'problem', label: 'Problems' },
+  { k: 'discussion', label: 'Discussions' },
 ]
 
 const normTag = (s) => s.toLowerCase().replace(/[^a-z0-9-]/g, '')
