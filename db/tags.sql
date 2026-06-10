@@ -27,14 +27,17 @@ alter table public.post_tags enable row level security;
 alter table public.tag_requests enable row level security;
 
 -- tags: authed users read approved tags (suggestions, trending). Writes via RPC / admin only.
+drop policy if exists "tags read approved" on public.tags;
 create policy "tags read approved" on public.tags
   for select to authenticated using (approved);
 
 -- post_tags: readable for joins. Writes happen via the create_post RPC (definer) only.
+drop policy if exists "post_tags read" on public.post_tags;
 create policy "post_tags read" on public.post_tags
   for select to authenticated using (true);
 
 -- tag_requests: an author can read their own requests (admin queue comes later).
+drop policy if exists "tag_requests read own" on public.tag_requests;
 create policy "tag_requests read own" on public.tag_requests
   for select to authenticated using (author_id = auth.uid());
 
