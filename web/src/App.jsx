@@ -11,8 +11,10 @@ import AdminPanel from './pages/AdminPanel'
 import TeamAcquisition from './pages/TeamAcquisition'
 import Calendar from './pages/Calendar'
 import Directory from './pages/Directory'
+import Onboarding from './pages/Onboarding'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
+import OnboardingGate from './components/OnboardingGate'
 import PublicOnlyRoute from './components/PublicOnlyRoute'
 
 function App() {
@@ -23,8 +25,12 @@ function App() {
       <Route path="/forgot-password" element={<PublicOnlyRoute><ForgotPassword /></PublicOnlyRoute>} />
       <Route path="/reset-password" element={<ResetPassword />} />
 
-      {/* authed app shell: topbar + left rail, pages render in the Outlet */}
-      <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+      {/* first-time profile setup (authed, but outside the app shell) */}
+      <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+
+      {/* authed app shell: topbar + left rail, pages render in the Outlet. Incomplete
+          profiles are bounced to /onboarding by the gate. */}
+      <Route element={<ProtectedRoute><OnboardingGate><Layout /></OnboardingGate></ProtectedRoute>}>
         <Route index element={<Feed />} />
         <Route path="post/:id" element={<PostDetail />} />
         <Route path="profile" element={<Profile />} />
