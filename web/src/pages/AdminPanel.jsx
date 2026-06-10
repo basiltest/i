@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { Award, Users, SlidersHorizontal } from 'lucide-react'
+import { Award, Users, SlidersHorizontal, Search } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import { REGIONS, SECTORS, DOMAINS } from '../lib/options'
@@ -27,6 +27,7 @@ export default function AdminPanel() {
   const [busyId, setBusyId] = useState(null)
   const [feedLocked, setFeedLocked] = useState(false)
   const [editMember, setEditMember] = useState(null)
+  const [memberQuery, setMemberQuery] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -88,6 +89,14 @@ export default function AdminPanel() {
     setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, banned: ban } : x)))
   }
 
+  const shownMembers = members.filter((m) => {
+    const t = memberQuery.trim().toLowerCase()
+    if (!t) return true
+    return (m.name || '').toLowerCase().includes(t)
+      || (m.email || '').toLowerCase().includes(t)
+      || (m.startup || '').toLowerCase().includes(t)
+  })
+
   return (
     <div className="max-w-3xl">
       <h1 className="text-xl font-extrabold">Admin Panel</h1>
@@ -128,8 +137,21 @@ export default function AdminPanel() {
       {loading ? (
         <div className="mt-6 flex items-center gap-2 text-sm text-muted"><Spinner /> Loading...</div>
       ) : tab === 'members' ? (
-        <div className="card mt-4 divide-y divide-line">
-          {members.map((m) => (
+        <>
+        <div className="relative mt-4">
+          <Search size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
+          <input
+            className="input pl-9"
+            value={memberQuery}
+            onChange={(e) => setMemberQuery(e.target.value)}
+            placeholder="Search members by name, email or startup..."
+          />
+        </div>
+        <div className="card mt-3 divide-y divide-line">
+          {shownMembers.length === 0 && (
+            <div className="p-6 text-center text-sm text-muted">No members match.</div>
+          )}
+          {shownMembers.map((m) => (
             <div key={m.id} className="flex flex-wrap items-center gap-3 p-4">
               <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent">
                 {(m.name || '?').charAt(0).toUpperCase()}
@@ -170,6 +192,7 @@ export default function AdminPanel() {
             </div>
           ))}
         </div>
+        </>
       ) : tab === 'settings' ? (
         <div className="card mt-4 divide-y divide-line">
           <div className="flex flex-wrap items-center gap-3 p-4">
