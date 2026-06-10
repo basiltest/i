@@ -69,13 +69,8 @@ export default function PostCard({ post }) {
       <h3 className="mt-3 break-words text-base font-bold">{post.title}</h3>
       {post.startup && <p className="break-words text-sm font-semibold text-muted">{post.startup}</p>}
 
-      <p className="mt-2 whitespace-pre-wrap break-words text-sm text-ink">{post.problem}</p>
-      {post.kind === 'idea' && post.solution && (
-        <div className="mt-3 rounded-lg bg-page p-3">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">Solution</div>
-          <p className="mt-1 whitespace-pre-wrap break-words text-sm text-ink">{post.solution}</p>
-        </div>
-      )}
+      {/* compact: clamp to 4 lines; full text (and the Solution box) lives on the detail page */}
+      <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words text-sm text-ink">{post.problem}</p>
 
       {post.tags?.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">

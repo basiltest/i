@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { X } from 'lucide-react'
+import { X, ArrowUp } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import PostCard from '../components/PostCard'
 import PostCardSkeleton from '../components/PostCardSkeleton'
@@ -152,6 +152,32 @@ export default function Feed() {
     setLoadingMore(false)
   }
 
+  // infinite scroll: sentinel near the list bottom auto-loads the next page
+  const sentinelRef = useRef(null)
+  const loadMoreRef = useRef(() => {})
+  loadMoreRef.current = () => {
+    if (loading || loadingMore || !hasMore || error) return
+    loadMore()
+  }
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMoreRef.current() },
+      { rootMargin: '600px' },
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
+  // back-to-top button after scrolling down a few screens
+  const [showTop, setShowTop] = useState(false)
+  useEffect(() => {
+    const onScroll = () => setShowTop(window.scrollY > 800)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
   function reload() {
     setLoading(true)
     fetchPage(0, true).then((count) => {
@@ -296,14 +322,26 @@ export default function Feed() {
               <PostCard key={p.id} post={p} />
             ))}
           </div>
-          {hasMore && (
-            <div className="mt-4 text-center">
-              <button className="btn-outline" onClick={loadMore} disabled={loadingMore}>
-                {loadingMore ? 'Loading...' : 'Load more'}
-              </button>
+          {loadingMore && (
+            <div className="mt-4">
+              <PostCardSkeleton />
             </div>
           )}
         </>
+      )}
+
+      {/* infinite-scroll sentinel (observed once; guards live in loadMoreRef) */}
+      <div ref={sentinelRef} aria-hidden className="h-px" />
+
+      {/* back to top */}
+      {showTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          aria-label="Back to top"
+          className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-4 py-2.5 text-sm font-semibold text-ink shadow-pop transition-colors hover:border-accent"
+        >
+          <ArrowUp size={16} /> Back to top
+        </button>
       )}
 
       <CreatePostModal
