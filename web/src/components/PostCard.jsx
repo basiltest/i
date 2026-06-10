@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowBigUp, ArrowBigDown, MessageCircle } from 'lucide-react'
+import { ArrowBigUp, ArrowBigDown, MessageCircle, Pin } from 'lucide-react'
 import RoleBadge from './RoleBadge'
 import { timeAgo } from '../lib/format'
 import { kindLabel, kindChipClass } from '../lib/postKind'
@@ -45,9 +45,12 @@ export default function PostCard({ post }) {
   return (
     <article
       onClick={open}
-      className="card cursor-pointer p-5 transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-pop"
+      className="card relative cursor-pointer p-5 transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-pop"
     >
-      <header className="flex items-center gap-2">
+      {post.pinned && (
+        <Pin size={16} className="absolute right-3 top-3 -rotate-45 fill-accent text-accent" aria-label="Pinned" />
+      )}
+      <header className={`flex items-center gap-2 ${post.pinned ? 'pr-6' : ''}`}>
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent">
           {anon ? '?' : post.author_name.charAt(0).toUpperCase()}
         </div>
@@ -59,9 +62,6 @@ export default function PostCard({ post }) {
           <div className="text-xs text-muted">{timeAgo(post.created_at)}</div>
         </div>
         <span className="ml-auto flex shrink-0 items-center gap-1.5">
-          {post.pinned && (
-            <span className="rounded-full bg-line px-2 py-0.5 text-[11px] font-semibold text-muted">Pinned</span>
-          )}
           {post.badges?.includes('Success') && (
             <span className="rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-semibold text-success">#Success</span>
           )}

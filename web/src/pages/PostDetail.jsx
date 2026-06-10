@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ArrowBigUp, ArrowBigDown, MessageCircle, MoreHorizontal } from 'lucide-react'
+import { ArrowLeft, ArrowBigUp, ArrowBigDown, MessageCircle, MoreHorizontal, Pin } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import RoleBadge from '../components/RoleBadge'
@@ -226,9 +226,7 @@ export default function PostDetail() {
               <div className="text-xs text-muted">{timeAgo(post.created_at)}{post.edited && ' · edited'}</div>
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
-              {post.pinned && (
-                <span className="rounded-full bg-line px-2.5 py-0.5 text-[11px] font-semibold text-muted">Pinned</span>
-              )}
+              {post.pinned && <Pin size={16} className="-rotate-45 fill-accent text-accent" aria-label="Pinned" />}
               {post.badges?.includes('Success') && (
                 <span className="rounded-full bg-success/15 px-2.5 py-0.5 text-[11px] font-semibold text-success">#Success</span>
               )}
