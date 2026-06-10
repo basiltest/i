@@ -9,7 +9,7 @@ const ITEMS = [
   { label: 'Idea Pipeline', icon: Workflow, soon: true },
   { to: '/team', label: 'Team Acquisition', icon: Users },
   { to: '/calendar', label: 'Calendar', icon: Calendar },
-  { label: 'Directory', icon: LayoutGrid, soon: true },
+  { to: '/directory', label: 'Directory', icon: LayoutGrid },
 ]
 
 const base = 'flex items-center gap-3.5 rounded-full px-4 py-3 text-base font-semibold transition-colors'

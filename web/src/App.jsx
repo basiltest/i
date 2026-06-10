@@ -10,6 +10,7 @@ import Settings from './pages/Settings'
 import AdminPanel from './pages/AdminPanel'
 import TeamAcquisition from './pages/TeamAcquisition'
 import Calendar from './pages/Calendar'
+import Directory from './pages/Directory'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import PublicOnlyRoute from './components/PublicOnlyRoute'
@@ -30,6 +31,7 @@ function App() {
         <Route path="settings" element={<Settings />} />
         <Route path="team" element={<TeamAcquisition />} />
         <Route path="calendar" element={<Calendar />} />
+        <Route path="directory" element={<Directory />} />
         <Route path="admin" element={<AdminPanel />} />
       </Route>
     </Routes>

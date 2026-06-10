@@ -1,0 +1,31 @@
+-- Directory / Network (FRD Module K): browse + filter members. profiles RLS is read-own,
+-- so the directory is exposed via a security-definer RPC that returns public fields only
+-- (never email). Banned members are hidden. Run in Supabase.
+
+drop function if exists public.directory(text, text, text, text, text);
+create function public.directory(
+  p_search text default null,
+  p_region text default null,
+  p_sector text default null,
+  p_domain text default null,
+  p_role text default null
+)
+returns table (
+  id uuid, name text, role text, startup text,
+  region text, sector text, domain text, linkedin text, phone text, bio text
+)
+language sql stable security definer set search_path = public
+as $$
+  select p.id, p.name, p.role, p.startup, p.region, p.sector, p.domain, p.linkedin, p.phone, p.bio
+  from public.profiles p
+  where coalesce(p.banned, false) = false
+    and (p_role is null or p.role = p_role)
+    and (p_region is null or p.region = p_region)
+    and (p_sector is null or p.sector = p_sector)
+    and (p_domain is null or p.domain = p_domain)
+    and (p_search is null or p_search = ''
+         or p.name ilike '%' || p_search || '%'
+         or coalesce(p.startup, '') ilike '%' || p_search || '%')
+  order by p.name
+$$;
+grant execute on function public.directory(text, text, text, text, text) to authenticated;
