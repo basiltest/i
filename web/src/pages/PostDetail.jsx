@@ -128,7 +128,7 @@ export default function PostDetail() {
   )
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="max-w-2xl">
       <button onClick={() => navigate(-1)} className="mb-4 inline-flex items-center gap-1 text-sm font-semibold text-muted hover:text-ink">
         <ArrowLeft size={16} /> Back
       </button>
