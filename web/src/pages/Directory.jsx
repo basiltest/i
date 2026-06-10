@@ -132,16 +132,13 @@ export default function Directory() {
               )}
 
               <div className="mt-3 flex flex-wrap gap-2">
-                {m.linkedin ? (
+                {m.linkedin && (
                   <a href={m.linkedin} target="_blank" rel="noreferrer" className="btn-outline px-3 py-1.5 text-xs">LinkedIn</a>
-                ) : (
-                  <span className="px-1 py-1.5 text-xs text-faint">No LinkedIn</span>
                 )}
-                {m.email ? (
+                {m.email && (
                   <a href={`mailto:${m.email}`} className="btn-outline px-3 py-1.5 text-xs">Email</a>
-                ) : m.phone ? (
-                  <a href={`tel:${m.phone}`} className="btn-outline px-3 py-1.5 text-xs">Call {m.phone}</a>
-                ) : null}
+                )}
+                {!m.linkedin && !m.email && <span className="px-1 py-1.5 text-xs text-faint">No public contact</span>}
               </div>
             </div>
           ))}

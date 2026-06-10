@@ -10,6 +10,8 @@ export default function Settings() {
   const userId = session?.user?.id
 
   const [profile, setProfile] = useState(null)
+  const [listed, setListed] = useState(true)
+  const [showEmail, setShowEmail] = useState(false)
   const [isDark, setIsDark] = useState(
     typeof document !== 'undefined' && document.documentElement.classList.contains('dark'),
   )
@@ -17,11 +19,27 @@ export default function Settings() {
   useEffect(() => {
     if (!userId) return
     let active = true
-    supabase.from('profiles').select('name, role').eq('id', userId).single().then(({ data }) => {
-      if (active) setProfile(data)
+    supabase.from('profiles').select('name, role, directory_visible, show_email').eq('id', userId).single().then(({ data }) => {
+      if (!active || !data) return
+      setProfile(data)
+      setListed(data.directory_visible !== false)
+      setShowEmail(!!data.show_email)
     })
     return () => { active = false }
   }, [userId])
+
+  async function toggleListed() {
+    const next = !listed
+    setListed(next)
+    const { error } = await supabase.from('profiles').update({ directory_visible: next }).eq('id', userId)
+    if (error) { console.error(error); setListed(!next) }
+  }
+  async function toggleShowEmail() {
+    const next = !showEmail
+    setShowEmail(next)
+    const { error } = await supabase.from('profiles').update({ show_email: next }).eq('id', userId)
+    if (error) { console.error(error); setShowEmail(!next) }
+  }
 
   function toggleTheme() {
     const dark = document.documentElement.classList.toggle('dark')
@@ -52,6 +70,26 @@ export default function Settings() {
           <p className="mt-3 text-xs text-faint">
             Email and role are managed by IFN. An Admin can change a member's role.
           </p>
+        </section>
+
+        {/* Directory / privacy */}
+        <section className="card p-5">
+          <h2 className="mb-3 text-base font-bold">Directory</h2>
+          <div className="flex items-center gap-4">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold">List me in the Directory</div>
+              <div className="text-xs text-muted">Let other members find you. {listed ? 'On' : 'Off'}</div>
+            </div>
+            <Toggle on={listed} onClick={toggleListed} />
+          </div>
+          <div className="mt-4 flex items-center gap-4">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold">Show my email</div>
+              <div className="text-xs text-muted">Display your email on your Directory card. {showEmail ? 'On' : 'Off'}</div>
+            </div>
+            <Toggle on={showEmail} onClick={toggleShowEmail} />
+          </div>
+          {!listed && <p className="mt-3 text-xs text-faint">You are hidden from the Directory. Turn the first toggle on to appear.</p>}
         </section>
 
         {/* Appearance */}
