@@ -28,6 +28,8 @@ skinparam componentStyle rectangle
 [calendar.sql] as cal
 [directory.sql] as dir
 [onboarding.sql] as onb
+[notifications.sql\nnotify / my_notifications / unread] as notif
+[pipeline.sql\nideas_pipeline G1-G6, dossier,\nmentor queue, admin board, storage] as pipe
 
 prof --> posts
 posts --> votes
@@ -43,6 +45,10 @@ prof --> cal
 admin --> cal : is_admin
 prof --> dir
 prof --> onb
+prof --> notif
+notif --> pipe : notify()
+admin --> pipe : is_admin + app_settings
+posts --> pipe : 1:1 ideas_pipeline
 @enduml
 ```
 
@@ -96,7 +102,8 @@ Unified feed (ideas, problems, discussions).
 - [x] `post_votes` + RLS (db/votes.sql); feed_posts returns score + viewer vote; trending_tags RPC.
 - [x] `tags` + `post_tags` + `tag_requests` + RLS + `create_post` + `update_post` RPCs (db/tags.sql). New tags auto-approved for now (moderation moves to the admin layer). Drafts = posts.status='draft'. `update_post` edits own post (snapshots first version into posts.original, marks edited, resets tags). Admin approval queue + #Success still TODO.
 - [x] `feed_posts` RPC (db/feed.sql): full-text search (`p_search`) + multi-supertag AND filter (`p_tags text[]`) + sorts hot/new/top + comment_count + score + viewer vote; masks anonymous authors. `feed_tags`, `trending_tags`, `posts_since` helpers.
-- [ ] `notifications` table (ADR-020) + RLS (read own); inline writes on key events.
+- [x] `notifications` (db/notifications.sql, ADR-020): RLS read/mark-read/delete own; `notify()` (definer, internal-only) + `my_notifications` / `notifications_unread_count` / `mark_notifications_read`. Written inline by pipeline RPCs.
+- [x] Idea Pipeline (db/pipeline.sql, design in ../pipeline-architecture.md): `pipeline_ideas` is a STANDALONE application (title/oneliner/problem/solution/startup, IFN-n via advisory lock, gates G1-G6, states active|refine|rejected) - fully decoupled from posts/feed. Children keyed by idea_id: `gate_transitions` (audit) + `idea_submissions` (per-gate jsonb templates, revisions kept) + `idea_reviews` (7-criteria rubric) + `idea_actions` (off-app tasks) + `idea_messages` (private thread) + `attachments`. All default-deny; RPCs: pipeline_submit/update_pipeline_idea/submit_gate/resubmit_idea/idea_dossier/my_pipeline (student), mentor_queue/mentor_pick/mentor_accept/my_mentees/review_gate/action_create (mentor), admin_pipeline_board/counts/assign_mentor/bulk_assign/move_gate/reject_idea/delete_pipeline_idea/mentor_load/set_pipeline_locked (admin). Storage bucket `idea-files` (private, 20MB, doc/pdf/ppt) + policies. pg_cron stale nudge (enable pg_cron extension in Dashboard -> Database -> Extensions; the file no-ops without it).
 - [ ] `reports` table (moderation) + RLS; admin resolve/hide.
 - [x] Admin layer (db/admin.sql): `is_admin()` definer helper; all admin ops via guarded RPCs (no extra RLS): `admin_members` (joins auth.users for email), `admin_set_role` (student/mentor/admin, never own), `admin_pin_post`, `admin_delete_post`, `admin_delete_comment`; #Success flow: `request_success` (author) -> `admin_success_queue` -> `admin_review_success` (approve adds 'Success' to posts.badges). 'success' is a reserved tag name. Bootstrap admin = college email (update profiles via auth.users lookup).
 - [x] Admin settings (db/admin.sql): `app_settings` single-row table (`feed_locked`) + `admin_set_feed_locked` (create_post rejects non-admins when locked); per-post `posts.comments_locked` (revoked from authenticated) + `admin_set_comments_locked`; comments insert RLS blocks when the post is locked; post_detail returns comments_locked.
@@ -106,5 +113,5 @@ Unified feed (ideas, problems, discussions).
 - [x] Calendar & Events (db/calendar.sql, FRD Module I): `events` table (type Workshop/Mentorship/Deadline/Hackathon/Other, starts_at/ends_at, `source` for future pipeline-populated events) + RLS read-all; admin RPCs `admin_create_event`/`admin_update_event`/`admin_delete_event`. Frontend: month-grid Calendar page, per-event Add-to-Google link + .ics download (Option 1, no OAuth), Upcoming Events in the feed right sidebar, nearby events (next 7 days) in the notification bell. Pipeline-populated events deferred until the pipeline exists.
 - [x] Team Acquisition (db/teamboard.sql): `team_posts` + `team_applications` (unique per person) + RLS; `team_feed` (author + app_count + i_applied + is_mine), `team_apply` (no own-post/dup, message required), `team_applicants` (post author/admin only; profile + LinkedIn, never email), `admin_delete_team_post`.
 - [ ] CHECK length constraints on profiles/posts text columns (server-side cap matching the UI maxLength).
-- [ ] Pipeline tables (later): `ideas_pipeline`, `pipeline_settings`, `gate_transitions`, `idea_submissions`, `idea_reviews`, `idea_extra_asks`, `attachments`.
+- [x] Pipeline tables: see db/pipeline.sql above (`pipeline_settings` became a `pipeline_locked` column on `app_settings`; `idea_extra_asks` became `idea_actions`).
 - [ ] When moving off Supabase: these SQL files become the migration set; replace `auth.uid()`/RLS as needed (self-host GoTrue or own auth).

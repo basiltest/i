@@ -11,8 +11,8 @@ Supabase project ref uyepkmdpakwkpqxsofoi). Architecture + PlantUML diagrams: ar
 Live DB schema + apply order: db/README.md.
 
 ## Current state (2026-06-10)
-Four of the five left-nav surfaces are live (Feed, Team Acquisition, Calendar, Directory).
-Only Idea Pipeline remains a stub.
+All five left-nav surfaces are built (Feed, Idea Pipeline, Team Acquisition, Calendar, Directory).
+Pipeline is code-complete, pending SQL apply + browser test.
 
 Built:
 - **Auth + onboarding**: register, login, forgot/reset password, session (AuthProvider),
@@ -31,29 +31,58 @@ Built:
   view (no email exposed), open/closed lifecycle, owner edit, admin delete, uniform popup cards.
 - **Calendar** (/calendar): month grid, admin event CRUD (react-datepicker, dd/MM/yyyy + time),
   per-event Add-to-Google + .ics export, upcoming events in the right sidebar + notification bell.
+  Personal layer: my open pipeline action-item deadlines (my_action_deadlines RPC, auth-scoped,
+  never rows in the broadcast events table) render as dashed flag pills only the owner sees;
+  click -> detail modal w/ Google/.ics export + Open idea. Same export inline in the dossier.
 - **Directory** (/directory): search + filter by role/region/sector/domain; no phone shown;
   opt-in email; hidden unless directory_visible.
 - **Admin Panel** (/admin): searchable members, assign roles, ban/unban (email blocked from
   re-registering), edit any profile, #Success approval queue, feed-posting lock, per-post comment lock.
+- **Idea Pipeline** (design: pipeline-architecture.md; checked by the /goal skill):
+  - STANDALONE: applications are their own table (pipeline_ideas), fully decoupled from the
+    feed/posts (owner decision 2026-06-10). Editable only at G1 or during refine.
+  - STRUCTURED G1 FORM (owner decisions 2026-06-10, rev 2 - no length minimums): mockup-style
+    two-column form with uppercase labels + concrete example placeholders. Required: title,
+    sector (select), problem hypothesis (<=500), target market segments, solution (<=500),
+    team composition. Optional: experimentations held, TAM/market size. check_application
+    enforces server-side. Per-account draft autosave. Dossier renders identical Q&A format.
+    Sector filter on mentor queue + admin board. Founder can withdraw the application any
+    time (mentor notified, dossier cascades). G5 has an explicit mentor-bypass path
+    (prototype needs funding -> bypass_reason; mentor review = approval). Admin dossier view
+    is read-only with a highlighted current-state strip (assigned / picked up).
+  - DB: db/notifications.sql + db/pipeline.sql (gates G1-G6, IFN-n, dossier, mentor pull-queue,
+    rubric reviews, action items, private thread, attachments via Storage bucket `idea-files`,
+    admin board/counts/assign/move/reject/delete/lock, full gate_transitions audit, pg_cron
+    stale nudge).
+  - UI: /pipeline (my applications + application form modal), /pipeline/:id (dossier: application
+    card, gate bar, per-gate forms G3/G4/G5 with G5 evidence gate, mentor rubric, action items,
+    files upload/signed-URL download, thread w/ meeting logs, full history), /mentor (pull-queue
+    + my mentees), Admin Panel "Pipeline" tab (inbox-first board, funnel counts, bulk assign,
+    pipeline lock in Settings), Topbar bell shows real notifications (unread badge, mark-read)
+    + upcoming events. Skeleton loaders (PipelineSkeleton) on all pipeline surfaces.
 - DB files (apply via Supabase SQL editor, order in db/README.md): posts, votes, tags, feed,
   comments, admin, teamboard, calendar, directory, onboarding. profiles base table + handle_new_user
   still only in Supabase (db/profiles.sql backfill = TODO).
 
 ## Pending on the user (Supabase + push)
+- RE-RUN db/pipeline.sql (one run, idempotent). Live DB verified missing: open-action-items
+  approval guard, G3-only rubric, upload policy fix (is_idea_author), is_mine/is_mentor
+  coalesce. Then re-run the E2E to confirm all green:
+  `SUPA_URL=... SUPA_KEY=... STUDENT_EMAIL=... MENTOR_EMAIL=... PASSWORD=... node web/scripts/e2e-pipeline.mjs`
+- Optional: enable the pg_cron extension (Dashboard -> Database -> Extensions) and re-run
+  db/pipeline.sql so the 14-day stale-nudge job schedules (the file no-ops without it).
 - Re-run any changed db/*.sql in Supabase after each pull (a `PGRST202`/"function not found" error
   means a changed RPC has not been re-run; `Status code: (null)`/CORS means an ad blocker is killing
   *.supabase.co, not a code bug).
 - git push the latest commits.
 
 ## Next (not built)
+- Pipeline end-to-end browser test (student submit -> mentor pick -> G3 dossier -> rubric ->
+  G5 evidence -> incubation; admin override/reject paths).
 - #IdeaValidation self-badge + Idea Autopsy (FRD D4/W13/W15).
 - Edit-post UI shows original-vs-edited diff (snapshot already stored in posts.original).
 - Report/flag posts -> admin queue (moderation, v1 Scope rule for anonymous posting).
-- Pipeline. Calendar/events (admin create + requests). Directory. Team Board.
-- @mentions + notifications table (ADR-020).
-
-Next options: feed/posts, idea pipeline, directory, onboarding "complete profile" prompt, or the
-@ifheindia.org server enforcement.
+- @mentions; email notifications later (in-app shipped with the pipeline).
 
 DB note: profiles table + handle_new_user trigger (security definer) + RLS (read/update own; role
 column update revoked) live in Supabase (not in repo). Run via SQL editor when recreating.

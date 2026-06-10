@@ -71,6 +71,21 @@ export function buildICS(ev) {
   return lines.join('\r\n')
 }
 
+// Shape a pipeline action-item deadline like an event so googleCalUrl/downloadICS work on it.
+// Renders as a 9-10am block on the due date in the user's local timezone.
+export function actionEvent(a) {
+  const starts = new Date(`${a.due_date}T09:00:00`)
+  return {
+    id: a.id,
+    title: a.idea_title ? `${a.idea_title}: ${a.label}` : a.label,
+    description: `${a.details || ''}${a.ifn ? `\n(IFN-${a.ifn} action item)` : ''}`.trim(),
+    location: '',
+    type: 'Deadline',
+    starts_at: starts.toISOString(),
+    ends_at: null,
+  }
+}
+
 // Apple Calendar has no add-event URL; downloading the .ics opens it straight in.
 export function downloadICS(ev) {
   const blob = new Blob([buildICS(ev)], { type: 'text/calendar;charset=utf-8' })

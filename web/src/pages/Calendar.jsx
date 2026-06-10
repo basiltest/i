@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, Plus, CalendarPlus, Download, MapPin, Clock } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { ChevronLeft, ChevronRight, Plus, CalendarPlus, Download, MapPin, Clock, Flag } from 'lucide-react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import Spinner from '../components/Spinner'
-import { EVENT_TYPES, typeClass, typeDot, googleCalUrl, downloadICS } from '../lib/calendar'
+import { EVENT_TYPES, typeClass, googleCalUrl, downloadICS, actionEvent } from '../lib/calendar'
 
 const GENERIC_ERR = 'Something went wrong. Please try again.'
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -19,9 +20,11 @@ export default function Calendar() {
   const { isAdmin } = useAuth()
   const [month, setMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1) })
   const [events, setEvents] = useState([])
+  const [deadlines, setDeadlines] = useState([]) // my open pipeline action items (private to me)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [detail, setDetail] = useState(null)
+  const [deadlineDetail, setDeadlineDetail] = useState(null)
   const [formEvent, setFormEvent] = useState(undefined) // undefined = closed, null = new, obj = edit
 
   // 6-week grid starting on the Sunday on/before the 1st
@@ -38,22 +41,33 @@ export default function Calendar() {
   const load = useCallback(async () => {
     setLoading(true)
     const end = new Date(gridStart); end.setDate(end.getDate() + 42)
-    const { data, error: e } = await supabase
-      .from('events')
-      .select('*')
-      .gte('starts_at', gridStart.toISOString())
-      .lt('starts_at', end.toISOString())
-      .order('starts_at')
-    if (e) { console.error(e); setError(GENERIC_ERR) } else { setError(''); setEvents(data || []) }
+    const [ev, dl] = await Promise.all([
+      supabase
+        .from('events')
+        .select('*')
+        .gte('starts_at', gridStart.toISOString())
+        .lt('starts_at', end.toISOString())
+        .order('starts_at'),
+      // personal layer: my action-item deadlines, derived via an auth-scoped RPC -
+      // never rows in the shared events table, so they cannot reach anyone else's calendar
+      supabase.rpc('my_action_deadlines'),
+    ])
+    if (ev.error) { console.error(ev.error); setError(GENERIC_ERR) } else { setError(''); setEvents(ev.data || []) }
+    if (dl.error) console.error(dl.error) // RPC missing pre-migration: events still render
+    else setDeadlines(dl.data || [])
     setLoading(false)
   }, [gridStart])
   useEffect(() => { load() }, [load])
 
   const byDay = useMemo(() => {
     const m = {}
-    for (const ev of events) (m[dayKey(ev.starts_at)] ||= []).push(ev)
+    for (const ev of events) (m[dayKey(ev.starts_at)] ||= []).push({ kind: 'event', ev })
+    for (const a of deadlines) {
+      const k = dayKey(new Date(`${a.due_date}T09:00:00`))
+      ;(m[k] ||= []).push({ kind: 'deadline', a })
+    }
     return m
-  }, [events])
+  }, [events, deadlines])
 
   const todayKey = dayKey(new Date())
 
@@ -105,16 +119,28 @@ export default function Calendar() {
                 {isToday ? <span className="inline-grid h-5 w-5 place-items-center rounded-full bg-accent text-white">{d.getDate()}</span> : d.getDate()}
               </div>
               <div className="space-y-1">
-                {list.slice(0, 3).map((ev) => (
-                  <button
-                    key={ev.id}
-                    onClick={() => setDetail(ev)}
-                    className={`flex w-full items-center gap-1 truncate rounded px-1 py-0.5 text-left text-[11px] font-semibold ${typeClass(ev.type)}`}
-                    title={ev.title}
-                  >
-                    <span className="truncate">{ev.title}</span>
-                  </button>
-                ))}
+                {list.slice(0, 3).map((it) =>
+                  it.kind === 'event' ? (
+                    <button
+                      key={it.ev.id}
+                      onClick={() => setDetail(it.ev)}
+                      className={`flex w-full items-center gap-1 truncate rounded px-1 py-0.5 text-left text-[11px] font-semibold ${typeClass(it.ev.type)}`}
+                      title={it.ev.title}
+                    >
+                      <span className="truncate">{it.ev.title}</span>
+                    </button>
+                  ) : (
+                    <button
+                      key={it.a.id}
+                      onClick={() => setDeadlineDetail(it.a)}
+                      className="flex w-full items-center gap-1 truncate rounded border border-dashed border-down/50 bg-down/10 px-1 py-0.5 text-left text-[11px] font-semibold text-down"
+                      title={`${it.a.label} (only you can see this)`}
+                    >
+                      <Flag size={10} className="shrink-0" />
+                      <span className="truncate">{it.a.label}</span>
+                    </button>
+                  ),
+                )}
                 {list.length > 3 && <div className="px-1 text-[10px] font-semibold text-muted">+{list.length - 3} more</div>}
               </div>
             </div>
@@ -130,6 +156,9 @@ export default function Calendar() {
           onEdit={() => { setFormEvent(detail); setDetail(null) }}
           onDelete={() => deleteEvent(detail.id)}
         />
+      )}
+      {deadlineDetail && (
+        <DeadlineDetailModal a={deadlineDetail} onClose={() => setDeadlineDetail(null)} />
       )}
       {formEvent !== undefined && (
         <EventFormModal
@@ -171,6 +200,35 @@ function EventDetailModal({ ev, isAdmin, onClose, onEdit, onDelete }) {
             <button className="btn inline-flex items-center border border-down/40 px-4 py-2 text-sm text-down hover:bg-down/10" onClick={onDelete}>Delete</button>
           </div>
         )}
+      </div>
+    </Shell>
+  )
+}
+
+// A pipeline action-item deadline: visible only to its owner (auth-scoped RPC, not an event row).
+function DeadlineDetailModal({ a, onClose }) {
+  const ev = actionEvent(a)
+  return (
+    <Shell title={a.label} onClose={onClose}>
+      <span className="mt-3 inline-flex items-center gap-1 rounded-full bg-down/15 px-2.5 py-0.5 text-[11px] font-semibold text-down">
+        <Flag size={11} /> My action item · IFN-{a.ifn}
+      </span>
+      <div className="mt-3 space-y-1.5 text-sm text-ink">
+        <div className="flex items-center gap-2">
+          <Clock size={15} className="text-muted" />
+          due {new Date(`${a.due_date}T09:00:00`).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+        </div>
+        <div className="text-xs text-muted">From "{a.idea_title}". Only you can see this on the calendar.</div>
+      </div>
+      {a.details && <p className="mt-3 whitespace-pre-wrap break-words text-sm text-muted">{a.details}</p>}
+      <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
+        <a href={googleCalUrl(ev)} target="_blank" rel="noreferrer" className="btn-primary">
+          <CalendarPlus size={16} /> Add to Google
+        </a>
+        <button className="btn-outline" onClick={() => downloadICS(ev)}>
+          <Download size={16} /> Apple / .ics
+        </button>
+        <Link to={`/pipeline/${a.idea_id}`} className="btn-outline ml-auto" onClick={onClose}>Open idea</Link>
       </div>
     </Shell>
   )

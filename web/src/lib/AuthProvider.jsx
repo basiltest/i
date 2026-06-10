@@ -49,6 +49,7 @@ export function AuthProvider({ children }) {
       value={{
         session, loading, profile, refreshProfile,
         isAdmin: profile?.role === 'admin',
+        isMentor: profile?.role === 'mentor' || profile?.role === 'admin',
         banned: !!profile?.banned,
         onboarded: !!profile?.onboarded,
       }}

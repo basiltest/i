@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { Award, Users, SlidersHorizontal, Search } from 'lucide-react'
+import { Award, Users, SlidersHorizontal, Search, Workflow } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import { REGIONS, SECTORS, DOMAINS } from '../lib/options'
 import RoleBadge from '../components/RoleBadge'
 import Spinner from '../components/Spinner'
 import { timeAgo } from '../lib/format'
+import { GATES, waitingChip, STATES, ifnTag } from '../lib/pipeline'
 
 const ROLES = [
   { v: 'student', label: 'Student' },
@@ -26,6 +27,7 @@ export default function AdminPanel() {
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState(null)
   const [feedLocked, setFeedLocked] = useState(false)
+  const [pipelineLocked, setPipelineLocked] = useState(false)
   const [editMember, setEditMember] = useState(null)
   const [memberQuery, setMemberQuery] = useState('')
 
@@ -35,7 +37,7 @@ export default function AdminPanel() {
     const [m, q, s] = await Promise.all([
       supabase.rpc('admin_members'),
       supabase.rpc('admin_success_queue'),
-      supabase.from('app_settings').select('feed_locked').single(),
+      supabase.from('app_settings').select('feed_locked, pipeline_locked').single(),
     ])
     if (m.error || q.error) {
       console.error(m.error || q.error)
@@ -44,6 +46,7 @@ export default function AdminPanel() {
       setMembers(m.data || [])
       setQueue(q.data || [])
       setFeedLocked(!!s.data?.feed_locked)
+      setPipelineLocked(!!s.data?.pipeline_locked)
     }
     setLoading(false)
   }, [])
@@ -53,6 +56,13 @@ export default function AdminPanel() {
     const { error: e } = await supabase.rpc('admin_set_feed_locked', { p_locked: next })
     if (e) { console.error(e); return setError(GENERIC_ERR) }
     setFeedLocked(next)
+  }
+
+  async function togglePipelineLock() {
+    const next = !pipelineLocked
+    const { error: e } = await supabase.rpc('admin_set_pipeline_locked', { p_locked: next })
+    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    setPipelineLocked(next)
   }
 
   useEffect(() => { if (isAdmin) load() }, [isAdmin, load])
@@ -113,6 +123,14 @@ export default function AdminPanel() {
           <Users size={15} /> Members ({members.length})
         </button>
         <button
+          onClick={() => setTab('pipeline')}
+          className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
+            tab === 'pipeline' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'
+          }`}
+        >
+          <Workflow size={15} /> Pipeline
+        </button>
+        <button
           onClick={() => setTab('success')}
           className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
             tab === 'success' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'
@@ -136,6 +154,8 @@ export default function AdminPanel() {
 
       {loading ? (
         <div className="mt-6 flex items-center gap-2 text-sm text-muted"><Spinner /> Loading...</div>
+      ) : tab === 'pipeline' ? (
+        <PipelineTab />
       ) : tab === 'members' ? (
         <>
         <div className="relative mt-4">
@@ -211,6 +231,22 @@ export default function AdminPanel() {
               {feedLocked ? 'Posting is OFF' : 'Posting is ON'}
             </button>
           </div>
+          <div className="flex flex-wrap items-center gap-3 p-4">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-bold">Pipeline submissions</div>
+              <div className="text-xs text-muted">
+                When closed, members cannot submit new ideas to the pipeline. Existing ideas keep moving.
+              </div>
+            </div>
+            <button
+              onClick={togglePipelineLock}
+              className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
+                pipelineLocked ? 'border-down/40 bg-down/10 text-down' : 'border-success/40 bg-success/10 text-success'
+              }`}
+            >
+              {pipelineLocked ? 'Submissions CLOSED' : 'Submissions OPEN'}
+            </button>
+          </div>
         </div>
       ) : queue.length === 0 ? (
         <div className="card mt-4 p-8 text-center">
@@ -255,6 +291,215 @@ export default function AdminPanel() {
             setEditMember(null)
           }}
         />
+      )}
+    </div>
+  )
+}
+
+// Pipeline board: inbox-first (exceptions only), funnel counts, filters, bulk assign.
+// The happy path is mentor self-pick; this tab exists for everything that falls out of it.
+function PipelineTab() {
+  const [counts, setCounts] = useState(null)
+  const [rows, setRows] = useState([])
+  const [mentors, setMentors] = useState([])
+  const [view, setView] = useState('inbox') // 'inbox' | 'all'
+  const [gate, setGate] = useState('')
+  const [state, setState] = useState('')
+  const [waiting, setWaiting] = useState('')
+  const [sector, setSector] = useState('')
+  const [query, setQuery] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [sel, setSel] = useState(new Set())
+  const [bulkMentor, setBulkMentor] = useState('')
+  const [bulkReason, setBulkReason] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    const [c, m] = await Promise.all([supabase.rpc('admin_pipeline_counts'), supabase.rpc('admin_mentor_load')])
+    setCounts(c.data || null)
+    setMentors(m.data || [])
+
+    let list = []
+    if (view === 'inbox') {
+      // exceptions only: needs-admin + unassigned backlog + stale
+      const [a, b, s] = await Promise.all([
+        supabase.rpc('admin_pipeline_board', { p_waiting: 'admin' }),
+        supabase.rpc('admin_pipeline_board', { p_waiting: 'mentor-pool' }),
+        supabase.rpc('admin_pipeline_board', { p_stale_days: 14 }),
+      ])
+      if (a.error || b.error || s.error) { console.error(a.error || b.error || s.error); setError(GENERIC_ERR) }
+      const seen = new Set()
+      for (const r of [...(a.data || []), ...(b.data || []), ...(s.data || [])]) {
+        if (!seen.has(r.id)) { seen.add(r.id); list.push(r) }
+      }
+      list.sort((x, y) => y.days_in_gate - x.days_in_gate)
+    } else {
+      const r = await supabase.rpc('admin_pipeline_board', {
+        p_gate: gate ? Number(gate) : null,
+        p_state: state || null,
+        p_waiting: waiting || null,
+        p_sector: sector || null,
+        p_search: query.trim() || null,
+        p_limit: 100,
+      })
+      if (r.error) { console.error(r.error); setError(GENERIC_ERR) }
+      list = r.data || []
+    }
+    setRows(list)
+    setSel(new Set())
+    setLoading(false)
+  }, [view, gate, state, waiting, sector, query])
+
+  useEffect(() => { load() }, [load])
+
+  async function bulkAssign() {
+    if (!bulkMentor || !bulkReason.trim() || sel.size === 0) return
+    setBusy(true)
+    const { error: e } = await supabase.rpc('admin_bulk_assign', {
+      p_ideas: [...sel], p_mentor: bulkMentor, p_reason: bulkReason.trim(),
+    })
+    setBusy(false)
+    if (e) { console.error(e); return setError(e.message || GENERIC_ERR) }
+    setBulkReason('')
+    load()
+  }
+
+  const toggle = (id) => setSel((prev) => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+
+  const byGate = counts?.by_gate || {}
+
+  return (
+    <div className="mt-4">
+      {/* funnel header */}
+      {counts && (
+        <div className="card flex flex-wrap items-center gap-x-5 gap-y-1.5 p-3 text-xs">
+          {GATES.map((g) => (
+            <span key={g.g} title={g.label} className="text-muted">
+              G{g.g} <span className="font-bold text-ink">{byGate[g.g] || 0}</span>
+            </span>
+          ))}
+          <span className="text-muted">Unassigned <span className="font-bold text-ink">{counts.unassigned}</span></span>
+          <span className="text-muted">Refine <span className="font-bold text-ink">{counts.refine}</span></span>
+          <span className="text-muted">Rejected <span className="font-bold text-ink">{counts.rejected}</span></span>
+          <span className={counts.stale > 0 ? 'font-bold text-down' : 'text-muted'}>Stale 14d+ {counts.stale}</span>
+        </div>
+      )}
+
+      {/* view + filters */}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => setView('inbox')}
+          className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${view === 'inbox' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}
+        >
+          Inbox (needs you)
+        </button>
+        <button
+          onClick={() => setView('all')}
+          className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${view === 'all' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}
+        >
+          All ideas
+        </button>
+        {view === 'all' && (
+          <>
+            <select className="input w-auto py-1.5 text-xs" value={gate} onChange={(e) => setGate(e.target.value)}>
+              <option value="">Any gate</option>
+              {GATES.map((g) => <option key={g.g} value={g.g}>G{g.g}</option>)}
+            </select>
+            <select className="input w-auto py-1.5 text-xs" value={state} onChange={(e) => setState(e.target.value)}>
+              <option value="">Any state</option>
+              <option value="active">Active</option>
+              <option value="refine">Refine</option>
+              <option value="rejected">Rejected</option>
+            </select>
+            <select className="input w-auto py-1.5 text-xs" value={waiting} onChange={(e) => setWaiting(e.target.value)}>
+              <option value="">Waiting on anyone</option>
+              <option value="student">Founder</option>
+              <option value="mentor">Mentor</option>
+              <option value="mentor-pool">Mentor queue</option>
+              <option value="admin">Admin</option>
+            </select>
+            <select className="input w-auto py-1.5 text-xs" value={sector} onChange={(e) => setSector(e.target.value)}>
+              <option value="">All sectors</option>
+              {SECTORS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <input
+              className="input w-44 py-1.5 text-xs"
+              placeholder="Search title / author / IFN"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </>
+        )}
+      </div>
+
+      {/* bulk assign */}
+      {sel.size > 0 && (
+        <div className="card mt-3 flex flex-wrap items-center gap-2 border-accent/30 p-3">
+          <span className="text-xs font-bold">{sel.size} selected</span>
+          <select className="input w-auto py-1.5 text-xs" value={bulkMentor} onChange={(e) => setBulkMentor(e.target.value)}>
+            <option value="">Assign mentor...</option>
+            {mentors.map((m) => <option key={m.mentor_id} value={m.mentor_id}>{m.mentor_name} ({m.active_count} active)</option>)}
+          </select>
+          <input className="input min-w-0 flex-1 py-1.5 text-xs" maxLength={300} placeholder="Reason (required, audited)" value={bulkReason} onChange={(e) => setBulkReason(e.target.value)} />
+          <button className="btn-primary px-3 py-1.5 text-xs" onClick={bulkAssign} disabled={busy || !bulkMentor || !bulkReason.trim()}>
+            {busy ? 'Assigning...' : 'Assign'}
+          </button>
+        </div>
+      )}
+
+      {error && <div className="mt-3 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+
+      {loading ? (
+        <div className="mt-6 flex items-center gap-2 text-sm text-muted"><Spinner /> Loading...</div>
+      ) : rows.length === 0 ? (
+        <div className="card mt-3 p-8 text-center">
+          <p className="font-semibold">{view === 'inbox' ? 'Inbox zero.' : 'No ideas match.'}</p>
+          <p className="mt-1 text-sm text-muted">
+            {view === 'inbox' ? 'Nothing needs an admin: no stale ideas, no unassigned backlog.' : 'Loosen the filters above.'}
+          </p>
+        </div>
+      ) : (
+        <div className="card mt-3 divide-y divide-line">
+          {rows.map((r) => {
+            const w = waitingChip(r.waiting_on)
+            const st = STATES[r.pipeline_state]
+            return (
+              <div key={r.id} className="flex items-center gap-3 p-3">
+                <input
+                  type="checkbox"
+                  checked={sel.has(r.id)}
+                  onChange={() => toggle(r.id)}
+                  aria-label={`Select ${ifnTag(r.ifn)}`}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-line px-2 py-0.5 text-[11px] font-bold text-muted">{ifnTag(r.ifn)}</span>
+                    <Link to={`/pipeline/${r.id}`} className="min-w-0 truncate text-sm font-bold hover:underline">{r.title}</Link>
+                    {r.pipeline_state !== 'active' && st && (
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.tone}`}>{st.label}</span>
+                    )}
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${w.tone}`}>{w.label}</span>
+                  </div>
+                  <div className="mt-0.5 text-xs text-muted">
+                    G{r.gate} · {r.author_name}
+                    {r.sector && <> · {r.sector}</>}
+                    {r.mentor_name ? <> · mentor {r.mentor_name}</> : <> · no mentor</>}
+                    <span className={r.days_in_gate >= 14 && r.pipeline_state === 'active' ? ' font-bold text-down' : ''}>
+                      {' '}· {r.days_in_gate}d in gate
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       )}
     </div>
   )
