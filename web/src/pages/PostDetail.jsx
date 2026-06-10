@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import RoleBadge from '../components/RoleBadge'
 import Dropdown, { MenuItem } from '../components/Dropdown'
-import Spinner from '../components/Spinner'
+import PostDetailSkeleton from '../components/PostDetailSkeleton'
 import { timeAgo } from '../lib/format'
 
 const CSORTS = [
@@ -134,7 +134,7 @@ export default function PostDetail() {
       </button>
 
       {loading ? (
-        <div className="flex items-center gap-2 text-sm text-muted"><Spinner /> Loading post...</div>
+        <PostDetailSkeleton />
       ) : !post ? (
         <p className="text-sm text-down">{error || 'Post not found.'}</p>
       ) : (

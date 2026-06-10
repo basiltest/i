@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ArrowBigUp, ArrowBigDown, MessageCircle } from 'lucide-react'
 import RoleBadge from './RoleBadge'
 import { timeAgo } from '../lib/format'
@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 
 export default function PostCard({ post }) {
+  const navigate = useNavigate()
   const { session } = useAuth()
   const uid = session?.user?.id
   const anon = !post.author_name
@@ -14,7 +15,11 @@ export default function PostCard({ post }) {
   const [myVote, setMyVote] = useState(post.my_vote ?? 0)
   const [voting, setVoting] = useState(false)
 
-  async function vote(v) {
+  const open = () => navigate(`/post/${post.id}`)
+  const stop = (e) => e.stopPropagation()
+
+  async function vote(e, v) {
+    e.stopPropagation()
     if (voting || !uid) return
     const prevScore = score
     const prevVote = myVote
@@ -37,7 +42,10 @@ export default function PostCard({ post }) {
   }
 
   return (
-    <article className="card p-5">
+    <article
+      onClick={open}
+      className="card cursor-pointer p-5 transition hover:shadow-pop"
+    >
       <header className="flex items-center gap-2">
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent">
           {anon ? '?' : post.author_name.charAt(0).toUpperCase()}
@@ -58,9 +66,7 @@ export default function PostCard({ post }) {
         </span>
       </header>
 
-      <Link to={`/post/${post.id}`} className="mt-3 block break-words text-base font-bold hover:underline">
-        {post.title}
-      </Link>
+      <h3 className="mt-3 break-words text-base font-bold">{post.title}</h3>
       {post.startup && <p className="break-words text-sm font-semibold text-muted">{post.startup}</p>}
 
       <p className="mt-2 whitespace-pre-wrap break-words text-sm text-ink">{post.problem}</p>
@@ -79,35 +85,34 @@ export default function PostCard({ post }) {
         </div>
       )}
 
-      <footer className="mt-3 flex items-center gap-1">
-        <button
-          onClick={() => vote(1)}
-          aria-label="Upvote"
-          className={`rounded-full p-1.5 transition-colors hover:bg-black/5 ${myVote === 1 ? 'text-accent' : 'text-muted'}`}
-        >
-          <ArrowBigUp size={20} fill={myVote === 1 ? 'currentColor' : 'none'} />
-        </button>
-        <span
-          className={`min-w-[2ch] text-center text-sm font-bold ${
-            myVote > 0 ? 'text-accent' : myVote < 0 ? 'text-down' : 'text-ink'
-          }`}
-        >
-          {score}
-        </span>
-        <button
-          onClick={() => vote(-1)}
-          aria-label="Downvote"
-          className={`rounded-full p-1.5 transition-colors hover:bg-black/5 ${myVote === -1 ? 'text-down' : 'text-muted'}`}
-        >
-          <ArrowBigDown size={20} fill={myVote === -1 ? 'currentColor' : 'none'} />
-        </button>
-        <Link
-          to={`/post/${post.id}`}
-          className="ml-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-sm font-semibold text-muted transition-colors hover:bg-black/5"
-        >
+      <footer className="mt-3 flex items-center gap-2">
+        <div onClick={stop} className="inline-flex items-center gap-0.5 rounded-full bg-page px-1 py-0.5">
+          <button
+            onClick={(e) => vote(e, 1)}
+            aria-label="Upvote"
+            className={`rounded-full p-1.5 transition-colors hover:bg-black/5 ${myVote === 1 ? 'text-accent' : 'text-muted'}`}
+          >
+            <ArrowBigUp size={20} fill={myVote === 1 ? 'currentColor' : 'none'} />
+          </button>
+          <span
+            className={`min-w-[2ch] text-center text-sm font-bold ${
+              myVote > 0 ? 'text-accent' : myVote < 0 ? 'text-down' : 'text-ink'
+            }`}
+          >
+            {score}
+          </span>
+          <button
+            onClick={(e) => vote(e, -1)}
+            aria-label="Downvote"
+            className={`rounded-full p-1.5 transition-colors hover:bg-black/5 ${myVote === -1 ? 'text-down' : 'text-muted'}`}
+          >
+            <ArrowBigDown size={20} fill={myVote === -1 ? 'currentColor' : 'none'} />
+          </button>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-page px-3 py-2 text-sm font-semibold text-muted">
           <MessageCircle size={18} /> {post.comment_count ?? 0}
-        </Link>
-        {post.edited && <span className="ml-2 text-xs text-faint">edited</span>}
+        </span>
+        {post.edited && <span className="ml-1 text-xs text-faint">edited</span>}
       </footer>
     </article>
   )
