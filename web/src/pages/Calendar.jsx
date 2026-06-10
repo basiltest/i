@@ -156,7 +156,7 @@ function EventDetailModal({ ev, isAdmin, onClose, onEdit, onDelete }) {
         {ev.location && <div className="flex items-center gap-2"><MapPin size={15} className="text-muted" /> {ev.location}</div>}
       </div>
 
-      {ev.description && <p className="mt-3 whitespace-pre-wrap break-words text-sm text-muted">{ev.description}</p>}
+      {ev.description && <p className="mt-3 max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-sm text-muted">{ev.description}</p>}
 
       <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
         <a href={googleCalUrl(ev)} target="_blank" rel="noreferrer" className="btn-primary">
@@ -248,7 +248,7 @@ function EventFormModal({ ev, onClose, onSaved }) {
             />
           </L>
         </div>
-        <L label="Description"><textarea className="input min-h-[80px] resize-y" maxLength={2000} value={f.description} onChange={set('description')} /></L>
+        <L label={`Description (${f.description.length}/500)`}><textarea className="input min-h-[80px] resize-y" maxLength={500} value={f.description} onChange={set('description')} /></L>
       </div>
       <div className="mt-5 flex justify-end gap-2">
         <button className="btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
