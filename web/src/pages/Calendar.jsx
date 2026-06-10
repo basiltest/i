@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, Plus, CalendarPlus, Download, MapPin, Clock } from 'lucide-react'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import Spinner from '../components/Spinner'
@@ -174,14 +176,6 @@ function EventDetailModal({ ev, isAdmin, onClose, onEdit, onDelete }) {
   )
 }
 
-// datetime-local wants 'YYYY-MM-DDTHH:mm' in LOCAL time
-function toLocalInput(iso) {
-  if (!iso) return ''
-  const d = new Date(iso)
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
 function EventFormModal({ ev, onClose, onSaved }) {
   const editing = !!ev
   const [f, setF] = useState({
@@ -189,8 +183,8 @@ function EventFormModal({ ev, onClose, onSaved }) {
     type: ev?.type || 'Workshop',
     location: ev?.location || '',
     description: ev?.description || '',
-    starts: toLocalInput(ev?.starts_at) || '',
-    ends: toLocalInput(ev?.ends_at) || '',
+    starts: ev?.starts_at ? new Date(ev.starts_at) : null,
+    ends: ev?.ends_at ? new Date(ev.ends_at) : null,
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -199,8 +193,8 @@ function EventFormModal({ ev, onClose, onSaved }) {
   async function save() {
     if (!f.title.trim()) return setError('Title is required.')
     if (!f.starts) return setError('Start time is required.')
-    const startsIso = new Date(f.starts).toISOString()
-    const endsIso = f.ends ? new Date(f.ends).toISOString() : null
+    const startsIso = f.starts.toISOString()
+    const endsIso = f.ends ? f.ends.toISOString() : null
     if (endsIso && endsIso < startsIso) return setError('End must be after start.')
     setBusy(true)
     const args = {
@@ -227,8 +221,32 @@ function EventFormModal({ ev, onClose, onSaved }) {
             </select>
           </L>
           <L label="Location"><input className="input" maxLength={200} value={f.location} onChange={set('location')} placeholder="Auditorium / Zoom link" /></L>
-          <L label="Starts *"><input type="datetime-local" className="input" value={f.starts} onChange={set('starts')} /></L>
-          <L label="Ends"><input type="datetime-local" className="input" value={f.ends} onChange={set('ends')} /></L>
+          <L label="Starts *">
+            <DatePicker
+              selected={f.starts}
+              onChange={(d) => setF({ ...f, starts: d })}
+              showTimeSelect
+              timeIntervals={15}
+              dateFormat="dd/MM/yyyy h:mm aa"
+              placeholderText="dd/mm/yyyy, time"
+              className="input"
+              wrapperClassName="w-full"
+            />
+          </L>
+          <L label="Ends">
+            <DatePicker
+              selected={f.ends}
+              onChange={(d) => setF({ ...f, ends: d })}
+              showTimeSelect
+              timeIntervals={15}
+              dateFormat="dd/MM/yyyy h:mm aa"
+              placeholderText="optional"
+              minDate={f.starts}
+              isClearable
+              className="input"
+              wrapperClassName="w-full"
+            />
+          </L>
         </div>
         <L label="Description"><textarea className="input min-h-[80px] resize-y" maxLength={2000} value={f.description} onChange={set('description')} /></L>
       </div>
