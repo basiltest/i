@@ -2,7 +2,10 @@
 -- authors. security definer so it can read profiles/tags regardless of RLS; the masking is
 -- enforced inside the query (real identity only for the author themselves or an admin). Run in Supabase.
 
-create or replace function public.feed_posts(p_kind text default null)
+-- drop first: a create-or-replace cannot change the return type (we added the tags column).
+drop function if exists public.feed_posts(text);
+
+create function public.feed_posts(p_kind text default null)
 returns table (
   id uuid,
   kind text,
