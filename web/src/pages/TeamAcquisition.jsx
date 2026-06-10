@@ -7,6 +7,7 @@ import Spinner from '../components/Spinner'
 import { timeAgo } from '../lib/format'
 
 const GENERIC_ERR = 'Something went wrong. Please try again.'
+const MAX_SKILLS = 10
 
 export default function TeamAcquisition() {
   const { session, isAdmin } = useAuth()
@@ -21,6 +22,7 @@ export default function TeamAcquisition() {
   const [editPost, setEditPost] = useState(null)
   const [applyTo, setApplyTo] = useState(null)
   const [applicantsFor, setApplicantsFor] = useState(null)
+  const [detail, setDetail] = useState(null)
   const [notice, setNotice] = useState('')
 
   useEffect(() => {
@@ -103,9 +105,13 @@ export default function TeamAcquisition() {
           {!debounced && <button className="btn-primary mt-4" onClick={() => setPostOpen(true)}>Post the first need</button>}
         </div>
       ) : (
-        <div className="mt-4 grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {posts.map((t) => (
-            <div key={t.id} className="card flex flex-col p-4">
+            <button
+              key={t.id}
+              onClick={() => setDetail(t)}
+              className="card flex h-52 cursor-pointer flex-col overflow-hidden p-4 text-left transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-pop"
+            >
               <div className="mb-2 flex items-center gap-2">
                 <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
                   {(t.author_name || '?').charAt(0).toUpperCase()}
@@ -115,64 +121,49 @@ export default function TeamAcquisition() {
                 <span className="ml-auto shrink-0 text-xs text-faint">{timeAgo(t.created_at)}</span>
               </div>
 
-              <h3 className="break-words text-base font-extrabold">{t.title}</h3>
-              {t.startup && <span className="mt-1 inline-flex w-fit chip">{t.startup}</span>}
-              {t.description && <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words text-sm text-muted">{t.description}</p>}
-
-              <dl className="mt-3 space-y-1.5 text-sm">
-                {t.looking_for && <Row label="Looking for" value={t.looking_for} />}
-                {t.commitment && <Row label="Commitment" value={t.commitment} />}
-                {t.stage && <Row label="Stage" value={t.stage} />}
-              </dl>
+              <h3 className="truncate text-base font-extrabold">{t.title}</h3>
+              <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
+                {t.startup && <span className="truncate font-semibold">{t.startup}</span>}
+                {t.startup && t.looking_for && <span>·</span>}
+                {t.looking_for && <span className="truncate">Looking for {t.looking_for}</span>}
+              </div>
+              {t.description && <p className="mt-2 line-clamp-2 break-words text-sm text-muted">{t.description}</p>}
 
               {t.skills?.length > 0 && (
-                <div className="mt-3">
-                  <div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-muted">Skills required</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {t.skills.slice(0, 12).map((s) => (
-                      <span key={s} className="rounded-full bg-page px-2.5 py-1 text-xs font-semibold text-ink ring-1 ring-line">{s}</span>
-                    ))}
-                    {t.skills.length > 12 && (
-                      <span className="rounded-full px-2.5 py-1 text-xs font-semibold text-muted">+{t.skills.length - 12} more</span>
-                    )}
-                  </div>
+                <div className="mt-2 flex flex-wrap gap-1.5 overflow-hidden">
+                  {t.skills.slice(0, 4).map((s) => (
+                    <span key={s} className="rounded-full bg-page px-2 py-0.5 text-xs font-semibold text-ink ring-1 ring-line">{s}</span>
+                  ))}
+                  {t.skills.length > 4 && (
+                    <span className="px-1 py-0.5 text-xs font-semibold text-muted">+{t.skills.length - 4}</span>
+                  )}
                 </div>
               )}
 
-              <div className="mt-4 flex items-center gap-2">
-                {t.is_mine ? (
-                  <>
-                    <button className="btn-outline" onClick={() => setApplicantsFor(t)}>
-                      Applicants ({Number(t.app_count)})
-                    </button>
-                    <button className="btn-outline" onClick={() => setEditPost(t)}>Edit</button>
-                  </>
-                ) : t.i_applied ? (
-                  <button
-                    onClick={() => withdraw(t.id)}
-                    className="btn inline-flex items-center border border-down/40 px-4 py-2 text-sm text-down transition-colors hover:bg-down/10"
-                  >
-                    Withdraw application
-                  </button>
-                ) : (
-                  <button className="btn-primary" onClick={() => setApplyTo(t)}>Apply</button>
-                )}
-                {isAdmin && !t.is_mine && (
-                  <button className="btn-outline" onClick={() => setApplicantsFor(t)}>Applicants ({Number(t.app_count)})</button>
-                )}
-                {(t.is_mine || isAdmin) && (
-                  <button
-                    onClick={() => deletePost(t.id, t.is_mine)}
-                    aria-label="Delete"
-                    className="ml-auto rounded-full p-2 text-muted transition-colors hover:bg-black/5 hover:text-down"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                )}
+              <div className="mt-auto flex items-center gap-2 pt-3 text-xs font-semibold text-muted">
+                {t.is_mine
+                  ? `${Number(t.app_count)} ${Number(t.app_count) === 1 ? 'applicant' : 'applicants'}`
+                  : t.i_applied
+                    ? <span className="text-accent">Applied</span>
+                    : 'Tap to view and apply'}
+                <span className="ml-auto text-accent">Open</span>
               </div>
-            </div>
+            </button>
           ))}
         </div>
+      )}
+
+      {detail && (
+        <DetailModal
+          post={detail}
+          isAdmin={isAdmin}
+          onClose={() => setDetail(null)}
+          onApply={() => { setApplyTo(detail); setDetail(null) }}
+          onWithdraw={() => { withdraw(detail.id); setDetail(null) }}
+          onEdit={() => { setEditPost(detail); setDetail(null) }}
+          onApplicants={() => { setApplicantsFor(detail); setDetail(null) }}
+          onDelete={() => { deletePost(detail.id, detail.is_mine); setDetail(null) }}
+        />
       )}
 
       {postOpen && (
@@ -199,6 +190,66 @@ export default function TeamAcquisition() {
         <ApplicantsModal post={applicantsFor} onClose={() => setApplicantsFor(null)} />
       )}
     </div>
+  )
+}
+
+function DetailModal({ post, isAdmin, onClose, onApply, onWithdraw, onEdit, onApplicants, onDelete }) {
+  return (
+    <Shell title={post.title} onClose={onClose}>
+      <div className="mt-3 flex items-center gap-2">
+        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
+          {(post.author_name || '?').charAt(0).toUpperCase()}
+        </div>
+        <span className="truncate text-sm font-bold">{post.author_name}</span>
+        {post.author_role && <RoleBadge role={post.author_role} />}
+        <span className="ml-auto shrink-0 text-xs text-faint">{timeAgo(post.created_at)}</span>
+      </div>
+
+      {post.startup && <span className="mt-3 inline-flex w-fit chip">{post.startup}</span>}
+      {post.description && (
+        <p className="mt-3 max-h-60 overflow-y-auto whitespace-pre-wrap break-words text-sm text-ink">{post.description}</p>
+      )}
+
+      <dl className="mt-4 space-y-1.5 text-sm">
+        {post.looking_for && <Row label="Looking for" value={post.looking_for} />}
+        {post.commitment && <Row label="Commitment" value={post.commitment} />}
+        {post.stage && <Row label="Stage" value={post.stage} />}
+      </dl>
+
+      {post.skills?.length > 0 && (
+        <div className="mt-4">
+          <div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-muted">Skills required</div>
+          <div className="flex flex-wrap gap-1.5">
+            {post.skills.map((s) => (
+              <span key={s} className="rounded-full bg-page px-2.5 py-1 text-xs font-semibold text-ink ring-1 ring-line">{s}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-5 flex items-center gap-2 border-t border-line pt-4">
+        {post.is_mine ? (
+          <>
+            <button className="btn-outline" onClick={onApplicants}>Applicants ({Number(post.app_count)})</button>
+            <button className="btn-outline" onClick={onEdit}>Edit</button>
+          </>
+        ) : post.i_applied ? (
+          <button onClick={onWithdraw} className="btn inline-flex items-center border border-down/40 px-4 py-2 text-sm text-down transition-colors hover:bg-down/10">
+            Withdraw application
+          </button>
+        ) : (
+          <button className="btn-primary" onClick={onApply}>Apply</button>
+        )}
+        {isAdmin && !post.is_mine && (
+          <button className="btn-outline" onClick={onApplicants}>Applicants ({Number(post.app_count)})</button>
+        )}
+        {(post.is_mine || isAdmin) && (
+          <button onClick={onDelete} aria-label="Delete" className="ml-auto rounded-full p-2 text-muted transition-colors hover:bg-black/5 hover:text-down">
+            <Trash2 size={16} />
+          </button>
+        )}
+      </div>
+    </Shell>
   )
 }
 
@@ -266,7 +317,10 @@ function PostNeedModal({ edit, onClose, onSaved }) {
 
   function addSkill() {
     const s = skillInput.trim()
-    if (s && !skills.includes(s) && skills.length < 20) setSkills([...skills, s])
+    if (!s) return
+    if (skills.includes(s)) { setSkillInput(''); return }
+    if (skills.length >= MAX_SKILLS) { setError(`Max ${MAX_SKILLS} skills.`); return }
+    setSkills([...skills, s])
     setSkillInput('')
   }
 
@@ -308,7 +362,7 @@ function PostNeedModal({ edit, onClose, onSaved }) {
             </select>
           </L>
         </div>
-        <L label="Skills required">
+        <L label={`Skills required (${skills.length}/${MAX_SKILLS})`}>
           {skills.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-1.5">
               {skills.map((s) => (
