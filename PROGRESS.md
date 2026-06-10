@@ -26,10 +26,32 @@ Done:
 - Logo: inline via svgr (src/assets/icfai-founders.svg), currentColor so it works in dark mode.
 - App shell: Layout (Outlet) + Topbar (notifications + profile dropdown) + SideNav (left rail).
   Shared: RoleBadge, lib/options.js, lib/format.js.
-- Feed (slice 1): db/posts.sql (posts table + RLS) + db/feed.sql (feed_posts RPC that masks
-  anonymous authors). Feed page = list via RPC, filter All/Ideas/Problems, client search,
-  CreatePostModal (insert). "/" route is now the Feed. DB architecture + TODO in db/README.md.
-  Next feed slices: votes, comments, tags.
+- App shell: Layout + Topbar (notifications stub + profile dropdown) + SideNav (left rail, items:
+  Feed live, others "soon") + RightSidebar (feed-only: Trending real, Events stub).
+- FEED is fully built to the FRD (db/*.sql + pages/Feed.jsx + components/PostCard, PostCardSkeleton,
+  CreatePostModal): sorts hot(momentum, default)/new/top/by-supertag with id tiebreak; full-text
+  search (tsvector+GIN); supertag filter dropdown + #-suggestions (tags-with-posts only, URL ?tag);
+  upvote/downvote (optimistic, post_votes); trending tags; "X new posts, tap to refresh" banner
+  (posts_since poll); error+retry; pagination (Load more); drafts (status='draft'); supertags
+  (create_post RPC, new tags -> pending tag_requests).
+- POST DETAIL (/post/:id, pages/PostDetail.jsx): full post + votes, creator updates (sub_threads,
+  author-only add), comments (anyone add, delete own), delete own post (cascades). Title + comments
+  button on cards link here.
+- DB files in db/ (apply via Supabase SQL editor): posts.sql, votes.sql, tags.sql, feed.sql,
+  comments.sql. db/README.md = live schema + TODO. profiles table+trigger+RLS still only in Supabase
+  (db/profiles.sql backfill = TODO).
+
+## Pending on the user (Supabase + push)
+- Ensure all db/*.sql have been run in Supabase (latest: re-run feed.sql for momentum sort +
+  feed_tags + posts_since + comment_count).
+- git push the latest commits.
+
+## Next (not built)
+- Admin layer (memory: ifn-admin-feed-controls-todo): pin/moderate/remove posts+comments, approve
+  tag_requests, manage badges/#Success; needs is_admin() + admin RLS + admin UI.
+- Special badges in create (#IdeaValidation instant, Request #Success -> approval).
+- Edit post (edited/original snapshot). Idea Autopsy. Pipeline. Calendar/events. Directory. Team Board.
+- Profile "My drafts" list. @mentions + notifications table (ADR-020).
 
 Next options: feed/posts, idea pipeline, directory, onboarding "complete profile" prompt, or the
 @ifheindia.org server enforcement.
