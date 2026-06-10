@@ -44,7 +44,7 @@ export default function PostCard({ post }) {
   return (
     <article
       onClick={open}
-      className="card cursor-pointer p-5 transition hover:shadow-pop"
+      className="card cursor-pointer p-5 transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-pop"
     >
       <header className="flex items-center gap-2">
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent">
