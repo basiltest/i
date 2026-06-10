@@ -9,6 +9,7 @@ import Profile from './pages/Profile'
 import Settings from './pages/Settings'
 import AdminPanel from './pages/AdminPanel'
 import TeamAcquisition from './pages/TeamAcquisition'
+import Calendar from './pages/Calendar'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import PublicOnlyRoute from './components/PublicOnlyRoute'
@@ -28,6 +29,7 @@ function App() {
         <Route path="profile" element={<Profile />} />
         <Route path="settings" element={<Settings />} />
         <Route path="team" element={<TeamAcquisition />} />
+        <Route path="calendar" element={<Calendar />} />
         <Route path="admin" element={<AdminPanel />} />
       </Route>
     </Routes>

@@ -8,7 +8,7 @@ const ITEMS = [
   { to: '/', label: 'Feed', icon: Home, end: true },
   { label: 'Idea Pipeline', icon: Workflow, soon: true },
   { to: '/team', label: 'Team Acquisition', icon: Users },
-  { label: 'Calendar', icon: Calendar, soon: true },
+  { to: '/calendar', label: 'Calendar', icon: Calendar },
   { label: 'Directory', icon: LayoutGrid, soon: true },
 ]
 
