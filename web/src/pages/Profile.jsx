@@ -46,6 +46,7 @@ export default function Profile() {
       domain: profile.domain || '',
       linkedin: profile.linkedin || '',
       incubation_interest: !!profile.incubation_interest,
+      show_email: !!profile.show_email,
     })
     setError('')
     setMsg('')
@@ -78,6 +79,7 @@ export default function Profile() {
         sector: form.sector || null,
         domain: form.domain || null,
         incubation_interest: form.incubation_interest,
+        show_email: form.show_email,
       }
       // RLS allows updating own row; the role column update is revoked, so it cannot change here.
       const { data, error: e } = await supabase
@@ -151,6 +153,7 @@ export default function Profile() {
                   <Field label="Domain" value={profile.domain} />
                   <Field label="Startup" value={profile.startup} />
                   <Field label="Incubation interest" value={profile.incubation_interest ? 'Yes' : 'No'} />
+                  <Field label="Email in directory" value={profile.show_email ? 'Visible' : 'Hidden'} />
                   <div className="sm:col-span-2"><Field label="About" value={profile.bio} /></div>
                 </dl>
               ) : (
@@ -199,6 +202,11 @@ export default function Profile() {
                     <input type="checkbox" checked={form.incubation_interest}
                       onChange={(e) => setForm({ ...form, incubation_interest: e.target.checked })} />
                     Interested in incubation
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-ink sm:col-span-2">
+                    <input type="checkbox" checked={form.show_email}
+                      onChange={(e) => setForm({ ...form, show_email: e.target.checked })} />
+                    Show my email in the Directory
                   </label>
                   <div className="flex gap-2 sm:col-span-2">
                     <button className="btn-primary" onClick={save} disabled={saving}>

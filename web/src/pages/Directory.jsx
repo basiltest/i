@@ -137,9 +137,11 @@ export default function Directory() {
                 ) : (
                   <span className="px-1 py-1.5 text-xs text-faint">No LinkedIn</span>
                 )}
-                {m.phone && (
+                {m.email ? (
+                  <a href={`mailto:${m.email}`} className="btn-outline px-3 py-1.5 text-xs">Email</a>
+                ) : m.phone ? (
                   <a href={`tel:${m.phone}`} className="btn-outline px-3 py-1.5 text-xs">Call {m.phone}</a>
-                )}
+                ) : null}
               </div>
             </div>
           ))}
