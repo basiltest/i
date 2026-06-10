@@ -121,7 +121,7 @@ export default function Directory() {
                 </div>
               </div>
 
-              {m.bio && <p className="mt-2 line-clamp-2 break-words text-sm text-muted">{m.bio}</p>}
+              {m.bio && <p className="mt-2 line-clamp-3 break-words text-sm text-muted">{m.bio}</p>}
 
               {(m.region || m.sector || m.domain) && (
                 <div className="mt-3 flex flex-wrap gap-1.5">

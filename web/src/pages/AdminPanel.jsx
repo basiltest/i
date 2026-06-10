@@ -334,7 +334,7 @@ function AdminEditProfileModal({ member, onClose, onSaved }) {
                 </select>
               </Field>
               <div className="sm:col-span-2">
-                <Field label="About"><textarea className="input min-h-[70px] resize-y" maxLength={500} value={form.bio} onChange={set('bio')} /></Field>
+                <Field label="About"><textarea className="input min-h-[70px] resize-y" maxLength={160} value={form.bio} onChange={set('bio')} /></Field>
               </div>
               <label className="flex items-center gap-2 text-sm text-ink sm:col-span-2">
                 <input type="checkbox" checked={form.incubation_interest} onChange={(e) => setForm({ ...form, incubation_interest: e.target.checked })} />

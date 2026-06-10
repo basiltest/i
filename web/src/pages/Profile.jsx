@@ -190,8 +190,8 @@ export default function Profile() {
                       onChange={(e) => setForm({ ...form, linkedin: e.target.value })} />
                   </Edit>
                   <div className="sm:col-span-2">
-                    <Edit label="About">
-                      <textarea className="input min-h-[80px] resize-y" maxLength={500} value={form.bio}
+                    <Edit label={`About (${form.bio.length}/160)`}>
+                      <textarea className="input min-h-[80px] resize-y" maxLength={160} value={form.bio}
                         onChange={(e) => setForm({ ...form, bio: e.target.value })} />
                     </Edit>
                   </div>
