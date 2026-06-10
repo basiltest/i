@@ -105,7 +105,7 @@ export default function Feed() {
         p_limit: PAGE,
         p_offset: off,
       })
-      if (e) { setError(e.message); return 0 }
+      if (e) { console.error('feed_posts failed:', e); setError(e.message); return 0 }
       setError('')
       const rows = data || []
       setPosts((prev) => (replace ? rows : [...prev, ...rows]))
