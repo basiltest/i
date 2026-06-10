@@ -7,6 +7,7 @@ import Feed from './pages/Feed'
 import PostDetail from './pages/PostDetail'
 import Profile from './pages/Profile'
 import Settings from './pages/Settings'
+import AdminPanel from './pages/AdminPanel'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import PublicOnlyRoute from './components/PublicOnlyRoute'
@@ -25,6 +26,7 @@ function App() {
         <Route path="post/:id" element={<PostDetail />} />
         <Route path="profile" element={<Profile />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="admin" element={<AdminPanel />} />
       </Route>
     </Routes>
   )

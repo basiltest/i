@@ -50,7 +50,7 @@ Unified feed (ideas + problems).
 - [x] `feed_posts` RPC (db/feed.sql): full-text search (`p_search`) + multi-supertag AND filter (`p_tags text[]`) + sorts hot/new/top + comment_count + score + viewer vote; masks anonymous authors. `feed_tags`, `trending_tags`, `posts_since` helpers.
 - [ ] `notifications` table (ADR-020) + RLS (read own); inline writes on key events.
 - [ ] `reports` table (moderation) + RLS; admin resolve/hide.
-- [ ] `is_admin()` security-definer helper + admin policies (pin, gate override, moderate) without RLS recursion.
+- [x] Admin layer (db/admin.sql): `is_admin()` definer helper; all admin ops via guarded RPCs (no extra RLS): `admin_members` (joins auth.users for email), `admin_set_role` (student/mentor/admin, never own), `admin_pin_post`, `admin_delete_post`, `admin_delete_comment`; #Success flow: `request_success` (author) -> `admin_success_queue` -> `admin_review_success` (approve adds 'Success' to posts.badges). 'success' is a reserved tag name. Bootstrap admin = college email (update profiles via auth.users lookup).
 - [ ] CHECK length constraints on profiles/posts text columns (server-side cap matching the UI maxLength).
 - [ ] Pipeline tables (later): `ideas_pipeline`, `pipeline_settings`, `gate_transitions`, `idea_submissions`, `idea_reviews`, `idea_extra_asks`, `attachments`.
 - [ ] When moving off Supabase: these SQL files become the migration set; replace `auth.uid()`/RLS as needed (self-host GoTrue or own auth).

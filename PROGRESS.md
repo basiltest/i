@@ -46,12 +46,23 @@ Done:
   feed_tags + posts_since + comment_count).
 - git push the latest commits.
 
+- ADMIN PANEL (/admin, pages/AdminPanel.jsx + db/admin.sql): admin-only nav item (Shield);
+  Members tab (list via admin_members RPC incl. email, assign Student/Mentor/Super Admin,
+  never own role); #Success requests tab (approve -> badge, reject). Post kebab gains
+  Pin/Unpin + Delete (admin) and Request #Success (author); admins can delete any comment.
+  Pinned + #Success chips on cards/detail. Regular supertags auto-approve (user decision);
+  ONLY #Success needs approval; 'success' reserved as a tag name. Bootstrap first admin:
+  db/admin.sql one-liner (college email). AuthProvider now exposes profile + isAdmin.
+- DRAFTS live inside the create modal (Drafts (n) -> list -> load -> Save draft/Publish;
+  publish_post RPC resets created_at). Feed: compact clamped cards, infinite scroll,
+  back-to-top, poll pauses when hidden/failing.
+
 ## Next (not built)
-- Admin layer (memory: ifn-admin-feed-controls-todo): pin/moderate/remove posts+comments, approve
-  tag_requests, manage badges/#Success; needs is_admin() + admin RLS + admin UI.
-- Special badges in create (#IdeaValidation instant, Request #Success -> approval).
-- Edit post (edited/original snapshot). Idea Autopsy. Pipeline. Calendar/events. Directory. Team Board.
-- Profile "My drafts" list. @mentions + notifications table (ADR-020).
+- #IdeaValidation self-badge + Idea Autopsy (FRD D4/W13/W15).
+- Edit-post UI shows original-vs-edited diff (snapshot already stored in posts.original).
+- Report/flag posts -> admin queue (moderation, v1 Scope rule for anonymous posting).
+- Pipeline. Calendar/events (admin create + requests). Directory. Team Board.
+- @mentions + notifications table (ADR-020).
 
 Next options: feed/posts, idea pipeline, directory, onboarding "complete profile" prompt, or the
 @ifheindia.org server enforcement.

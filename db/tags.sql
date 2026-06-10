@@ -86,10 +86,11 @@ begin
     foreach v_tag in array p_tags loop
       v_norm := lower(trim(v_tag));
       if v_norm = '' then continue; end if;
+      if v_norm = 'success' then continue; end if; -- reserved: badge granted via admin approval only
 
       select id into v_tag_id from public.tags where name = v_norm;
       if v_tag_id is null then
-        -- auto-approve new tags for now; admin moderation layer comes later
+        -- normal supertags are auto-approved; only #Success goes through the admin queue
         insert into public.tags (name, approved) values (v_norm, true)
           on conflict (name) do nothing;
         select id into v_tag_id from public.tags where name = v_norm;
@@ -153,6 +154,7 @@ begin
     foreach v_tag in array p_tags loop
       v_norm := lower(trim(v_tag));
       if v_norm = '' then continue; end if;
+      if v_norm = 'success' then continue; end if; -- reserved: badge granted via admin approval only
       select id into v_tag_id from public.tags where name = v_norm;
       if v_tag_id is null then
         insert into public.tags (name, approved) values (v_norm, true) on conflict (name) do nothing;

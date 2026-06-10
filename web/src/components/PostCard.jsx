@@ -57,12 +57,20 @@ export default function PostCard({ post }) {
           </div>
           <div className="text-xs text-muted">{timeAgo(post.created_at)}</div>
         </div>
-        <span
-          className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-            post.kind === 'problem' ? 'bg-warn/20 text-[#8a6d00]' : 'bg-accent-soft text-accent'
-          }`}
-        >
-          {post.kind === 'problem' ? 'Problem' : 'Idea'}
+        <span className="ml-auto flex shrink-0 items-center gap-1.5">
+          {post.pinned && (
+            <span className="rounded-full bg-line px-2 py-0.5 text-[11px] font-semibold text-muted">Pinned</span>
+          )}
+          {post.badges?.includes('Success') && (
+            <span className="rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-semibold text-success">#Success</span>
+          )}
+          <span
+            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+              post.kind === 'problem' ? 'bg-warn/20 text-[#8a6d00]' : 'bg-accent-soft text-accent'
+            }`}
+          >
+            {post.kind === 'problem' ? 'Problem' : 'Idea'}
+          </span>
         </span>
       </header>
 

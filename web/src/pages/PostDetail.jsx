@@ -47,7 +47,7 @@ function Kebab({ children }) {
 export default function PostDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { session } = useAuth()
+  const { session, isAdmin } = useAuth()
   const uid = session?.user?.id
 
   const [post, setPost] = useState(null)
@@ -130,8 +130,11 @@ export default function PostDetail() {
     setComments(data || [])
   }
 
-  async function deleteComment(cid) {
-    const { error } = await supabase.from('comments').delete().eq('id', cid)
+  async function deleteComment(cid, mine) {
+    // own comments delete via RLS; others (admin moderation) via the admin RPC
+    const { error } = mine
+      ? await supabase.from('comments').delete().eq('id', cid)
+      : await supabase.rpc('admin_delete_comment', { p_id: cid })
     if (error) { console.error(error); return setActionError(GENERIC_ERR) }
     setComments((prev) => prev.filter((c) => c.id !== cid))
   }
@@ -158,9 +161,24 @@ export default function PostDetail() {
 
   async function deletePost() {
     if (!window.confirm('Delete this post? This cannot be undone.')) return
-    const { error } = await supabase.from('posts').delete().eq('id', id)
+    // own post deletes via RLS; admin moderation uses the admin RPC
+    const { error } = post.is_mine
+      ? await supabase.from('posts').delete().eq('id', id)
+      : await supabase.rpc('admin_delete_post', { p_id: id })
     if (error) { console.error(error); return setActionError(GENERIC_ERR) }
     navigate('/', { replace: true })
+  }
+
+  async function togglePin() {
+    const { error } = await supabase.rpc('admin_pin_post', { p_id: id, p_pinned: !post.pinned })
+    if (error) { console.error(error); return setActionError(GENERIC_ERR) }
+    setPost((p) => ({ ...p, pinned: !p.pinned }))
+  }
+
+  async function requestSuccess() {
+    const { error } = await supabase.rpc('request_success', { p_id: id })
+    if (error) { console.error(error); return setActionError(GENERIC_ERR) }
+    setPost((p) => ({ ...p, success_request: 'pending' }))
   }
 
   const anon = post && !post.author_name
@@ -207,6 +225,12 @@ export default function PostDetail() {
               <div className="text-xs text-muted">{timeAgo(post.created_at)}{post.edited && ' · edited'}</div>
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
+              {post.pinned && (
+                <span className="rounded-full bg-line px-2.5 py-0.5 text-[11px] font-semibold text-muted">Pinned</span>
+              )}
+              {post.badges?.includes('Success') && (
+                <span className="rounded-full bg-success/15 px-2.5 py-0.5 text-[11px] font-semibold text-success">#Success</span>
+              )}
               <span
                 className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
                   post.kind === 'problem' ? 'bg-warn/20 text-[#8a6d00]' : 'bg-accent-soft text-accent'
@@ -214,11 +238,21 @@ export default function PostDetail() {
               >
                 {post.kind === 'problem' ? 'Problem' : 'Idea'}
               </span>
-              {post.is_mine && (
+              {(post.is_mine || isAdmin) && (
                 <Kebab>
                   {(close) => (
                     <>
-                      <MenuItem onClick={() => { close(); setEditOpen(true) }}>Edit post</MenuItem>
+                      {post.is_mine && (
+                        <MenuItem onClick={() => { close(); setEditOpen(true) }}>Edit post</MenuItem>
+                      )}
+                      {post.is_mine && !post.badges?.includes('Success') && post.success_request !== 'pending' && (
+                        <MenuItem onClick={() => { close(); requestSuccess() }}>Request #Success</MenuItem>
+                      )}
+                      {isAdmin && (
+                        <MenuItem onClick={() => { close(); togglePin() }}>
+                          {post.pinned ? 'Unpin post' : 'Pin post'}
+                        </MenuItem>
+                      )}
                       <MenuItem onClick={() => { close(); deletePost() }}>
                         <span className="text-down">Delete post</span>
                       </MenuItem>
@@ -228,6 +262,12 @@ export default function PostDetail() {
               )}
             </div>
           </div>
+
+          {post.is_mine && post.success_request === 'pending' && (
+            <div className="mt-2 rounded-lg bg-accent-soft px-3 py-1.5 text-xs font-semibold text-accent">
+              #Success request pending Super Admin approval
+            </div>
+          )}
 
           {/* title + body */}
           <h1 className="mt-3 break-words text-2xl font-extrabold leading-tight">{post.title}</h1>
@@ -361,8 +401,8 @@ export default function PostDetail() {
                     <div className="flex items-center gap-2 text-xs text-muted">
                       <span className="font-semibold text-ink">{c.author_name || 'Anonymous Founder'}</span>
                       <span>· {timeAgo(c.created_at)}</span>
-                      {c.is_mine && (
-                        <button onClick={() => deleteComment(c.id)} className="ml-auto text-faint hover:text-down">delete</button>
+                      {(c.is_mine || isAdmin) && (
+                        <button onClick={() => deleteComment(c.id, c.is_mine)} className="ml-auto text-faint hover:text-down">delete</button>
                       )}
                     </div>
                     <p className="mt-1 whitespace-pre-wrap break-words text-sm text-ink">{c.body}</p>

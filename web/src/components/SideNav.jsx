@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Workflow, Users, Calendar, LayoutGrid } from 'lucide-react'
+import { Home, Workflow, Users, Calendar, LayoutGrid, Shield } from 'lucide-react'
+import { useAuth } from '../lib/AuthProvider'
 
 // Twitter-style left rail. Built sections are links; the rest are placeholders until built,
 // styled like real items (full contrast) with a small SOON tag.
@@ -14,9 +15,12 @@ const ITEMS = [
 const base = 'flex items-center gap-3.5 rounded-full px-4 py-3 text-base font-semibold transition-colors'
 
 export default function SideNav({ onNavigate }) {
+  const { isAdmin } = useAuth()
+  const items = isAdmin ? [...ITEMS, { to: '/admin', label: 'Admin Panel', icon: Shield }] : ITEMS
+
   return (
     <nav className="flex flex-col gap-1">
-      {ITEMS.map((it) => {
+      {items.map((it) => {
         const Ic = it.icon
         if (it.soon) {
           return (

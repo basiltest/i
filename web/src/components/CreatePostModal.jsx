@@ -81,6 +81,11 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
   function addTag() {
     const t = tagInput.replace(/^#+/, '').toLowerCase().replace(/[^a-z0-9-]/g, '')
     if (!t) return
+    if (t === 'success') {
+      setError("#Success is a verified badge. Request it from your post's menu after publishing.")
+      setTagInput('')
+      return
+    }
     if (tags.includes(t)) { setTagInput(''); return }
     if (tags.length >= MAX_TAGS) { setError(`Max ${MAX_TAGS} tags.`); return }
     setTags([...tags, t])
