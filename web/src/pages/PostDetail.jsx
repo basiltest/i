@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, ArrowBigUp, ArrowBigDown, MessageCircle, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
-import PostCard from '../components/PostCard'
+import RoleBadge from '../components/RoleBadge'
+import Dropdown, { MenuItem } from '../components/Dropdown'
 import Spinner from '../components/Spinner'
 import { timeAgo } from '../lib/format'
+
+const CSORTS = [
+  { s: 'new', label: 'Newest' },
+  { s: 'old', label: 'Oldest' },
+]
 
 export default function PostDetail() {
   const { id } = useParams()
@@ -19,8 +25,15 @@ export default function PostDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [commentBody, setCommentBody] = useState('')
+  const [commentOpen, setCommentOpen] = useState(false)
   const [updateBody, setUpdateBody] = useState('')
   const [busy, setBusy] = useState(false)
+  const [csort, setCsort] = useState('new')
+
+  // post vote state (optimistic, same model as PostCard)
+  const [score, setScore] = useState(0)
+  const [myVote, setMyVote] = useState(0)
+  const [voting, setVoting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -30,13 +43,38 @@ export default function PostDetail() {
       supabase.rpc('post_subthreads', { p_id: id }),
     ])
     if (d.error) setError(d.error.message)
-    setPost(d.data?.[0] || null)
+    const p = d.data?.[0] || null
+    setPost(p)
+    setScore(Number(p?.score) || 0)
+    setMyVote(p?.my_vote ?? 0)
     setComments(c.data || [])
     setUpdates(s.data || [])
     setLoading(false)
   }, [id])
 
   useEffect(() => { load() }, [load])
+
+  async function vote(v) {
+    if (voting || !uid) return
+    const prevScore = score
+    const prevVote = myVote
+    const nextVote = myVote === v ? 0 : v
+    setMyVote(nextVote)
+    setScore(score + (nextVote - myVote))
+    setVoting(true)
+    try {
+      if (nextVote === 0) {
+        await supabase.from('post_votes').delete().eq('post_id', id).eq('user_id', uid)
+      } else {
+        await supabase.from('post_votes').upsert({ post_id: id, user_id: uid, value: nextVote })
+      }
+    } catch {
+      setMyVote(prevVote)
+      setScore(prevScore)
+    } finally {
+      setVoting(false)
+    }
+  }
 
   async function addComment(e) {
     e.preventDefault()
@@ -47,6 +85,7 @@ export default function PostDetail() {
     setBusy(false)
     if (e2) return setError(e2.message)
     setCommentBody('')
+    setCommentOpen(false)
     const { data } = await supabase.rpc('post_comments', { p_id: id })
     setComments(data || [])
   }
@@ -81,6 +120,13 @@ export default function PostDetail() {
     navigate('/', { replace: true })
   }
 
+  const anon = post && !post.author_name
+  const sortedComments = [...comments].sort((a, b) =>
+    csort === 'new'
+      ? new Date(b.created_at) - new Date(a.created_at)
+      : new Date(a.created_at) - new Date(b.created_at),
+  )
+
   return (
     <div className="mx-auto max-w-2xl">
       <button onClick={() => navigate(-1)} className="mb-4 inline-flex items-center gap-1 text-sm font-semibold text-muted hover:text-ink">
@@ -93,15 +139,83 @@ export default function PostDetail() {
         <p className="text-sm text-down">{error || 'Post not found.'}</p>
       ) : (
         <>
-          <PostCard post={post} />
+          {/* post header */}
+          <div className="flex items-center gap-2">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent">
+              {anon ? '?' : post.author_name.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="truncate text-sm font-bold">{anon ? 'Anonymous Founder' : post.author_name}</span>
+                {!anon && post.author_role && <RoleBadge role={post.author_role} />}
+              </div>
+              <div className="text-xs text-muted">{timeAgo(post.created_at)}{post.edited && ' · edited'}</div>
+            </div>
+            <span
+              className={`ml-auto shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                post.kind === 'problem' ? 'bg-warn/20 text-[#8a6d00]' : 'bg-accent-soft text-accent'
+              }`}
+            >
+              {post.kind === 'problem' ? 'Problem' : 'Idea'}
+            </span>
+          </div>
 
-          {post.is_mine && (
-            <div className="mt-2 text-right">
-              <button onClick={deletePost} className="text-sm font-semibold text-down hover:underline">Delete post</button>
+          {/* title + body */}
+          <h1 className="mt-3 break-words text-2xl font-extrabold leading-tight">{post.title}</h1>
+          {post.startup && <p className="mt-0.5 break-words text-sm font-semibold text-muted">{post.startup}</p>}
+          <p className="mt-3 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-ink">{post.problem}</p>
+          {post.kind === 'idea' && post.solution && (
+            <div className="mt-3 rounded-lg bg-card p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">Solution</div>
+              <p className="mt-1 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-ink">{post.solution}</p>
             </div>
           )}
 
-          {/* creator updates */}
+          {post.tags?.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {post.tags.map((t) => (
+                <span key={t} className="chip">#{t}</span>
+              ))}
+            </div>
+          )}
+
+          {/* action bar */}
+          <div className="mt-4 flex items-center gap-2">
+            <div className="inline-flex items-center gap-0.5 rounded-full border border-line bg-card px-1 py-0.5">
+              <button
+                onClick={() => vote(1)}
+                aria-label="Upvote"
+                className={`rounded-full p-1.5 transition-colors hover:bg-black/5 ${myVote === 1 ? 'text-accent' : 'text-muted'}`}
+              >
+                <ArrowBigUp size={20} fill={myVote === 1 ? 'currentColor' : 'none'} />
+              </button>
+              <span className={`min-w-[2ch] text-center text-sm font-bold ${myVote > 0 ? 'text-accent' : myVote < 0 ? 'text-down' : 'text-ink'}`}>
+                {score}
+              </span>
+              <button
+                onClick={() => vote(-1)}
+                aria-label="Downvote"
+                className={`rounded-full p-1.5 transition-colors hover:bg-black/5 ${myVote === -1 ? 'text-down' : 'text-muted'}`}
+              >
+                <ArrowBigDown size={20} fill={myVote === -1 ? 'currentColor' : 'none'} />
+              </button>
+            </div>
+
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-3 py-2 text-sm font-semibold text-muted">
+              <MessageCircle size={18} /> {comments.length}
+            </span>
+
+            {post.is_mine && (
+              <button
+                onClick={deletePost}
+                className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-3 py-2 text-sm font-semibold text-muted transition-colors hover:bg-black/5 hover:text-down"
+              >
+                <Trash2 size={16} /> Delete
+              </button>
+            )}
+          </div>
+
+          {/* creator updates (unchanged feature) */}
           <section className="mt-6">
             <h3 className="mb-2 text-sm font-bold">Updates from the creator</h3>
             {post.is_mine && (
@@ -133,35 +247,70 @@ export default function PostDetail() {
             )}
           </section>
 
+          {/* comment composer */}
+          <form onSubmit={addComment} className="mt-6">
+            <input
+              className="w-full rounded-full border border-line bg-card px-4 py-2.5 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none"
+              placeholder="Join the conversation"
+              maxLength={2000}
+              value={commentBody}
+              onChange={(e) => setCommentBody(e.target.value)}
+              onFocus={() => setCommentOpen(true)}
+            />
+            {(commentOpen || commentBody) && (
+              <div className="mt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  className="btn-outline"
+                  onClick={() => { setCommentBody(''); setCommentOpen(false) }}
+                >
+                  Cancel
+                </button>
+                <button className="btn-primary" disabled={busy || !commentBody.trim()}>Comment</button>
+              </div>
+            )}
+          </form>
+
+          {/* comments header + sort */}
+          <div className="mb-1 mt-6 flex items-center justify-between">
+            <h3 className="text-sm font-bold">{comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}</h3>
+            {comments.length > 1 && (
+              <Dropdown label={`Sort: ${CSORTS.find((o) => o.s === csort).label}`}>
+                {(close) =>
+                  CSORTS.map((o) => (
+                    <MenuItem key={o.s} active={csort === o.s} onClick={() => { setCsort(o.s); close() }}>
+                      {o.label}
+                    </MenuItem>
+                  ))
+                }
+              </Dropdown>
+            )}
+          </div>
+
           {/* comments */}
-          <section className="mt-6">
-            <h3 className="mb-2 text-sm font-bold">Comments ({comments.length})</h3>
-            <form onSubmit={addComment} className="mb-3 flex gap-2">
-              <input
-                className="input" placeholder="Add a comment..." maxLength={2000}
-                value={commentBody} onChange={(e) => setCommentBody(e.target.value)}
-              />
-              <button className="btn-primary shrink-0" disabled={busy}>Comment</button>
-            </form>
-            {comments.length === 0 ? (
-              <p className="text-sm text-muted">No comments yet.</p>
-            ) : (
-              <ul className="space-y-2">
-                {comments.map((c) => (
-                  <li key={c.id} className="card p-3">
+          {comments.length === 0 ? (
+            <p className="py-4 text-sm text-muted">No comments yet. Be the first.</p>
+          ) : (
+            <ul className="divide-y divide-line">
+              {sortedComments.map((c) => (
+                <li key={c.id} className="flex gap-2.5 py-3">
+                  <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
+                    {c.author_name ? c.author_name.charAt(0).toUpperCase() : '?'}
+                  </div>
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 text-xs text-muted">
-                      <span className="font-semibold text-ink">{c.author_name}</span>
+                      <span className="font-semibold text-ink">{c.author_name || 'Anonymous Founder'}</span>
                       <span>· {timeAgo(c.created_at)}</span>
                       {c.is_mine && (
                         <button onClick={() => deleteComment(c.id)} className="ml-auto text-faint hover:text-down">delete</button>
                       )}
                     </div>
                     <p className="mt-1 whitespace-pre-wrap break-words text-sm text-ink">{c.body}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </>
       )}
     </div>
