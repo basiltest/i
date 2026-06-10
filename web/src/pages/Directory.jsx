@@ -10,7 +10,7 @@ const ROLES = [
   { v: '', label: 'All roles' },
   { v: 'student', label: 'Students' },
   { v: 'mentor', label: 'Mentors' },
-  { v: 'admin', label: 'Super Admins' },
+  { v: 'admin', label: 'Admins' },
 ]
 
 // dropdown that takes a list of plain string options plus an "all" entry

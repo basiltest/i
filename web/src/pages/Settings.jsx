@@ -50,7 +50,7 @@ export default function Settings() {
             <Link to="/profile" className="btn-outline ml-auto px-3 py-1.5 text-xs">Edit in Profile</Link>
           </div>
           <p className="mt-3 text-xs text-faint">
-            Email and role are managed by IFN. A Super Admin can change a member's role.
+            Email and role are managed by IFN. An Admin can change a member's role.
           </p>
         </section>
 

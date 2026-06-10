@@ -11,7 +11,7 @@ import { timeAgo } from '../lib/format'
 const ROLES = [
   { v: 'student', label: 'Student' },
   { v: 'mentor', label: 'Mentor' },
-  { v: 'admin', label: 'Super Admin' },
+  { v: 'admin', label: 'Admin' },
 ]
 const GENERIC_ERR = 'Something went wrong. Please try again.'
 
