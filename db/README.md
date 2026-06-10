@@ -46,7 +46,8 @@ Unified feed (ideas + problems).
 - [ ] `post_votes` (per-user -1/1, composite PK, score = sum) + RLS (one vote per user per post).
 - [x] `comments` + `sub_threads` + RLS + post_detail/post_comments/post_subthreads RPCs (db/comments.sql). Comments by anyone; sub_threads (updates) only by the post author; delete own; post delete cascades.
 - [x] `post_votes` + RLS (db/votes.sql); feed_posts returns score + viewer vote; trending_tags RPC.
-- [x] `tags` + `post_tags` + `tag_requests` + RLS + `create_post` RPC (db/tags.sql). New tags become pending tag_requests. Drafts = posts.status='draft'. Admin approval queue + #Success still TODO.
+- [x] `tags` + `post_tags` + `tag_requests` + RLS + `create_post` + `update_post` RPCs (db/tags.sql). New tags auto-approved for now (moderation moves to the admin layer). Drafts = posts.status='draft'. `update_post` edits own post (snapshots first version into posts.original, marks edited, resets tags). Admin approval queue + #Success still TODO.
+- [x] `feed_posts` RPC (db/feed.sql): full-text search (`p_search`) + multi-supertag AND filter (`p_tags text[]`) + sorts hot/new/top + comment_count + score + viewer vote; masks anonymous authors. `feed_tags`, `trending_tags`, `posts_since` helpers.
 - [ ] `notifications` table (ADR-020) + RLS (read own); inline writes on key events.
 - [ ] `reports` table (moderation) + RLS; admin resolve/hide.
 - [ ] `is_admin()` security-definer helper + admin policies (pin, gate override, moderate) without RLS recursion.

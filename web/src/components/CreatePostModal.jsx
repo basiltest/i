@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 const MAX_TAGS = 10
 
-export default function CreatePostModal({ open, onClose, onCreated }) {
+export default function CreatePostModal({ open, onClose, onCreated, onUpdated, editPost }) {
+  const isEdit = !!editPost
   const [kind, setKind] = useState('idea')
   const [title, setTitle] = useState('')
   const [startup, setStartup] = useState('')
@@ -16,15 +17,27 @@ export default function CreatePostModal({ open, onClose, onCreated }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
+  // prefill on open (edit) or reset (create)
+  useEffect(() => {
+    if (!open) return
+    if (editPost) {
+      setKind(editPost.kind || 'idea')
+      setTitle(editPost.title || '')
+      setStartup(editPost.startup || '')
+      setProblem(editPost.problem || '')
+      setSolution(editPost.solution || '')
+      setTags(editPost.tags || [])
+    } else {
+      setKind('idea'); setTitle(''); setStartup(''); setProblem(''); setSolution('')
+      setAnonymous(false); setTags([])
+    }
+    setTagInput(''); setError('')
+  }, [open, editPost])
+
   if (!open) return null
 
-  function reset() {
-    setKind('idea'); setTitle(''); setStartup(''); setProblem(''); setSolution('')
-    setAnonymous(false); setTags([]); setTagInput(''); setError('')
-  }
   function close() {
     if (busy) return
-    reset()
     onClose()
   }
 
@@ -47,22 +60,31 @@ export default function CreatePostModal({ open, onClose, onCreated }) {
 
     setBusy(true)
     try {
-      const { error: rpcErr } = await supabase.rpc('create_post', {
-        p_kind: kind,
-        p_title: title.trim(),
-        p_problem: problem.trim(),
-        p_solution: kind === 'idea' ? solution.trim() : null,
-        p_startup: startup.trim() || null,
-        p_anonymous: anonymous,
-        p_status: status,
-        p_tags: tags,
-      })
-      if (rpcErr) {
-        setError(rpcErr.message)
-        return
+      if (isEdit) {
+        const { error: rpcErr } = await supabase.rpc('update_post', {
+          p_id: editPost.id,
+          p_title: title.trim(),
+          p_problem: problem.trim(),
+          p_solution: kind === 'idea' ? solution.trim() : null,
+          p_startup: startup.trim() || null,
+          p_tags: tags,
+        })
+        if (rpcErr) { setError('Something went wrong. Please try again.'); return }
+        onUpdated?.()
+      } else {
+        const { error: rpcErr } = await supabase.rpc('create_post', {
+          p_kind: kind,
+          p_title: title.trim(),
+          p_problem: problem.trim(),
+          p_solution: kind === 'idea' ? solution.trim() : null,
+          p_startup: startup.trim() || null,
+          p_anonymous: anonymous,
+          p_status: status,
+          p_tags: tags,
+        })
+        if (rpcErr) { setError('Something went wrong. Please try again.'); return }
+        onCreated?.(status)
       }
-      reset()
-      onCreated?.(status)
     } catch {
       setError('Something went wrong. Please try again.')
     } finally {
@@ -77,17 +99,18 @@ export default function CreatePostModal({ open, onClose, onCreated }) {
         onSubmit={(e) => { e.preventDefault(); save('published') }}
         className="card relative z-10 my-8 w-full max-w-lg p-6 animate-pop-in"
       >
-        <h2 className="text-lg font-bold">Create post</h2>
+        <h2 className="text-lg font-bold">{isEdit ? 'Edit post' : 'Create post'}</h2>
 
         <div className="mt-4 inline-flex rounded-full border border-line p-0.5">
           {['idea', 'problem'].map((k) => (
             <button
               key={k}
               type="button"
-              onClick={() => setKind(k)}
+              onClick={() => !isEdit && setKind(k)}
+              disabled={isEdit}
               className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
                 kind === k ? 'bg-accent-soft text-accent' : 'text-muted'
-              }`}
+              } ${isEdit ? 'cursor-not-allowed opacity-60' : ''}`}
             >
               {k === 'idea' ? 'Idea' : 'Problem'}
             </button>
@@ -135,19 +158,26 @@ export default function CreatePostModal({ open, onClose, onCreated }) {
               />
               <button type="button" className="btn-outline shrink-0 px-4" onClick={addTag}>Add</button>
             </div>
-            <p className="mt-1 text-xs text-faint">A brand-new tag is sent to Tag Requests for Super Admin approval.</p>
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-ink">
-            <input type="checkbox" checked={anonymous} onChange={(e) => setAnonymous(e.target.checked)} />
-            Post anonymously
-          </label>
+          {!isEdit && (
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input type="checkbox" checked={anonymous} onChange={(e) => setAnonymous(e.target.checked)} />
+              Post anonymously
+            </label>
+          )}
         </div>
 
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" className="btn-ghost" onClick={close} disabled={busy}>Cancel</button>
-          <button type="button" className="btn-outline" onClick={() => save('draft')} disabled={busy}>Save as draft</button>
-          <button type="submit" className="btn-primary" disabled={busy}>{busy ? 'Posting...' : 'Publish'}</button>
+          {isEdit ? (
+            <button type="submit" className="btn-primary" disabled={busy}>{busy ? 'Saving...' : 'Save changes'}</button>
+          ) : (
+            <>
+              <button type="button" className="btn-outline" onClick={() => save('draft')} disabled={busy}>Save as draft</button>
+              <button type="submit" className="btn-primary" disabled={busy}>{busy ? 'Posting...' : 'Publish'}</button>
+            </>
+          )}
         </div>
       </form>
     </div>

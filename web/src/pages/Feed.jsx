@@ -19,14 +19,38 @@ const KINDS = [
   { k: 'problem', label: 'Problems' },
 ]
 
+const normTag = (s) => s.toLowerCase().replace(/[^a-z0-9-]/g, '')
+
+// Split the search box into free text + committed #tags. The token currently being typed
+// (last token with no trailing space) is "in progress": a #word there drives autocomplete but
+// is not yet a filter; a plain word there still filters text live.
+function parseQuery(q) {
+  const trailing = /\s$/.test(q)
+  const toks = q.trim().split(/\s+/).filter(Boolean)
+  const inProgress = trailing ? '' : toks[toks.length - 1] || ''
+  const committed = trailing ? toks : toks.slice(0, -1)
+  const tags = []
+  const words = []
+  for (const tok of committed) {
+    if (tok.startsWith('#')) {
+      const n = normTag(tok.slice(1))
+      if (n && !tags.includes(n)) tags.push(n)
+    } else {
+      words.push(tok)
+    }
+  }
+  if (inProgress && !inProgress.startsWith('#')) words.push(inProgress)
+  const typingTag = inProgress.startsWith('#')
+  return { text: words.join(' '), tags, typingTag, tagToken: typingTag ? normTag(inProgress.slice(1)) : '' }
+}
+
 export default function Feed() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const tagFilter = searchParams.get('tag') || ''
 
   const [sort, setSort] = useState('hot')
   const [kind, setKind] = useState('all')
   const [q, setQ] = useState('')
-  const [debounced, setDebounced] = useState('')
+  const [filters, setFilters] = useState({ text: '', tags: [] })
 
   const [availableTags, setAvailableTags] = useState([])
 
@@ -42,32 +66,41 @@ export default function Feed() {
   const [newestAt, setNewestAt] = useState(null)
   const [newCount, setNewCount] = useState(0)
 
-  // tags that actually have posts (for the dropdown + # suggestions)
+  // tags that actually have posts (for # suggestions)
   useEffect(() => {
     supabase.rpc('feed_tags').then(({ data }) => setAvailableTags(data || []))
   }, [])
 
-  // debounce text search; ignore while typing a #tag
+  // a trending click arrives as /?tag=name; seed the search box with #name, then clear the URL
   useEffect(() => {
-    const id = setTimeout(() => setDebounced(q.startsWith('#') ? '' : q.trim()), 300)
+    const t = searchParams.get('tag')
+    if (!t) return
+    const tok = `#${normTag(t)}`
+    setQ((prev) => (prev.includes(tok) ? prev : `${prev ? prev.trim() + ' ' : ''}${tok} `))
+    setSearchParams({}, { replace: true })
+  }, [searchParams, setSearchParams])
+
+  // live view of the box (suggestions) + debounced view (the actual query)
+  const live = parseQuery(q)
+  useEffect(() => {
+    const id = setTimeout(() => {
+      const { text, tags } = parseQuery(q)
+      setFilters({ text, tags })
+    }, 300)
     return () => clearTimeout(id)
   }, [q])
 
-  // the supertag being typed: first #token, stops at whitespace (filter is single-tag)
-  const tagToken = q.startsWith('#')
-    ? q.slice(1).split(/\s+/)[0].toLowerCase().replace(/[^a-z0-9-]/g, '')
-    : ''
-  // # suggestions sourced from tags-that-have-posts (bare # lists all)
-  const suggestions = q.startsWith('#')
-    ? availableTags.filter((t) => t.name.startsWith(tagToken)).slice(0, 8)
+  const suggestions = live.typingTag
+    ? availableTags.filter((t) => t.name.startsWith(live.tagToken)).slice(0, 8)
     : []
 
+  const tagsKey = filters.tags.join(',')
   const fetchPage = useCallback(
     async (off, replace) => {
       const { data, error: e } = await supabase.rpc('feed_posts', {
         p_kind: kind === 'all' ? null : kind,
-        p_search: tagFilter ? null : debounced || null,
-        p_tag: tagFilter || null,
+        p_search: filters.text || null,
+        p_tags: filters.tags.length ? filters.tags : null,
         p_sort: sort,
         p_limit: PAGE,
         p_offset: off,
@@ -83,7 +116,8 @@ export default function Feed() {
       }
       return rows.length
     },
-    [kind, sort, tagFilter, debounced],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [kind, sort, filters.text, tagsKey],
   )
 
   // reload from the top when filters/sort/search change
@@ -100,8 +134,7 @@ export default function Feed() {
     if (!newestAt) return
     const id = setInterval(() => {
       supabase.rpc('posts_since', { p_since: newestAt }).then(({ data }) => {
-        if (typeof data === 'number') setNewCount(data)
-        else if (data != null) setNewCount(Number(data))
+        if (data != null) setNewCount(Number(data))
       })
     }, 30000)
     return () => clearInterval(id)
@@ -122,10 +155,29 @@ export default function Feed() {
     })
   }
 
+  // commit the in-progress #token (or a picked suggestion) as a tag in the box
   function pickTag(name) {
-    setSearchParams({ tag: name })
-    setQ('')
+    setQ((prev) => {
+      const trailing = /\s$/.test(prev)
+      const toks = prev.trim().split(/\s+/).filter(Boolean)
+      if (!trailing && toks.length) toks.pop() // drop the in-progress token
+      const tok = `#${name}`
+      if (!toks.includes(tok)) toks.push(tok)
+      return toks.join(' ') + ' '
+    })
   }
+
+  function removeTag(name) {
+    setQ((prev) =>
+      prev
+        .split(/\s+/)
+        .filter(Boolean)
+        .filter((tok) => !(tok.startsWith('#') && normTag(tok.slice(1)) === name))
+        .join(' '),
+    )
+  }
+
+  const hasFilter = filters.text || filters.tags.length > 0
 
   return (
     <div>
@@ -134,13 +186,13 @@ export default function Feed() {
         <div className="relative flex-1">
           <input
             className="input"
-            placeholder="Search posts, or type # to filter by supertag"
+            placeholder="Search posts, add #supertags to filter"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && q.startsWith('#')) {
+              if (e.key === 'Enter' && live.typingTag) {
                 e.preventDefault()
-                if (tagToken) pickTag(tagToken)
+                if (live.tagToken) pickTag(live.tagToken)
               }
             }}
           />
@@ -162,7 +214,7 @@ export default function Feed() {
         <button className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>Create post</button>
       </div>
 
-      {/* controls: sort / type, compact dropdowns */}
+      {/* controls: sort / type */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Dropdown label={SORTS.find((o) => o.s === sort).label}>
           {(close) =>
@@ -185,13 +237,15 @@ export default function Feed() {
         </Dropdown>
       </div>
 
-      {/* active tag filter */}
-      {tagFilter && (
-        <div className="mb-3">
-          <span className="chip">
-            #{tagFilter}
-            <button onClick={() => setSearchParams({})} aria-label="Clear tag filter"><X size={12} /></button>
-          </span>
+      {/* active supertag filters */}
+      {filters.tags.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {filters.tags.map((t) => (
+            <span key={t} className="chip">
+              #{t}
+              <button onClick={() => removeTag(t)} aria-label={`Remove ${t}`}><X size={12} /></button>
+            </span>
+          ))}
         </div>
       )}
 
@@ -222,9 +276,9 @@ export default function Feed() {
         </div>
       ) : posts.length === 0 ? (
         <div className="card p-8 text-center">
-          <p className="font-semibold">No posts {tagFilter || debounced ? 'match this filter' : 'yet'}.</p>
-          {tagFilter || debounced ? (
-            <button className="btn-outline mt-3" onClick={() => { setSearchParams({}); setQ('') }}>Clear filter</button>
+          <p className="font-semibold">No posts {hasFilter ? 'match this filter' : 'yet'}.</p>
+          {hasFilter ? (
+            <button className="btn-outline mt-3" onClick={() => setQ('')}>Clear filter</button>
           ) : (
             <button className="btn-primary mt-4" onClick={() => setCreateOpen(true)}>Create post</button>
           )}

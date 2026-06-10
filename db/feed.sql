@@ -14,12 +14,13 @@ create index if not exists posts_search_idx on public.posts using gin (search_ve
 
 drop function if exists public.feed_posts(text);
 drop function if exists public.feed_posts(text, text, text, text, int, int);
+drop function if exists public.feed_posts(text, text, text[], text, int, int);
 
--- p_sort: 'hot' (momentum, default), 'new', 'top', 'tag'
+-- p_tags: filter to posts that have ALL of these supertags (AND). p_sort: 'hot' (default), 'new', 'top'.
 create function public.feed_posts(
   p_kind text default null,
   p_search text default null,
-  p_tag text default null,
+  p_tags text[] default null,
   p_sort text default 'hot',
   p_limit int default 20,
   p_offset int default 0
@@ -52,9 +53,11 @@ as $$
   where p.status = 'published'
     and (p_kind is null or p.kind = p_kind)
     and (p_search is null or p_search = '' or p.search_vec @@ websearch_to_tsquery('english', p_search))
-    and (p_tag is null or exists (
-      select 1 from public.post_tags pt join public.tags t on t.id = pt.tag_id
-      where pt.post_id = p.id and t.approved and t.name = lower(p_tag)))
+    and (p_tags is null or p.id in (
+      select pt.post_id from public.post_tags pt join public.tags t on t.id = pt.tag_id
+      where t.approved and t.name = any(p_tags)
+      group by pt.post_id
+      having count(distinct t.name) = array_length(p_tags, 1)))
   order by
     p.pinned desc,
     case when p_sort = 'hot' then
@@ -71,7 +74,7 @@ as $$
   limit greatest(1, least(p_limit, 50))
   offset greatest(0, p_offset)
 $$;
-grant execute on function public.feed_posts(text, text, text, text, int, int) to authenticated;
+grant execute on function public.feed_posts(text, text, text[], text, int, int) to authenticated;
 
 -- trending_tags: top approved tags by published-post count over the last p_days days.
 drop function if exists public.trending_tags(int, int);

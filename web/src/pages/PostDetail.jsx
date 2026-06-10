@@ -6,6 +6,7 @@ import { useAuth } from '../lib/AuthProvider'
 import RoleBadge from '../components/RoleBadge'
 import Dropdown, { MenuItem } from '../components/Dropdown'
 import PostDetailSkeleton from '../components/PostDetailSkeleton'
+import CreatePostModal from '../components/CreatePostModal'
 import { timeAgo } from '../lib/format'
 
 const CSORTS = [
@@ -57,6 +58,7 @@ export default function PostDetail() {
   const [actionError, setActionError] = useState('')
   const [commentBody, setCommentBody] = useState('')
   const [commentOpen, setCommentOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
   const [updateBody, setUpdateBody] = useState('')
   const [busy, setBusy] = useState(false)
   const [csort, setCsort] = useState('new')
@@ -215,9 +217,12 @@ export default function PostDetail() {
               {post.is_mine && (
                 <Kebab>
                   {(close) => (
-                    <MenuItem onClick={() => { close(); deletePost() }}>
-                      <span className="text-down">Delete post</span>
-                    </MenuItem>
+                    <>
+                      <MenuItem onClick={() => { close(); setEditOpen(true) }}>Edit post</MenuItem>
+                      <MenuItem onClick={() => { close(); deletePost() }}>
+                        <span className="text-down">Delete post</span>
+                      </MenuItem>
+                    </>
                   )}
                 </Kebab>
               )}
@@ -366,6 +371,21 @@ export default function PostDetail() {
               ))}
             </ul>
           )}
+
+          <CreatePostModal
+            open={editOpen}
+            editPost={{
+              id: post.id,
+              kind: post.kind,
+              title: post.title,
+              problem: post.problem,
+              solution: post.solution,
+              startup: post.startup,
+              tags: post.tags || [],
+            }}
+            onClose={() => setEditOpen(false)}
+            onUpdated={() => { setEditOpen(false); load() }}
+          />
         </>
       )}
     </div>

@@ -105,3 +105,61 @@ end
 $$;
 
 grant execute on function public.create_post(text, text, text, text, text, boolean, text, text[]) to authenticated;
+
+-- Edit own post: update text fields + reset tags atomically. Snapshots the first version into
+-- posts.original (once), marks edited. Kind and anonymity are not editable.
+create or replace function public.update_post(
+  p_id uuid,
+  p_title text,
+  p_problem text,
+  p_solution text,
+  p_startup text,
+  p_tags text[]
+) returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_post public.posts;
+  v_tag text;
+  v_norm text;
+  v_tag_id uuid;
+begin
+  select * into v_post from public.posts where id = p_id;
+  if not found then raise exception 'post not found'; end if;
+  if v_post.author_id <> v_uid then raise exception 'not your post'; end if;
+  if coalesce(trim(p_title), '') = '' then raise exception 'title required'; end if;
+  if coalesce(trim(p_problem), '') = '' then raise exception 'problem required'; end if;
+
+  update public.posts set
+    title = trim(p_title),
+    problem = trim(p_problem),
+    solution = case when kind = 'idea' then nullif(trim(coalesce(p_solution, '')), '') else null end,
+    startup = nullif(trim(coalesce(p_startup, '')), ''),
+    edited = true,
+    edited_at = now(),
+    original = case when original is null then jsonb_build_object(
+        'title', v_post.title, 'problem', v_post.problem,
+        'solution', v_post.solution, 'startup', v_post.startup
+      ) else original end
+  where id = p_id;
+
+  -- reset tags to the new set (auto-approve new ones for now)
+  delete from public.post_tags where post_id = p_id;
+  if p_tags is not null then
+    foreach v_tag in array p_tags loop
+      v_norm := lower(trim(v_tag));
+      if v_norm = '' then continue; end if;
+      select id into v_tag_id from public.tags where name = v_norm;
+      if v_tag_id is null then
+        insert into public.tags (name, approved) values (v_norm, true) on conflict (name) do nothing;
+        select id into v_tag_id from public.tags where name = v_norm;
+      end if;
+      insert into public.post_tags (post_id, tag_id) values (p_id, v_tag_id) on conflict do nothing;
+    end loop;
+  end if;
+end
+$$;
+grant execute on function public.update_post(uuid, text, text, text, text, text[]) to authenticated;
