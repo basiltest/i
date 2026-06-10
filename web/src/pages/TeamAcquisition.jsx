@@ -18,6 +18,7 @@ export default function TeamAcquisition() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [postOpen, setPostOpen] = useState(false)
+  const [editPost, setEditPost] = useState(null)
   const [applyTo, setApplyTo] = useState(null)
   const [applicantsFor, setApplicantsFor] = useState(null)
   const [notice, setNotice] = useState('')
@@ -102,7 +103,7 @@ export default function TeamAcquisition() {
           {!debounced && <button className="btn-primary mt-4" onClick={() => setPostOpen(true)}>Post the first need</button>}
         </div>
       ) : (
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
           {posts.map((t) => (
             <div key={t.id} className="card flex flex-col p-4">
               <div className="mb-2 flex items-center gap-2">
@@ -116,7 +117,7 @@ export default function TeamAcquisition() {
 
               <h3 className="break-words text-base font-extrabold">{t.title}</h3>
               {t.startup && <span className="mt-1 inline-flex w-fit chip">{t.startup}</span>}
-              {t.description && <p className="mt-2 whitespace-pre-wrap break-words text-sm text-muted">{t.description}</p>}
+              {t.description && <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words text-sm text-muted">{t.description}</p>}
 
               <dl className="mt-3 space-y-1.5 text-sm">
                 {t.looking_for && <Row label="Looking for" value={t.looking_for} />}
@@ -128,18 +129,24 @@ export default function TeamAcquisition() {
                 <div className="mt-3">
                   <div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-muted">Skills required</div>
                   <div className="flex flex-wrap gap-1.5">
-                    {t.skills.map((s) => (
+                    {t.skills.slice(0, 12).map((s) => (
                       <span key={s} className="rounded-full bg-page px-2.5 py-1 text-xs font-semibold text-ink ring-1 ring-line">{s}</span>
                     ))}
+                    {t.skills.length > 12 && (
+                      <span className="rounded-full px-2.5 py-1 text-xs font-semibold text-muted">+{t.skills.length - 12} more</span>
+                    )}
                   </div>
                 </div>
               )}
 
               <div className="mt-4 flex items-center gap-2">
                 {t.is_mine ? (
-                  <button className="btn-outline" onClick={() => setApplicantsFor(t)}>
-                    View applicants ({Number(t.app_count)})
-                  </button>
+                  <>
+                    <button className="btn-outline" onClick={() => setApplicantsFor(t)}>
+                      Applicants ({Number(t.app_count)})
+                    </button>
+                    <button className="btn-outline" onClick={() => setEditPost(t)}>Edit</button>
+                  </>
                 ) : t.i_applied ? (
                   <button
                     onClick={() => withdraw(t.id)}
@@ -171,7 +178,14 @@ export default function TeamAcquisition() {
       {postOpen && (
         <PostNeedModal
           onClose={() => setPostOpen(false)}
-          onPosted={() => { setPostOpen(false); flash('Role need posted.'); load() }}
+          onSaved={() => { setPostOpen(false); flash('Role need posted.'); load() }}
+        />
+      )}
+      {editPost && (
+        <PostNeedModal
+          edit={editPost}
+          onClose={() => setEditPost(null)}
+          onSaved={() => { setEditPost(null); flash('Role need updated.'); load() }}
         />
       )}
       {applyTo && (
@@ -233,10 +247,17 @@ function Shell({ title, onClose, children }) {
   )
 }
 
-function PostNeedModal({ onClose, onPosted }) {
+function PostNeedModal({ edit, onClose, onSaved }) {
   const { session } = useAuth()
-  const [f, setF] = useState({ title: '', startup: '', description: '', looking_for: '', commitment: '', stage: 'Idea' })
-  const [skills, setSkills] = useState([])
+  const [f, setF] = useState({
+    title: edit?.title || '',
+    startup: edit?.startup || '',
+    description: edit?.description || '',
+    looking_for: edit?.looking_for || '',
+    commitment: edit?.commitment || '',
+    stage: edit?.stage || 'Idea',
+  })
+  const [skills, setSkills] = useState(edit?.skills || [])
   const [skillInput, setSkillInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -252,8 +273,7 @@ function PostNeedModal({ onClose, onPosted }) {
   async function submit() {
     if (!valid) return setError('Title, description and "looking for" are required.')
     setBusy(true)
-    const { error: e } = await supabase.from('team_posts').insert({
-      author_id: session.user.id,
+    const payload = {
       title: f.title.trim(),
       startup: f.startup.trim(),
       description: f.description.trim(),
@@ -261,21 +281,24 @@ function PostNeedModal({ onClose, onPosted }) {
       commitment: f.commitment.trim(),
       stage: f.stage.trim(),
       skills,
-    })
+    }
+    const { error: e } = edit
+      ? await supabase.from('team_posts').update(payload).eq('id', edit.id)
+      : await supabase.from('team_posts').insert({ ...payload, author_id: session.user.id })
     setBusy(false)
     if (e) { console.error(e); return setError(GENERIC_ERR) }
-    onPosted()
+    onSaved()
   }
 
   return (
-    <Shell title="Post a role need" onClose={() => !busy && onClose()}>
+    <Shell title={edit ? 'Edit role need' : 'Post a role need'} onClose={() => !busy && onClose()}>
       {error && <div className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
       <div className="mt-4 space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <L label="Role title *"><input className="input" maxLength={200} value={f.title} onChange={set('title')} placeholder="Full-Stack Developer" /></L>
           <L label="Startup"><input className="input" maxLength={200} value={f.startup} onChange={set('startup')} placeholder="FarmSense" /></L>
         </div>
-        <L label="Description *"><textarea className="input min-h-[70px] resize-y" maxLength={4000} value={f.description} onChange={set('description')} placeholder="What you need and why" /></L>
+        <L label="Description *"><textarea className="input min-h-[70px] resize-y" maxLength={1200} value={f.description} onChange={set('description')} placeholder="What you need and why" /></L>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <L label="Looking for *"><input className="input" maxLength={200} value={f.looking_for} onChange={set('looking_for')} placeholder="Co-founder" /></L>
           <L label="Commitment"><input className="input" maxLength={120} value={f.commitment} onChange={set('commitment')} placeholder="Part-time" /></L>
@@ -304,7 +327,9 @@ function PostNeedModal({ onClose, onPosted }) {
       </div>
       <div className="mt-5 flex justify-end gap-2">
         <button className="btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
-        <button className="btn-primary" disabled={busy || !valid} onClick={submit}>{busy ? 'Posting...' : 'Post'}</button>
+        <button className="btn-primary" disabled={busy || !valid} onClick={submit}>
+          {busy ? 'Saving...' : edit ? 'Save changes' : 'Post'}
+        </button>
       </div>
     </Shell>
   )
