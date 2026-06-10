@@ -22,6 +22,9 @@ create table if not exists public.tag_requests (
   created_at timestamptz not null default now()
 );
 
+-- One-time: approve any tags that were created under the old unapproved default.
+update public.tags set approved = true where not approved;
+
 alter table public.tags enable row level security;
 alter table public.post_tags enable row level security;
 alter table public.tag_requests enable row level security;
@@ -41,8 +44,8 @@ drop policy if exists "tag_requests read own" on public.tag_requests;
 create policy "tag_requests read own" on public.tag_requests
   for select to authenticated using (author_id = auth.uid());
 
--- Atomic create: insert the post, link tags; a brand-new tag is created unapproved and queued
--- as a pending tag_request for admin approval. security definer so it can write tags/post_tags.
+-- Atomic create: insert the post, link tags; a brand-new tag is created (auto-approved for now).
+-- security definer so it can write tags/post_tags.
 create or replace function public.create_post(
   p_kind text,
   p_title text,
@@ -86,11 +89,10 @@ begin
 
       select id into v_tag_id from public.tags where name = v_norm;
       if v_tag_id is null then
-        insert into public.tags (name, approved) values (v_norm, false)
+        -- auto-approve new tags for now; admin moderation layer comes later
+        insert into public.tags (name, approved) values (v_norm, true)
           on conflict (name) do nothing;
         select id into v_tag_id from public.tags where name = v_norm;
-        insert into public.tag_requests (tag, post_id, author_id, status)
-          values (v_norm, v_post_id, v_uid, 'pending');
       end if;
 
       insert into public.post_tags (post_id, tag_id) values (v_post_id, v_tag_id)

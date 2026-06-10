@@ -53,13 +53,12 @@ export default function Feed() {
     return () => clearTimeout(id)
   }, [q])
 
-  // # suggestions sourced from tags-that-have-posts
-  const suggestions =
-    q.startsWith('#') && q.length > 1
-      ? availableTags
-          .filter((t) => t.name.startsWith(q.slice(1).toLowerCase().replace(/[^a-z0-9-]/g, '')))
-          .slice(0, 8)
-      : []
+  // # suggestions sourced from tags-that-have-posts (bare # lists all)
+  const suggestions = q.startsWith('#')
+    ? availableTags
+        .filter((t) => t.name.startsWith(q.slice(1).toLowerCase().replace(/[^a-z0-9-]/g, '')))
+        .slice(0, 8)
+    : []
 
   const fetchPage = useCallback(
     async (off, replace) => {
