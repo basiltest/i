@@ -69,6 +69,11 @@ declare
 begin
   if v_uid is null then raise exception 'not authenticated'; end if;
   if p_kind not in ('idea', 'problem', 'discussion') then raise exception 'invalid kind'; end if;
+  -- global feed lock: only admins may post when feed_locked is on
+  if coalesce((select feed_locked from public.app_settings where id), false)
+     and (select role from public.profiles where id = v_uid) is distinct from 'admin' then
+    raise exception 'posting is currently closed';
+  end if;
   if coalesce(trim(p_title), '') = '' then raise exception 'title required'; end if;
   if coalesce(trim(p_problem), '') = '' then raise exception 'problem required'; end if;
 

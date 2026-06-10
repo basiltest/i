@@ -176,6 +176,12 @@ export default function PostDetail() {
     setPost((p) => ({ ...p, pinned: !p.pinned }))
   }
 
+  async function toggleCommentsLock() {
+    const { error } = await supabase.rpc('admin_set_comments_locked', { p_id: id, p_locked: !post.comments_locked })
+    if (error) { console.error(error); return setActionError(GENERIC_ERR) }
+    setPost((p) => ({ ...p, comments_locked: !p.comments_locked }))
+  }
+
   async function requestSuccess() {
     const { error } = await supabase.rpc('request_success', { p_id: id })
     if (error) { console.error(error); return setActionError(GENERIC_ERR) }
@@ -252,6 +258,11 @@ export default function PostDetail() {
                       {isAdmin && (
                         <MenuItem onClick={() => { close(); togglePin() }}>
                           {post.pinned ? 'Unpin post' : 'Pin post'}
+                        </MenuItem>
+                      )}
+                      {isAdmin && (
+                        <MenuItem onClick={() => { close(); toggleCommentsLock() }}>
+                          {post.comments_locked ? 'Turn comments on' : 'Turn comments off'}
                         </MenuItem>
                       )}
                       <MenuItem onClick={() => { close(); deletePost() }}>
@@ -364,29 +375,33 @@ export default function PostDetail() {
             )}
           </div>
 
-          {/* comment composer (under the Comments header) */}
-          <form onSubmit={addComment} className="mb-4">
-            <input
-              className="w-full rounded-full border border-line bg-card px-4 py-2.5 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none"
-              placeholder="Add a comment"
-              maxLength={2000}
-              value={commentBody}
-              onChange={(e) => setCommentBody(e.target.value)}
-              onFocus={() => setCommentOpen(true)}
-            />
-            {(commentOpen || commentBody) && (
-              <div className="mt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  className="btn-outline"
-                  onClick={() => { setCommentBody(''); setCommentOpen(false) }}
-                >
-                  Cancel
-                </button>
-                <button className="btn-primary" disabled={busy || !commentBody.trim()}>Comment</button>
-              </div>
-            )}
-          </form>
+          {/* comment composer (under the Comments header); hidden when comments are locked */}
+          {post.comments_locked ? (
+            <p className="mb-4 rounded-lg bg-page px-3 py-2.5 text-sm text-muted">Comments are turned off for this post.</p>
+          ) : (
+            <form onSubmit={addComment} className="mb-4">
+              <input
+                className="w-full rounded-full border border-line bg-card px-4 py-2.5 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none"
+                placeholder="Add a comment"
+                maxLength={2000}
+                value={commentBody}
+                onChange={(e) => setCommentBody(e.target.value)}
+                onFocus={() => setCommentOpen(true)}
+              />
+              {(commentOpen || commentBody) && (
+                <div className="mt-2 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    className="btn-outline"
+                    onClick={() => { setCommentBody(''); setCommentOpen(false) }}
+                  >
+                    Cancel
+                  </button>
+                  <button className="btn-primary" disabled={busy || !commentBody.trim()}>Comment</button>
+                </div>
+              )}
+            </form>
+          )}
 
           {/* comments list */}
           {comments.length === 0 ? (

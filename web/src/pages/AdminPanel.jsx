@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { Award, Users } from 'lucide-react'
+import { Award, Users, SlidersHorizontal } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import RoleBadge from '../components/RoleBadge'
@@ -24,13 +24,15 @@ export default function AdminPanel() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState(null)
+  const [feedLocked, setFeedLocked] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
     setError('')
-    const [m, q] = await Promise.all([
+    const [m, q, s] = await Promise.all([
       supabase.rpc('admin_members'),
       supabase.rpc('admin_success_queue'),
+      supabase.from('app_settings').select('feed_locked').single(),
     ])
     if (m.error || q.error) {
       console.error(m.error || q.error)
@@ -38,9 +40,17 @@ export default function AdminPanel() {
     } else {
       setMembers(m.data || [])
       setQueue(q.data || [])
+      setFeedLocked(!!s.data?.feed_locked)
     }
     setLoading(false)
   }, [])
+
+  async function toggleFeedLock() {
+    const next = !feedLocked
+    const { error: e } = await supabase.rpc('admin_set_feed_locked', { p_locked: next })
+    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    setFeedLocked(next)
+  }
 
   useEffect(() => { if (isAdmin) load() }, [isAdmin, load])
 
@@ -87,6 +97,14 @@ export default function AdminPanel() {
         >
           <Award size={15} /> #Success requests ({queue.length})
         </button>
+        <button
+          onClick={() => setTab('settings')}
+          className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
+            tab === 'settings' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'
+          }`}
+        >
+          <SlidersHorizontal size={15} /> Settings
+        </button>
       </div>
 
       {error && (
@@ -124,6 +142,25 @@ export default function AdminPanel() {
               )}
             </div>
           ))}
+        </div>
+      ) : tab === 'settings' ? (
+        <div className="card mt-4 divide-y divide-line">
+          <div className="flex flex-wrap items-center gap-3 p-4">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-bold">Feed posting</div>
+              <div className="text-xs text-muted">
+                When off, members cannot create posts in the feed. Admins can still post.
+              </div>
+            </div>
+            <button
+              onClick={toggleFeedLock}
+              className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
+                feedLocked ? 'border-down/40 bg-down/10 text-down' : 'border-success/40 bg-success/10 text-success'
+              }`}
+            >
+              {feedLocked ? 'Posting is OFF' : 'Posting is ON'}
+            </button>
+          </div>
         </div>
       ) : queue.length === 0 ? (
         <div className="card mt-4 p-8 text-center">

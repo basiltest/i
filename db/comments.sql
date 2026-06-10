@@ -27,7 +27,10 @@ drop policy if exists "comments read" on public.comments;
 create policy "comments read" on public.comments for select to authenticated using (true);
 drop policy if exists "comments insert own" on public.comments;
 create policy "comments insert own" on public.comments
-  for insert to authenticated with check (author_id = auth.uid());
+  for insert to authenticated with check (
+    author_id = auth.uid()
+    and not exists (select 1 from public.posts p where p.id = post_id and p.comments_locked)
+  );
 drop policy if exists "comments delete own" on public.comments;
 create policy "comments delete own" on public.comments
   for delete to authenticated using (author_id = auth.uid());
@@ -50,7 +53,7 @@ create function public.post_detail(p_id uuid)
 returns table (
   id uuid, kind text, title text, problem text, solution text, startup text,
   anonymous boolean, badges text[], success_request text, pinned boolean,
-  edited boolean, created_at timestamptz,
+  comments_locked boolean, edited boolean, created_at timestamptz,
   author_name text, author_role text, is_mine boolean,
   tags text[], score bigint, my_vote int
 )
@@ -61,7 +64,7 @@ as $$
   )
   select
     p.id, p.kind, p.title, p.problem, p.solution, p.startup,
-    p.anonymous, p.badges, p.success_request, p.pinned, p.edited, p.created_at,
+    p.anonymous, p.badges, p.success_request, p.pinned, p.comments_locked, p.edited, p.created_at,
     case when p.anonymous and me.role is distinct from 'admin' and p.author_id <> me.uid then null else a.name end,
     case when p.anonymous and me.role is distinct from 'admin' and p.author_id <> me.uid then null else a.role end,
     (p.author_id = me.uid),

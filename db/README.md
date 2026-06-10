@@ -51,6 +51,8 @@ Unified feed (ideas + problems).
 - [ ] `notifications` table (ADR-020) + RLS (read own); inline writes on key events.
 - [ ] `reports` table (moderation) + RLS; admin resolve/hide.
 - [x] Admin layer (db/admin.sql): `is_admin()` definer helper; all admin ops via guarded RPCs (no extra RLS): `admin_members` (joins auth.users for email), `admin_set_role` (student/mentor/admin, never own), `admin_pin_post`, `admin_delete_post`, `admin_delete_comment`; #Success flow: `request_success` (author) -> `admin_success_queue` -> `admin_review_success` (approve adds 'Success' to posts.badges). 'success' is a reserved tag name. Bootstrap admin = college email (update profiles via auth.users lookup).
+- [x] Admin settings (db/admin.sql): `app_settings` single-row table (`feed_locked`) + `admin_set_feed_locked` (create_post rejects non-admins when locked); per-post `posts.comments_locked` (revoked from authenticated) + `admin_set_comments_locked`; comments insert RLS blocks when the post is locked; post_detail returns comments_locked.
+- [x] Team Acquisition (db/teamboard.sql): `team_posts` + `team_applications` (unique per person) + RLS; `team_feed` (author + app_count + i_applied + is_mine), `team_apply` (no own-post/dup, message required), `team_applicants` (post author/admin only; profile + LinkedIn, never email), `admin_delete_team_post`.
 - [ ] CHECK length constraints on profiles/posts text columns (server-side cap matching the UI maxLength).
 - [ ] Pipeline tables (later): `ideas_pipeline`, `pipeline_settings`, `gate_transitions`, `idea_submissions`, `idea_reviews`, `idea_extra_asks`, `attachments`.
 - [ ] When moving off Supabase: these SQL files become the migration set; replace `auth.uid()`/RLS as needed (self-host GoTrue or own auth).

@@ -6,6 +6,7 @@ import PostCard from '../components/PostCard'
 import PostCardSkeleton from '../components/PostCardSkeleton'
 import CreatePostModal from '../components/CreatePostModal'
 import Dropdown, { MenuItem } from '../components/Dropdown'
+import { useAuth } from '../lib/AuthProvider'
 
 const PAGE = 20
 const SORTS = [
@@ -46,7 +47,9 @@ function parseQuery(q) {
 }
 
 export default function Feed() {
+  const { isAdmin } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
+  const [feedLocked, setFeedLocked] = useState(false)
 
   const [sort, setSort] = useState('hot')
   const [kind, setKind] = useState('all')
@@ -70,6 +73,11 @@ export default function Feed() {
   // tags that actually have posts (for # suggestions)
   useEffect(() => {
     supabase.rpc('feed_tags').then(({ data }) => setAvailableTags(data || []))
+  }, [])
+
+  // global feed lock (admins can still post)
+  useEffect(() => {
+    supabase.from('app_settings').select('feed_locked').single().then(({ data }) => setFeedLocked(!!data?.feed_locked))
   }, [])
 
   // a trending click arrives as /?tag=name; seed the search box with #name, then clear the URL
@@ -251,8 +259,16 @@ export default function Feed() {
             </div>
           )}
         </div>
-        <button className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>Create post</button>
+        {(!feedLocked || isAdmin) && (
+          <button className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>Create post</button>
+        )}
       </div>
+
+      {feedLocked && (
+        <div className="mb-3 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-sm text-[#8a6d00]">
+          {isAdmin ? 'Posting is closed for members. You can still post as an admin.' : 'Posting is currently closed by an admin.'}
+        </div>
+      )}
 
       {/* controls: sort / type */}
       <div className="mb-3 flex flex-wrap items-center gap-2">

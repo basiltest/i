@@ -12,6 +12,7 @@ create table if not exists public.posts (
   solution text,                                   -- ideas only; problems leave null
   status text not null default 'published' check (status in ('draft', 'published')),
   pinned boolean not null default false,           -- admin only (see revoke below)
+  comments_locked boolean not null default false,  -- admin only: turn comments off on a post
   badges text[] not null default '{}',             -- admin/system only
   success_request text not null default 'none'
     check (success_request in ('none', 'pending', 'approved', 'rejected')),
@@ -51,4 +52,4 @@ create policy "posts delete own" on public.posts
 -- Harden admin/system columns: a user must not be able to self-pin, self-award badges,
 -- or fake the #Success state, and must not rewrite ownership/kind/timestamp.
 revoke insert (pinned, badges, success_request) on public.posts from authenticated;
-revoke update (pinned, badges, success_request, author_id, kind, created_at) on public.posts from authenticated;
+revoke update (pinned, comments_locked, badges, success_request, author_id, kind, created_at) on public.posts from authenticated;

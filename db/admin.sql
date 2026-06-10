@@ -143,3 +143,41 @@ begin
 end
 $$;
 grant execute on function public.admin_review_success(uuid, boolean) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Global app settings (single row). feed_locked: when on, only admins can create posts.
+create table if not exists public.app_settings (
+  id boolean primary key default true check (id),  -- enforces exactly one row
+  feed_locked boolean not null default false
+);
+insert into public.app_settings (id) values (true) on conflict (id) do nothing;
+alter table public.app_settings enable row level security;
+drop policy if exists "settings read" on public.app_settings;
+create policy "settings read" on public.app_settings for select to authenticated using (true);
+
+create or replace function public.admin_set_feed_locked(p_locked boolean)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if not public.is_admin() then raise exception 'admins only'; end if;
+  update public.app_settings set feed_locked = p_locked where id;
+end
+$$;
+grant execute on function public.admin_set_feed_locked(boolean) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Per-post comment lock: admin can turn comments off on a single post.
+alter table public.posts add column if not exists comments_locked boolean not null default false;
+revoke update (comments_locked) on public.posts from authenticated;  -- admins set it via RPC only
+
+create or replace function public.admin_set_comments_locked(p_id uuid, p_locked boolean)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if not public.is_admin() then raise exception 'admins only'; end if;
+  update public.posts set comments_locked = p_locked where id = p_id;
+end
+$$;
+grant execute on function public.admin_set_comments_locked(uuid, boolean) to authenticated;
