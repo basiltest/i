@@ -53,11 +53,13 @@ export default function Feed() {
     return () => clearTimeout(id)
   }, [q])
 
+  // the supertag being typed: first #token, stops at whitespace (filter is single-tag)
+  const tagToken = q.startsWith('#')
+    ? q.slice(1).split(/\s+/)[0].toLowerCase().replace(/[^a-z0-9-]/g, '')
+    : ''
   // # suggestions sourced from tags-that-have-posts (bare # lists all)
   const suggestions = q.startsWith('#')
-    ? availableTags
-        .filter((t) => t.name.startsWith(q.slice(1).toLowerCase().replace(/[^a-z0-9-]/g, '')))
-        .slice(0, 8)
+    ? availableTags.filter((t) => t.name.startsWith(tagToken)).slice(0, 8)
     : []
 
   const fetchPage = useCallback(
@@ -138,8 +140,7 @@ export default function Feed() {
             onKeyDown={(e) => {
               if (e.key === 'Enter' && q.startsWith('#')) {
                 e.preventDefault()
-                const name = q.slice(1).toLowerCase().replace(/[^a-z0-9-]/g, '')
-                if (name) pickTag(name)
+                if (tagToken) pickTag(tagToken)
               }
             }}
           />
