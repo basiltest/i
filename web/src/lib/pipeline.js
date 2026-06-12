@@ -59,6 +59,8 @@ export const NOTIF_TEXT = {
   application_withdrawn: 'An application was withdrawn',
   application_deleted: 'An application was removed by an admin',
   pipeline_stale: 'No pipeline movement in a while',
+  problem_solution_received: 'New solution proposed on your problem',
+  solution_reviewed: 'Your solution was reviewed',
 }
 
 export const ifnTag = (n) => `IFN-${n}`

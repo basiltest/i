@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Workflow, Users, Calendar, LayoutGrid, Shield, ClipboardCheck } from 'lucide-react'
+import { Home, Workflow, Users, Calendar, LayoutGrid, Shield, ClipboardCheck, Puzzle } from 'lucide-react'
 import { useAuth } from '../lib/AuthProvider'
 
 // Twitter-style left rail. Built sections are links; the rest are placeholders until built,
@@ -7,6 +7,7 @@ import { useAuth } from '../lib/AuthProvider'
 const ITEMS = [
   { to: '/', label: 'Feed', icon: Home, end: true },
   { to: '/pipeline', label: 'Idea Pipeline', icon: Workflow },
+  { to: '/problem-hub', label: 'Problem Hub', icon: Puzzle },
   { to: '/team', label: 'Team Acquisition', icon: Users },
   { to: '/calendar', label: 'Calendar', icon: Calendar },
   { to: '/directory', label: 'Directory', icon: LayoutGrid },

@@ -12,6 +12,7 @@ import Pipeline from './pages/Pipeline'
 import PipelineIdea from './pages/PipelineIdea'
 import MentorReview from './pages/MentorReview'
 import TeamAcquisition from './pages/TeamAcquisition'
+import ProblemHub from './pages/ProblemHub'
 import Calendar from './pages/Calendar'
 import Directory from './pages/Directory'
 import Onboarding from './pages/Onboarding'
@@ -19,7 +20,6 @@ import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import OnboardingGate from './components/OnboardingGate'
 import PublicOnlyRoute from './components/PublicOnlyRoute'
-import ProblemHub from './pages/ProblemHub';
 
 function App() {
   return (
@@ -43,10 +43,10 @@ function App() {
         <Route path="pipeline/:id" element={<PipelineIdea />} />
         <Route path="mentor" element={<MentorReview />} />
         <Route path="team" element={<TeamAcquisition />} />
+        <Route path="problem-hub" element={<ProblemHub />} />
         <Route path="calendar" element={<Calendar />} />
         <Route path="directory" element={<Directory />} />
         <Route path="admin" element={<AdminPanel />} />
-        <Route path="/problem-hub" element={<ProblemHub />} />
       </Route>
     </Routes>
   )
