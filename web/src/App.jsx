@@ -19,6 +19,7 @@ import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import OnboardingGate from './components/OnboardingGate'
 import PublicOnlyRoute from './components/PublicOnlyRoute'
+import ProblemHub from './pages/ProblemHub';
 
 function App() {
   return (
@@ -45,6 +46,7 @@ function App() {
         <Route path="calendar" element={<Calendar />} />
         <Route path="directory" element={<Directory />} />
         <Route path="admin" element={<AdminPanel />} />
+        <Route path="/problem-hub" element={<ProblemHub />} />
       </Route>
     </Routes>
   )
