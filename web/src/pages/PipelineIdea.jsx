@@ -123,7 +123,7 @@ export default function PipelineIdea() {
         </div>
       )}
 
-      {isAdmin && <AdminControls d={d} onChanged={load} />}
+      {isAdmin && <AdminControls d={d} onChanged={load} onDeleted={() => navigate('/pipeline', { replace: true })} />}
 
       {/* current gate work area */}
       {idea.pipeline_state === 'active' && (
@@ -896,8 +896,8 @@ function Payload({ payload, className = '' }) {
 }
 
 // ---------------------------------------------------------------------------
-// Admin: assign mentor / move gate / reject - with mandatory, audited reasons.
-function AdminControls({ d, onChanged }) {
+// Admin: assign mentor / move gate / reject / delete - with mandatory, audited reasons.
+function AdminControls({ d, onChanged, onDeleted }) {
   const idea = d.idea
   const [mentors, setMentors] = useState([])
   const [mentor, setMentor] = useState('')
@@ -928,6 +928,16 @@ function AdminControls({ d, onChanged }) {
   const reject = (final) => {
     if (final && !window.confirm('Reject this application permanently? The pipeline run ends.')) return
     run(async (r) => (await supabase.rpc('admin_reject_idea', { p_idea: idea.id, p_final: final, p_reason: r })).error)
+  }
+  // delete bypasses run(): on success the dossier is gone, so we navigate away instead of reloading
+  async function deleteIdea() {
+    if (!reason.trim()) return setError('A reason is required for every admin action (it is audited).')
+    if (!window.confirm(`Delete ${ifnTag(idea.ifn)} permanently? This removes the application, its submissions, reviews, files and thread for everyone. This cannot be undone.`)) return
+    setBusy(true)
+    setError('')
+    const { error: e } = await supabase.rpc('admin_delete_pipeline_idea', { p_idea: idea.id, p_reason: reason.trim() })
+    if (e) { setBusy(false); console.error(e); return setError(e.message || GENERIC_ERR) }
+    onDeleted()
   }
 
   const stateLabel = idea.pipeline_state !== 'active' ? STATES[idea.pipeline_state]?.label
@@ -964,13 +974,16 @@ function AdminControls({ d, onChanged }) {
           <button className="btn-outline shrink-0 px-3 text-xs" onClick={move} disabled={busy}>Move</button>
         </div>
         <input className="input sm:col-span-2" maxLength={300} placeholder="Reason (required, audited)" value={reason} onChange={(e) => setReason(e.target.value)} />
-        <div className="flex gap-2 sm:col-span-2">
+        <div className="flex flex-wrap gap-2 sm:col-span-2">
           {idea.pipeline_state === 'active' && (
             <>
               <button className="btn px-3 py-1.5 text-xs border border-accent/40 text-accent hover:bg-accent-soft" onClick={() => reject(false)} disabled={busy}>Refine &amp; retry</button>
               <button className="btn px-3 py-1.5 text-xs border border-down/40 text-down hover:bg-down/10" onClick={() => reject(true)} disabled={busy}>Reject (final)</button>
             </>
           )}
+          <button className="btn ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-down/40 text-down hover:bg-down/10" onClick={deleteIdea} disabled={busy}>
+            <Trash2 size={13} /> Delete permanently
+          </button>
         </div>
       </div>
     </div>

@@ -54,6 +54,7 @@ drop function if exists public.admin_assign_mentor(uuid, uuid, text);
 drop function if exists public.admin_bulk_assign(uuid[], uuid, text);
 drop function if exists public.admin_move_gate(uuid, int, text);
 drop function if exists public.admin_reject_idea(uuid, boolean, text);
+drop function if exists public.admin_delete_pipeline_idea(uuid);  -- reason-less draft
 -- the storage policies depend on can_access_idea; drop them first (recreated at the bottom)
 drop policy if exists "idea files read" on storage.objects;
 drop policy if exists "idea files insert" on storage.objects;
@@ -1028,17 +1029,29 @@ end
 $$;
 grant execute on function public.admin_reject_idea(uuid, boolean, text) to authenticated;
 
--- Moderation: delete an application outright (cascades the whole dossier).
-create or replace function public.admin_delete_pipeline_idea(p_idea uuid)
+-- Moderation: delete an application outright (cascades the whole dossier). Author and
+-- mentor are told afterwards via a notification with no idea reference (the row is gone);
+-- the mandatory reason rides in its payload - the only record that survives the cascade.
+-- Storage objects are swept separately (same documented trade-off as withdraw).
+create or replace function public.admin_delete_pipeline_idea(p_idea uuid, p_reason text)
 returns void
 language plpgsql security definer set search_path = public
 as $$
+declare
+  v_i public.pipeline_ideas;
 begin
   if not public.is_admin() then raise exception 'admins only'; end if;
+  if coalesce(trim(p_reason), '') = '' then raise exception 'reason required'; end if;
+  select * into v_i from public.pipeline_ideas where id = p_idea;
+  if not found then raise exception 'application not found'; end if;
   delete from public.pipeline_ideas where id = p_idea;
+  perform public.notify(v_i.author_id, 'application_deleted', null, auth.uid(),
+    jsonb_build_object('title', v_i.title, 'ifn', v_i.ifn, 'reason', trim(p_reason)));
+  perform public.notify(v_i.mentor_id, 'application_deleted', null, auth.uid(),
+    jsonb_build_object('title', v_i.title, 'ifn', v_i.ifn, 'reason', trim(p_reason)));
 end
 $$;
-grant execute on function public.admin_delete_pipeline_idea(uuid) to authenticated;
+grant execute on function public.admin_delete_pipeline_idea(uuid, text) to authenticated;
 
 -- Load per mentor so assignment is informed.
 drop function if exists public.admin_mentor_load();

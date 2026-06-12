@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { Award, Users, SlidersHorizontal, Search, Workflow } from 'lucide-react'
+import { Award, Users, SlidersHorizontal, Search, Workflow, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import { REGIONS, SECTORS, DOMAINS } from '../lib/options'
@@ -373,6 +373,22 @@ function PipelineTab() {
     return next
   })
 
+  // moderation: remove an application outright. The prompt doubles as the confirm; the
+  // reason is mandatory (it rides in the author's/mentor's notification).
+  async function deleteIdea(r) {
+    const reason = window.prompt(
+      `Delete ${ifnTag(r.ifn)} "${r.title}" permanently?\n\nThis removes the application, its submissions, reviews, files and thread for everyone. This cannot be undone.\n\nReason (required, audited):`
+    )
+    if (reason === null) return
+    if (!reason.trim()) return setError('A reason is required for every admin action (it is audited).')
+    setBusy(true)
+    setError('')
+    const { error: e } = await supabase.rpc('admin_delete_pipeline_idea', { p_idea: r.id, p_reason: reason.trim() })
+    setBusy(false)
+    if (e) { console.error(e); return setError(e.message || GENERIC_ERR) }
+    load()
+  }
+
   const byGate = counts?.by_gate || {}
 
   return (
@@ -496,6 +512,15 @@ function PipelineTab() {
                     </span>
                   </div>
                 </div>
+                <button
+                  onClick={() => deleteIdea(r)}
+                  disabled={busy}
+                  title={`Delete ${ifnTag(r.ifn)} permanently`}
+                  aria-label={`Delete ${ifnTag(r.ifn)}`}
+                  className="shrink-0 rounded-full p-2 text-muted hover:bg-down/10 hover:text-down"
+                >
+                  <Trash2 size={15} />
+                </button>
               </div>
             )
           })}

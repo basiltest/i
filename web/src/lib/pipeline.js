@@ -57,6 +57,7 @@ export const NOTIF_TEXT = {
   action_done: 'An action item was completed',
   message_received: 'New message on an idea',
   application_withdrawn: 'An application was withdrawn',
+  application_deleted: 'An application was removed by an admin',
   pipeline_stale: 'No pipeline movement in a while',
 }
 
