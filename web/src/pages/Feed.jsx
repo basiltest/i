@@ -234,7 +234,7 @@ export default function Feed() {
         <div className="relative flex-1">
           <input
             className="input"
-            placeholder="Search posts, add #supertags to filter"
+            aria-label="Search posts" placeholder="Search posts, add #tags to filter"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
@@ -265,7 +265,7 @@ export default function Feed() {
       </div>
 
       {feedLocked && (
-        <div className="mb-3 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-sm text-[#8a6d00]">
+        <div role="status" className="mb-3 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-sm text-warnink">
           {isAdmin ? 'Posting is closed for members. You can still post as an admin.' : 'Posting is currently closed by an admin.'}
         </div>
       )}
@@ -317,7 +317,7 @@ export default function Feed() {
       )}
 
       {notice && (
-        <div className="mb-4 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">{notice}</div>
+        <div role="status" className="mb-4 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">{notice}</div>
       )}
 
       {loading ? (
@@ -328,7 +328,7 @@ export default function Feed() {
         </div>
       ) : error ? (
         <div className="card p-6 text-center">
-          <p className="text-sm text-down">Could not load the feed.</p>
+          <p className="text-sm text-down">Could not load the feed. Check your connection and retry.</p>
           <button className="btn-outline mt-3" onClick={reload}>Retry</button>
         </div>
       ) : posts.length === 0 ? (
@@ -363,7 +363,7 @@ export default function Feed() {
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           aria-label="Back to top"
-          className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-4 py-2.5 text-sm font-semibold text-ink shadow-pop transition-colors hover:border-accent"
+          className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-4 py-2.5 text-sm font-semibold text-ink shadow-pop transition-colors hover:border-accent"
         >
           <ArrowUp size={16} /> Back to top
         </button>

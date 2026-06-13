@@ -68,7 +68,7 @@ export default function Register() {
         <p className="mb-5 text-sm text-muted">Join the ICFAI Founders Network.</p>
 
         {error && (
-          <div className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">
+          <div role="alert" className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">
             {error}
           </div>
         )}

@@ -13,7 +13,7 @@ const ITEMS = [
   { to: '/directory', label: 'Directory', icon: LayoutGrid },
 ]
 
-const base = 'flex items-center gap-3.5 rounded-full px-4 py-3 text-base font-semibold transition-colors'
+const base = 'flex items-center gap-3.5 rounded-lg px-4 py-3 text-base font-semibold transition-colors'
 
 export default function SideNav({ onNavigate }) {
   const { isAdmin, isMentor } = useAuth()
@@ -32,7 +32,7 @@ export default function SideNav({ onNavigate }) {
             <span key={it.label} title="Coming soon" className={`${base} cursor-default text-ink`}>
               <Ic size={24} />
               <span>{it.label}</span>
-              <span className="ml-auto rounded-full bg-line px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">
+              <span className="ml-auto rounded bg-line px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">
                 soon
               </span>
             </span>

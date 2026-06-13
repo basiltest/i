@@ -66,7 +66,7 @@ export default function Topbar({ onMenu }) {
         </button>
         <Link to="/" aria-label="Home" className="flex items-center gap-2.5">
           <Logo className="h-7 w-auto" />
-          <span className="hidden text-base font-bold tracking-tight sm:block">ICFAI Founders Network</span>
+          <span className="hidden font-display text-base font-bold tracking-tight sm:block">ICFAI Founders Network</span>
         </Link>
 
         <div className="ml-auto flex items-center gap-1">
@@ -75,7 +75,7 @@ export default function Topbar({ onMenu }) {
             <button onClick={openBell} className="relative rounded-full p-2 text-muted hover:bg-black/5 hover:text-ink" aria-label="Notifications">
               <Bell size={20} />
               {unread > 0 ? (
-                <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-[10px] font-bold text-white ring-2 ring-card">
+                <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-[10px] font-bold text-onaccent ring-2 ring-card">
                   {unread > 9 ? '9+' : unread}
                 </span>
               ) : soon.length > 0 ? (

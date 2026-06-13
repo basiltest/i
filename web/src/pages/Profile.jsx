@@ -135,10 +135,10 @@ export default function Profile() {
               </div>
 
               {msg && (
-                <div className="mb-4 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">{msg}</div>
+                <div role="status" className="mb-4 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">{msg}</div>
               )}
               {error && (
-                <div className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>
+                <div role="alert" className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>
               )}
 
               {!editing ? (

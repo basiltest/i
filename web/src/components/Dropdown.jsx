@@ -18,7 +18,7 @@ export default function Dropdown({ label, children, align = 'left', width = 'min
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
+        className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
           open ? 'border-accent text-accent' : 'border-line text-ink hover:bg-black/5'
         }`}
       >

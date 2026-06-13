@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { Award, Users, SlidersHorizontal, Search, Workflow, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import ModalShell from '../components/ModalShell'
 import { useAuth } from '../lib/AuthProvider'
 import { REGIONS, SECTORS, DOMAINS } from '../lib/options'
 import RoleBadge from '../components/RoleBadge'
@@ -54,14 +55,14 @@ export default function AdminPanel() {
   async function toggleFeedLock() {
     const next = !feedLocked
     const { error: e } = await supabase.rpc('admin_set_feed_locked', { p_locked: next })
-    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    if (e) { console.error(e); return setError('Could not change the feed lock. Try again.') }
     setFeedLocked(next)
   }
 
   async function togglePipelineLock() {
     const next = !pipelineLocked
     const { error: e } = await supabase.rpc('admin_set_pipeline_locked', { p_locked: next })
-    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    if (e) { console.error(e); return setError('Could not change the pipeline lock. Try again.') }
     setPipelineLocked(next)
   }
 
@@ -116,7 +117,7 @@ export default function AdminPanel() {
       <div className="mt-4 flex gap-2">
         <button
           onClick={() => setTab('members')}
-          className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
             tab === 'members' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'
           }`}
         >
@@ -124,7 +125,7 @@ export default function AdminPanel() {
         </button>
         <button
           onClick={() => setTab('pipeline')}
-          className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
             tab === 'pipeline' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'
           }`}
         >
@@ -132,7 +133,7 @@ export default function AdminPanel() {
         </button>
         <button
           onClick={() => setTab('success')}
-          className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
             tab === 'success' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'
           }`}
         >
@@ -140,7 +141,7 @@ export default function AdminPanel() {
         </button>
         <button
           onClick={() => setTab('settings')}
-          className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
             tab === 'settings' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'
           }`}
         >
@@ -149,7 +150,7 @@ export default function AdminPanel() {
       </div>
 
       {error && (
-        <div className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>
+        <div role="alert" className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>
       )}
 
       {loading ? (
@@ -164,7 +165,7 @@ export default function AdminPanel() {
             className="input pl-9"
             value={memberQuery}
             onChange={(e) => setMemberQuery(e.target.value)}
-            placeholder="Search members by name, email or startup..."
+            aria-label="Search members" placeholder="Search members by name, email or startup..."
           />
         </div>
         <div className="card mt-3 divide-y divide-line">
@@ -180,7 +181,7 @@ export default function AdminPanel() {
                 <div className="flex items-center gap-2">
                   <span className="truncate text-sm font-bold">{m.name || 'Unnamed'}</span>
                   <RoleBadge role={m.role} />
-                  {m.banned && <span className="rounded-full bg-down/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-down">Banned</span>}
+                  {m.banned && <span className="rounded-md bg-down/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-down">Banned</span>}
                   {m.id === uid && <span className="text-xs text-faint">(you)</span>}
                 </div>
                 <div className="truncate text-xs text-muted">{m.email}{m.startup ? ` · ${m.startup}` : ''}</div>
@@ -224,7 +225,7 @@ export default function AdminPanel() {
             </div>
             <button
               onClick={toggleFeedLock}
-              className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
+              className={`inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
                 feedLocked ? 'border-down/40 bg-down/10 text-down' : 'border-success/40 bg-success/10 text-success'
               }`}
             >
@@ -240,7 +241,7 @@ export default function AdminPanel() {
             </div>
             <button
               onClick={togglePipelineLock}
-              className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
+              className={`inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
                 pipelineLocked ? 'border-down/40 bg-down/10 text-down' : 'border-success/40 bg-success/10 text-success'
               }`}
             >
@@ -412,13 +413,13 @@ function PipelineTab() {
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           onClick={() => setView('inbox')}
-          className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${view === 'inbox' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}
+          className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${view === 'inbox' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}
         >
           Inbox (needs you)
         </button>
         <button
           onClick={() => setView('all')}
-          className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${view === 'all' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}
+          className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${view === 'all' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}
         >
           All ideas
         </button>
@@ -447,7 +448,7 @@ function PipelineTab() {
             </select>
             <input
               className="input w-44 py-1.5 text-xs"
-              placeholder="Search title / author / IFN"
+              aria-label="Search ideas" placeholder="Search title / author / IFN"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -470,7 +471,7 @@ function PipelineTab() {
         </div>
       )}
 
-      {error && <div className="mt-3 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+      {error && <div role="alert" className="mt-3 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
 
       {loading ? (
         <div className="mt-6 flex items-center gap-2 text-sm text-muted"><Spinner /> Loading...</div>
@@ -496,12 +497,12 @@ function PipelineTab() {
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-line px-2 py-0.5 text-[11px] font-bold text-muted">{ifnTag(r.ifn)}</span>
+                    <span className="rounded-md bg-line px-2 py-0.5 text-[11px] font-bold text-muted">{ifnTag(r.ifn)}</span>
                     <Link to={`/pipeline/${r.id}`} className="min-w-0 truncate text-sm font-bold hover:underline">{r.title}</Link>
                     {r.pipeline_state !== 'active' && st && (
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.tone}`}>{st.label}</span>
+                      <span className={`shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold ${st.tone}`}>{st.label}</span>
                     )}
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${w.tone}`}>{w.label}</span>
+                    <span className={`shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold ${w.tone}`}>{w.label}</span>
                   </div>
                   <div className="mt-0.5 text-xs text-muted">
                     G{r.gate} · {r.author_name}
@@ -565,17 +566,15 @@ function AdminEditProfileModal({ member, onClose, onSaved }) {
       p_incubation: form.incubation_interest,
     })
     setBusy(false)
-    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    if (e) { console.error(e); return setError('Could not save the profile. Check your connection and try again.') }
     onSaved({ name: form.name.trim(), startup: form.startup.trim() })
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !busy && onClose()} />
-      <div className="card relative z-10 my-8 w-full max-w-lg p-6 animate-pop-in">
-        <h2 className="text-lg font-bold">Edit profile</h2>
+    <ModalShell onRequestClose={() => !busy && onClose()} labelledBy="admin-edit-title">
+      <h2 id="admin-edit-title" className="text-lg font-bold">Edit profile</h2>
         <p className="mt-0.5 text-xs text-muted">{member.email}</p>
-        {error && <div className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+        {error && <div role="alert" className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
         {!form ? (
           <div className="mt-6 flex items-center gap-2 text-sm text-muted"><Spinner /> Loading...</div>
         ) : (
@@ -617,8 +616,7 @@ function AdminEditProfileModal({ member, onClose, onSaved }) {
             </div>
           </>
         )}
-      </div>
-    </div>
+    </ModalShell>
   )
 }
 

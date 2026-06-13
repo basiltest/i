@@ -55,7 +55,7 @@ export default function Directory() {
       p_domain: domain || null,
       p_role: role || null,
     })
-    if (e) { console.error(e); setError(GENERIC_ERR) } else { setError(''); setMembers(data || []) }
+    if (e) { console.error(e); setError('Could not load the directory. Check your connection and retry.') } else { setError(''); setMembers(data || []) }
     setLoading(false)
   }, [debounced, region, sector, domain, role])
   useEffect(() => { load() }, [load])
@@ -69,7 +69,7 @@ export default function Directory() {
 
       <div className="relative mt-4">
         <Search size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
-        <input className="input pl-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or startup..." />
+        <input className="input pl-9" aria-label="Search members" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or startup..." />
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">

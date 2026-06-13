@@ -59,7 +59,7 @@ export default function ForgotPassword() {
         <p className="mb-5 text-sm text-muted">We will email you a link to set a new one.</p>
 
         {error && (
-          <div className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">
+          <div role="alert" className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">
             {error}
           </div>
         )}

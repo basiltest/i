@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Workflow, Plus, Lock } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import ModalShell from '../components/ModalShell'
 import { useAuth } from '../lib/AuthProvider'
 import { PipelineListSkeleton } from '../components/PipelineSkeleton'
 import { timeAgo } from '../lib/format'
@@ -54,7 +55,7 @@ export default function Pipeline() {
           <Lock size={15} /> Submissions are closed right now. Existing applications keep moving.
         </div>
       )}
-      {error && <div className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+      {error && <div role="alert" className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
 
       {/* how it works */}
       <div className="card mt-4 p-4">
@@ -90,12 +91,12 @@ export default function Pipeline() {
                 className="block w-full p-4 text-left hover:bg-black/5"
               >
                 <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-line px-2 py-0.5 text-[11px] font-bold text-muted">{ifnTag(r.ifn)}</span>
+                  <span className="rounded-md bg-line px-2 py-0.5 text-[11px] font-bold text-muted">{ifnTag(r.ifn)}</span>
                   <span className="min-w-0 flex-1 truncate text-sm font-bold">{r.title}</span>
                   {r.pipeline_state !== 'active' && st && (
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.tone}`}>{st.label}</span>
+                    <span className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${st.tone}`}>{st.label}</span>
                   )}
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${w.tone}`}>{w.label}</span>
+                  <span className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${w.tone}`}>{w.label}</span>
                 </div>
                 <div className="mt-1 flex items-center gap-2 text-xs text-muted">
                   <span className="font-semibold text-ink">G{r.gate} · {gateLabel(r.gate)}</span>
@@ -194,14 +195,12 @@ export function ApplicationModal({ idea, onClose, onDone }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !busy && onClose()} />
-      <div className="card relative z-10 my-8 w-full max-w-2xl p-6 animate-pop-in">
-        <h2 className="text-lg font-bold">{editing ? 'Edit your application' : 'Apply to the Idea Pipeline'}</h2>
+    <ModalShell onRequestClose={() => !busy && onClose()} labelledBy="pipeline-apply-title" className="max-w-2xl">
+      <h2 id="pipeline-apply-title" className="text-lg font-bold">{editing ? 'Edit your application' : 'Apply to the Idea Pipeline'}</h2>
         <p className="mt-1 text-sm text-muted">
           Be specific. Mentors pick the ideas they can clearly understand. Your draft autosaves on this device.
         </p>
-        {error && <div className="mt-3 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+        {error && <div role="alert" className="mt-3 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
 
         <div className="mt-5 grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
           <AppField label="Startup / concept title *">
@@ -245,8 +244,7 @@ export function ApplicationModal({ idea, onClose, onDone }) {
             {busy ? 'Submitting...' : editing ? 'Save changes' : 'Submit to Gate 1'}
           </button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   )
 }
 

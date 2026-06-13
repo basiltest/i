@@ -1,8 +1,9 @@
 -- Problem Hub: members post real-world problems (title + description + domain tags +
--- optional deadline); other members propose solutions; mentors/admins review each solution
--- with impact and feasibility scores (1-10). Solutions are community-visible. Requires
--- db/admin.sql (is_admin), db/pipeline.sql (is_mentor_or_admin) and db/notifications.sql
--- (notify). Run in the Supabase SQL editor.
+-- optional deadline); the hub reads like the feed. Each problem has its own detail page
+-- where any member can propose solutions in an open comment thread, visible to everyone.
+-- Mentors/admins review individual solutions with impact and feasibility scores (1-10).
+-- Requires db/admin.sql (is_admin), db/pipeline.sql (is_mentor_or_admin) and
+-- db/notifications.sql (notify). Run in the Supabase SQL editor.
 
 -- ---------------------------------------------------------------------------
 -- One-time cleanup of the earlier dashboard-created draft (old shape keyed by user_id with
@@ -33,22 +34,28 @@ create table if not exists public.problems (
 );
 create index if not exists problems_created_idx on public.problems (created_at desc);
 
+-- Solutions are comment-style: one body of text per solution, any number per member,
+-- threaded under the problem. title/course_context remain for rows created under the
+-- earlier structured form (rendered when present).
 create table if not exists public.problem_solutions (
   id uuid primary key default gen_random_uuid(),
   problem_id uuid not null references public.problems(id) on delete cascade,
   author_id uuid not null references public.profiles(id) on delete cascade,
-  title text not null,
+  title text not null default '',
   description text not null,
-  course_context text not null default '',         -- coursework/skills the solution draws on
+  course_context text not null default '',
   impact int check (impact between 1 and 10),      -- review columns, set only by review_solution
   feasibility int check (feasibility between 1 and 10),
   review_note text,
   reviewed_by uuid references public.profiles(id) on delete set null,
   reviewed_at timestamptz,
-  created_at timestamptz not null default now(),
-  unique (problem_id, author_id)                   -- one solution per member per problem
+  created_at timestamptz not null default now()
 );
 create index if not exists problem_solutions_problem_idx on public.problem_solutions (problem_id);
+
+-- Migration for deployments created under the structured one-per-member shape.
+alter table public.problem_solutions drop constraint if exists problem_solutions_problem_id_author_id_key;
+alter table public.problem_solutions alter column title set default '';
 
 alter table public.problems enable row level security;
 alter table public.problem_solutions enable row level security;
@@ -71,9 +78,10 @@ create policy "problems delete own" on public.problems
   for delete to authenticated using (author_id = auth.uid());
 revoke update (author_id, created_at) on public.problems from authenticated;
 
--- problem_solutions: any authed member reads (solutions are community-visible); inserts go
--- through problem_solve() only (definer; no insert policy); author may withdraw (delete own).
--- The review columns are written only by review_solution() (definer; no update policy).
+-- problem_solutions: any authed member reads (the thread is community-visible); inserts go
+-- through problem_solve() only (definer; no insert policy); author may delete own. Admin
+-- moderation goes through admin_delete_solution below. The review columns are written only
+-- by review_solution() (definer; no update policy).
 drop policy if exists "solutions read" on public.problem_solutions;
 create policy "solutions read" on public.problem_solutions for select to authenticated using (true);
 drop policy if exists "solutions delete own" on public.problem_solutions;
@@ -110,10 +118,34 @@ $$;
 grant execute on function public.problem_feed(text) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- Propose a solution. Cannot solve your own problem; one per member; closed problems
--- accept nothing. The problem's author is notified (payload carries both titles).
+-- problem_detail: a single problem with its author, for the detail page.
+drop function if exists public.problem_detail(uuid);
+create function public.problem_detail(p_id uuid)
+returns table (
+  id uuid, title text, description text, tags text[], deadline date, closed boolean,
+  created_at timestamptz, author_id uuid, author_name text, author_role text,
+  is_mine boolean, solution_count bigint
+)
+language sql stable security definer set search_path = public
+as $$
+  select
+    p.id, p.title, p.description, p.tags, p.deadline, p.closed, p.created_at,
+    p.author_id, a.name, a.role,
+    (p.author_id = auth.uid()),
+    coalesce((select count(*) from public.problem_solutions s where s.problem_id = p.id), 0)
+  from public.problems p
+  join public.profiles a on a.id = p.author_id
+  where p.id = p_id
+$$;
+grant execute on function public.problem_detail(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Propose a solution (comment-style: a single body of text). Any member can reply,
+-- including the problem's author; closed problems accept nothing. The problem's author
+-- is notified on replies from others (payload carries the title + a body preview).
 drop function if exists public.problem_solve(uuid, text, text, text);
-create function public.problem_solve(p_problem uuid, p_title text, p_description text, p_course text default '')
+drop function if exists public.problem_solve(uuid, text);
+create function public.problem_solve(p_problem uuid, p_body text)
 returns void
 language plpgsql security definer set search_path = public
 as $$
@@ -123,24 +155,21 @@ declare
 begin
   if v_uid is null then raise exception 'not authenticated'; end if;
   if exists (select 1 from public.profiles where id = v_uid and banned) then raise exception 'account is banned'; end if;
-  if coalesce(trim(p_title), '') = '' or coalesce(trim(p_description), '') = '' then
-    raise exception 'title and description required';
-  end if;
+  if coalesce(trim(p_body), '') = '' then raise exception 'body required'; end if;
   select * into v_p from public.problems where id = p_problem;
   if not found then raise exception 'problem not found'; end if;
   if v_p.closed then raise exception 'this problem is closed'; end if;
-  if v_p.author_id = v_uid then raise exception 'cannot solve your own problem'; end if;
 
-  insert into public.problem_solutions (problem_id, author_id, title, description, course_context)
-  values (p_problem, v_uid, trim(p_title), trim(p_description), coalesce(trim(p_course), ''))
-  on conflict (problem_id, author_id) do nothing;
-  if not found then raise exception 'already proposed'; end if;
+  insert into public.problem_solutions (problem_id, author_id, description)
+  values (p_problem, v_uid, trim(p_body));
 
-  perform public.notify(v_p.author_id, 'problem_solution_received', null, v_uid,
-    jsonb_build_object('title', v_p.title, 'solution', trim(p_title)));
+  if v_p.author_id <> v_uid then
+    perform public.notify(v_p.author_id, 'problem_solution_received', null, v_uid,
+      jsonb_build_object('title', v_p.title, 'solution', left(trim(p_body), 80)));
+  end if;
 end
 $$;
-grant execute on function public.problem_solve(uuid, text, text, text) to authenticated;
+grant execute on function public.problem_solve(uuid, text) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Solutions for a problem, with the solver's public profile and the reviewer's name.
@@ -194,7 +223,7 @@ begin
   where id = p_solution;
 
   perform public.notify(v_s.author_id, 'solution_reviewed', null, auth.uid(),
-    jsonb_build_object('title', v_title, 'solution', v_s.title,
+    jsonb_build_object('title', v_title, 'solution', coalesce(nullif(v_s.title, ''), left(v_s.description, 80)),
                        'impact', p_impact, 'feasibility', p_feasibility));
 end
 $$;
@@ -218,7 +247,7 @@ $$;
 grant execute on function public.set_problem_closed(uuid, boolean) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- Admin moderation: delete any problem (cascades its solutions).
+-- Admin moderation: delete any problem (cascades its solutions) or any single solution.
 create or replace function public.admin_delete_problem(p_id uuid)
 returns void
 language plpgsql security definer set search_path = public
@@ -229,3 +258,14 @@ begin
 end
 $$;
 grant execute on function public.admin_delete_problem(uuid) to authenticated;
+
+create or replace function public.admin_delete_solution(p_id uuid)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if not public.is_admin() then raise exception 'admins only'; end if;
+  delete from public.problem_solutions where id = p_id;
+end
+$$;
+grant execute on function public.admin_delete_solution(uuid) to authenticated;

@@ -36,11 +36,11 @@ export default function Login() {
     <div className="min-h-screen grid place-items-center px-6">
       <form onSubmit={handleSubmit} noValidate className="card w-full max-w-sm p-8 animate-pop-in">
         <Logo className="mb-5 h-12 w-auto" />
-        <h2 className="text-lg font-semibold">Welcome back</h2>
-        <p className="mb-5 text-sm text-muted">Sign in to your account.</p>
+        <h2 className="text-xl font-bold">Back to the Network</h2>
+        <p className="mb-5 text-sm text-muted">Sign in to continue.</p>
 
         {error && (
-          <div className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">
+          <div role="alert" className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">
             {error}
           </div>
         )}

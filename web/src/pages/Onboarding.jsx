@@ -73,7 +73,7 @@ export default function Onboarding() {
         </div>
 
         <form onSubmit={submit} className="card mt-6 p-6">
-          {error && <div className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+          {error && <div role="alert" className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Full name *">

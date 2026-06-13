@@ -5,7 +5,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Instrument Sans', 'system-ui', 'sans-serif'],
+        display: ['Bricolage Grotesque', 'Instrument Sans', 'sans-serif'],
       },
       colors: {
         // Neutral tokens are CSS vars (RGB channels) so they flip in dark mode.
@@ -20,18 +21,18 @@ export default {
           hover: 'rgb(var(--c-accent-hover) / <alpha-value>)',
           soft: 'rgb(var(--c-accent-soft) / <alpha-value>)',
         },
-        grad: { from: '#E0114A', via: '#8A1C9A', to: '#2233C4' },
+        brand: { red: '#E31E24', navy: '#2C2A82' },
+        onaccent: 'rgb(var(--c-on-accent) / <alpha-value>)',
         up: 'rgb(var(--c-accent) / <alpha-value>)',
-        down: '#F4212E',
-        success: '#00BA7C',
-        warn: '#FFD400',
+        down: 'rgb(var(--c-down) / <alpha-value>)',
+        success: 'rgb(var(--c-success) / <alpha-value>)',
+        warn: 'rgb(var(--c-warn) / <alpha-value>)',
+        warnink: 'rgb(var(--c-warn-ink) / <alpha-value>)',
       },
-      borderRadius: { xl2: '1rem' },
+      borderRadius: { xl2: '0.75rem' },
       boxShadow: {
-        card: '0 1px 3px rgba(15,20,25,0.04)',
-        pop: '0 8px 28px rgba(15,20,25,0.12)',
-        glow: '0 4px 14px -3px rgba(138,28,154,0.38), 0 2px 8px -4px rgba(34,51,196,0.34)',
-        glowStrong: '0 12px 28px -6px rgba(224,17,74,0.38), 0 8px 20px -6px rgba(34,51,196,0.46)',
+        card: '0 1px 2px rgba(28,29,51,0.05)',
+        pop: '0 10px 30px rgba(28,29,51,0.14)',
       },
       keyframes: {
         'fade-in': { '0%': { opacity: 0 }, '100%': { opacity: 1 } },

@@ -26,7 +26,7 @@ export default function PipelineIdea() {
   const load = useCallback(async () => {
     setError('')
     const { data, error: e } = await supabase.rpc('idea_dossier', { p_idea: id })
-    if (e) { console.error(e); setError(GENERIC_ERR); setLoading(false); return }
+    if (e) { console.error(e); setError('Could not load this idea. Check your connection and retry.'); setLoading(false); return }
     setD(data)
     setLoading(false)
   }, [id])
@@ -59,18 +59,18 @@ export default function PipelineIdea() {
 
       {/* header */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-full bg-line px-2.5 py-0.5 text-xs font-bold text-muted">{ifnTag(idea.ifn)}</span>
+        <span className="rounded-md bg-line px-2.5 py-0.5 text-xs font-bold text-muted">{ifnTag(idea.ifn)}</span>
         {idea.pipeline_state !== 'active' && st && (
-          <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${st.tone}`}>{st.label}</span>
+          <span className={`rounded-md px-2.5 py-0.5 text-xs font-semibold ${st.tone}`}>{st.label}</span>
         )}
-        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${w.tone}`}>{w.label}</span>
+        <span className={`rounded-md px-2.5 py-0.5 text-xs font-semibold ${w.tone}`}>{w.label}</span>
         <span className="ml-auto inline-flex items-center gap-1.5">
           {canEdit && (
-            <button onClick={() => setEditOpen(true)} className="inline-flex items-center gap-1 rounded-full border border-line px-3 py-1 text-xs font-semibold text-muted hover:bg-black/5 hover:text-ink">
+            <button onClick={() => setEditOpen(true)} className="inline-flex items-center gap-1 rounded-lg border border-line px-3 py-1 text-xs font-semibold text-muted hover:bg-black/5 hover:text-ink">
               <Pencil size={12} /> Edit application
             </button>
           )}
-          <button onClick={() => exportDossier(d)} title="Download the full record as a document" className="inline-flex items-center gap-1 rounded-full border border-line px-3 py-1 text-xs font-semibold text-muted hover:bg-black/5 hover:text-ink">
+          <button onClick={() => exportDossier(d)} title="Download the full record as a document" className="inline-flex items-center gap-1 rounded-lg border border-line px-3 py-1 text-xs font-semibold text-muted hover:bg-black/5 hover:text-ink">
             <FileDown size={12} /> Export
           </button>
         </span>
@@ -88,7 +88,7 @@ export default function PipelineIdea() {
           <div className="flex flex-wrap items-center gap-2">
             {idea.oneliner && <p className="min-w-0 flex-1 text-[15px] font-semibold leading-snug text-ink">{idea.oneliner}</p>}
             {idea.sector && (
-              <span className="shrink-0 rounded-full bg-accent-soft px-2.5 py-0.5 text-[11px] font-bold text-accent">{idea.sector}</span>
+              <span className="shrink-0 rounded-md bg-accent-soft px-2.5 py-0.5 text-[11px] font-bold text-accent">{idea.sector}</span>
             )}
           </div>
         )}
@@ -107,7 +107,7 @@ export default function PipelineIdea() {
 
       {/* state banners */}
       {idea.pipeline_state === 'rejected' && (
-        <div className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2.5 text-sm text-down">
+        <div role="alert" className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2.5 text-sm text-down">
           Rejected (final){lastRejection?.reason ? <>: {lastRejection.reason}</> : '.'}
         </div>
       )}
@@ -234,7 +234,7 @@ function WithdrawButton({ ideaId, ifn, onDone }) {
     <button
       onClick={withdraw}
       disabled={busy}
-      className="inline-flex items-center gap-1.5 rounded-full border border-down/40 px-3.5 py-2 text-xs font-semibold text-down hover:bg-down/10"
+      className="inline-flex items-center gap-1.5 rounded-lg border border-down/40 px-3.5 py-2 text-xs font-semibold text-down hover:bg-down/10"
     >
       <Trash2 size={13} /> {busy ? 'Withdrawing...' : 'Withdraw application'}
     </button>
@@ -265,8 +265,8 @@ function GateBar({ gate, state }) {
               onClick={() => setSel(g.g === sel ? null : g.g)}
               title={g.label}
               className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-bold transition-colors ${
-                g.g < gate ? 'bg-accent text-white'
-                : g.g === gate ? (state === 'rejected' ? 'bg-down text-white' : 'bg-accent text-white ring-4 ring-accent/20')
+                g.g < gate ? 'bg-accent text-onaccent'
+                : g.g === gate ? (state === 'rejected' ? 'bg-down text-white' : 'bg-accent text-onaccent ring-4 ring-accent/20')
                 : 'border border-line bg-card text-muted hover:border-accent'
               }`}
             >
@@ -401,7 +401,7 @@ function SubmitGateForm({ d, lastRevision, onDone }) {
           <span className="font-bold">Mentor feedback:</span> {lastRevision.feedback}
         </div>
       )}
-      {error && <div className="mt-2 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+      {error && <div role="alert" className="mt-2 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {gate === 3 && (
@@ -537,7 +537,7 @@ function ReviewForm({ d, onDone }) {
       <div className="mt-3">
         <F label="Feedback to the founder (required)"><textarea className="input min-h-[70px] resize-y" maxLength={3000} value={feedback} onChange={(e) => setFeedback(e.target.value)} /></F>
       </div>
-      {error && <div className="mt-2 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+      {error && <div role="alert" className="mt-2 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
       {openActions > 0 && (
         <div className="mt-2 rounded-lg bg-page px-3 py-2 text-xs text-muted">
           {openActions} open action {openActions === 1 ? 'item' : 'items'} below must be completed before this gate can be approved.
@@ -714,7 +714,7 @@ function Files({ d, mine, onChanged }) {
           </label>
         )}
       </div>
-      {error && <div className="mb-2 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+      {error && <div role="alert" className="mb-2 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
       {files.length === 0 ? (
         <p className="text-sm text-muted">No files yet. Pitch decks and docs land here.</p>
       ) : (
@@ -769,7 +769,7 @@ function Thread({ d, mentorView, onChanged }) {
             <li key={m.id} className={`card p-3 ${m.kind === 'meeting' ? 'border-accent/40' : ''}`}>
               <div className="flex items-center gap-2 text-xs text-muted">
                 <span className="font-semibold text-ink">{m.author_name || 'Member'}</span>
-                {m.kind === 'meeting' && <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-bold text-accent">MEETING LOG</span>}
+                {m.kind === 'meeting' && <span className="rounded-md bg-accent-soft px-2 py-0.5 text-[10px] font-bold text-accent">MEETING LOG</span>}
                 <span className="ml-auto">{timeAgo(m.created_at)}</span>
               </div>
               <p className="mt-1 whitespace-pre-wrap break-words text-sm text-ink">{m.body}</p>
@@ -956,7 +956,7 @@ function AdminControls({ d, onChanged, onDeleted }) {
         G{idea.gate} · {stateLabel}
         {idea.mentor_name && <span className="font-semibold">· Mentor: {idea.mentor_name}</span>}
       </div>
-      {error && <div className="mt-2 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+      {error && <div role="alert" className="mt-2 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
       <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         <div className="flex gap-2">
           <select className="input" value={mentor} onChange={(e) => setMentor(e.target.value)}>

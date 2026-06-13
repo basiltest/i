@@ -111,6 +111,7 @@ export default function PostDetail() {
     } catch {
       setMyVote(prevVote)
       setScore(prevScore)
+      setActionError('Your vote was not saved. Try again.')
     } finally {
       setVoting(false)
     }
@@ -123,7 +124,7 @@ export default function PostDetail() {
     setBusy(true)
     const { error } = await supabase.from('comments').insert({ post_id: id, author_id: uid, body })
     setBusy(false)
-    if (error) { console.error(error); return setActionError(GENERIC_ERR) }
+    if (error) { console.error(error); return setActionError('Could not post your comment. Check your connection and try again.') }
     setActionError('')
     setCommentBody('')
     setCommentOpen(false)
@@ -136,7 +137,7 @@ export default function PostDetail() {
     const { error } = mine
       ? await supabase.from('comments').delete().eq('id', cid)
       : await supabase.rpc('admin_delete_comment', { p_id: cid })
-    if (error) { console.error(error); return setActionError(GENERIC_ERR) }
+    if (error) { console.error(error); return setActionError('Could not delete the comment. Try again.') }
     setComments((prev) => prev.filter((c) => c.id !== cid))
   }
 
@@ -216,7 +217,7 @@ export default function PostDetail() {
       ) : (
         <>
           {actionError && (
-            <div className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{actionError}</div>
+            <div role="alert" className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{actionError}</div>
           )}
 
           {/* post header */}
@@ -240,9 +241,9 @@ export default function PostDetail() {
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
               {post.badges?.includes('Success') && (
-                <span className="rounded-full bg-success/15 px-2.5 py-0.5 text-[11px] font-semibold text-success">#Success</span>
+                <span className="rounded-md bg-success/15 px-2.5 py-0.5 text-[11px] font-semibold text-success">#Success</span>
               )}
-              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${kindChipClass(post.kind)}`}>
+              <span className={`rounded-md px-2.5 py-0.5 text-[11px] font-semibold ${kindChipClass(post.kind)}`}>
                 {kindLabel(post.kind)}
               </span>
               {(post.is_mine || isAdmin) && (
@@ -302,7 +303,7 @@ export default function PostDetail() {
 
           {/* action bar */}
           <div className="mt-4 flex items-center gap-2">
-            <div className="inline-flex items-center gap-0.5 rounded-full border border-line bg-card px-1 py-0.5">
+            <div className="inline-flex items-center gap-0.5 rounded-lg border border-line bg-card px-1 py-0.5">
               <button
                 onClick={() => vote(1)}
                 aria-label="Upvote"
@@ -322,7 +323,7 @@ export default function PostDetail() {
               </button>
             </div>
 
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-3 py-2 text-sm font-semibold text-muted">
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-3 py-2 text-sm font-semibold text-muted">
               <MessageCircle size={18} /> {comments.length}
             </span>
           </div>
@@ -381,7 +382,7 @@ export default function PostDetail() {
           ) : (
             <form onSubmit={addComment} className="mb-4">
               <input
-                className="w-full rounded-full border border-line bg-card px-4 py-2.5 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none"
+                className="w-full rounded-lg border border-line bg-card px-4 py-2.5 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none"
                 placeholder="Add a comment"
                 maxLength={2000}
                 value={commentBody}

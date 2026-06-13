@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Plus, CalendarPlus, Download, MapPin, Clock, Flag } from 'lucide-react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { supabase } from '../lib/supabase'
+import ModalShell from '../components/ModalShell'
 import { useAuth } from '../lib/AuthProvider'
 import Spinner from '../components/Spinner'
 import { EVENT_TYPES, typeClass, googleCalUrl, downloadICS, actionEvent } from '../lib/calendar'
 
-const GENERIC_ERR = 'Something went wrong. Please try again.'
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
@@ -52,7 +52,7 @@ export default function Calendar() {
       // never rows in the shared events table, so they cannot reach anyone else's calendar
       supabase.rpc('my_action_deadlines'),
     ])
-    if (ev.error) { console.error(ev.error); setError(GENERIC_ERR) } else { setError(''); setEvents(ev.data || []) }
+    if (ev.error) { console.error(ev.error); setError('Could not load the calendar. Check your connection and retry.') } else { setError(''); setEvents(ev.data || []) }
     if (dl.error) console.error(dl.error) // RPC missing pre-migration: events still render
     else setDeadlines(dl.data || [])
     setLoading(false)
@@ -74,7 +74,7 @@ export default function Calendar() {
   async function deleteEvent(id) {
     if (!window.confirm('Delete this event?')) return
     const { error: e } = await supabase.rpc('admin_delete_event', { p_id: id })
-    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    if (e) { console.error(e); return setError('Could not delete the event. Try again.') }
     setDetail(null)
     load()
   }
@@ -103,7 +103,7 @@ export default function Calendar() {
         {loading && <Spinner size={16} />}
       </div>
 
-      {error && <div className="mt-3 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+      {error && <div role="alert" className="mt-3 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
 
       <div className="mt-3 grid grid-cols-7 gap-px overflow-hidden rounded-xl border border-line bg-line">
         {DOW.map((d) => (
@@ -116,7 +116,7 @@ export default function Calendar() {
           return (
             <div key={d.toISOString()} className={`min-h-[92px] bg-card p-1.5 ${inMonth ? '' : 'opacity-40'}`}>
               <div className={`mb-1 text-right text-xs font-semibold ${isToday ? 'text-accent' : 'text-muted'}`}>
-                {isToday ? <span className="inline-grid h-5 w-5 place-items-center rounded-full bg-accent text-white">{d.getDate()}</span> : d.getDate()}
+                {isToday ? <span className="inline-grid h-5 w-5 place-items-center rounded-full bg-accent text-onaccent">{d.getDate()}</span> : d.getDate()}
               </div>
               <div className="space-y-1">
                 {list.slice(0, 3).map((it) =>
@@ -175,7 +175,7 @@ function EventDetailModal({ ev, isAdmin, onClose, onEdit, onDelete }) {
   const start = new Date(ev.starts_at)
   return (
     <Shell title={ev.title} onClose={onClose}>
-      <span className={`mt-3 inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${typeClass(ev.type)}`}>{ev.type}</span>
+      <span className={`mt-3 inline-flex rounded-md px-2.5 py-0.5 text-[11px] font-semibold ${typeClass(ev.type)}`}>{ev.type}</span>
 
       <div className="mt-3 space-y-1.5 text-sm text-ink">
         <div className="flex items-center gap-2"><Clock size={15} className="text-muted" />
@@ -210,7 +210,7 @@ function DeadlineDetailModal({ a, onClose }) {
   const ev = actionEvent(a)
   return (
     <Shell title={a.label} onClose={onClose}>
-      <span className="mt-3 inline-flex items-center gap-1 rounded-full bg-down/15 px-2.5 py-0.5 text-[11px] font-semibold text-down">
+      <span className="mt-3 inline-flex items-center gap-1 rounded-md bg-down/15 px-2.5 py-0.5 text-[11px] font-semibold text-down">
         <Flag size={11} /> My action item · IFN-{a.ifn}
       </span>
       <div className="mt-3 space-y-1.5 text-sm text-ink">
@@ -246,7 +246,24 @@ function EventFormModal({ ev, onClose, onSaved }) {
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const initialRef = useRef(JSON.stringify({
+    title: ev?.title || '', type: ev?.type || 'Workshop', location: ev?.location || '',
+    description: ev?.description || '',
+    starts: ev?.starts_at ? new Date(ev.starts_at).toISOString() : null,
+    ends: ev?.ends_at ? new Date(ev.ends_at).toISOString() : null,
+  }))
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
+
+  function requestClose() {
+    if (busy) return
+    const now = JSON.stringify({
+      title: f.title, type: f.type, location: f.location, description: f.description,
+      starts: f.starts ? f.starts.toISOString() : null,
+      ends: f.ends ? f.ends.toISOString() : null,
+    })
+    if (now !== initialRef.current && !window.confirm(editing ? 'Discard your changes?' : 'Discard this event? Your input will be lost.')) return
+    onClose()
+  }
 
   async function save() {
     if (!f.title.trim()) return setError('Title is required.')
@@ -263,13 +280,13 @@ function EventFormModal({ ev, onClose, onSaved }) {
       ? await supabase.rpc('admin_update_event', { p_id: ev.id, ...args })
       : await supabase.rpc('admin_create_event', args)
     setBusy(false)
-    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    if (e) { console.error(e); return setError('Could not save the event. Check your connection and try again.') }
     onSaved()
   }
 
   return (
-    <Shell title={editing ? 'Edit event' : 'Add event'} onClose={() => !busy && onClose()}>
-      {error && <div className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+    <Shell title={editing ? 'Edit event' : 'Add event'} onClose={requestClose}>
+      {error && <div role="alert" className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
       <div className="mt-4 space-y-3">
         <L label="Title *"><input className="input" maxLength={200} value={f.title} onChange={set('title')} placeholder="Demo Day" /></L>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -318,13 +335,10 @@ function EventFormModal({ ev, onClose, onSaved }) {
 
 function Shell({ title, onClose, children }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="card relative z-10 my-8 w-full max-w-lg p-6 animate-pop-in">
-        <h2 className="break-words text-lg font-bold">{title}</h2>
-        {children}
-      </div>
-    </div>
+    <ModalShell onRequestClose={onClose} labelledBy="shell-modal-title">
+      <h2 id="shell-modal-title" className="break-words text-lg font-bold">{title}</h2>
+      {children}
+    </ModalShell>
   )
 }
 
