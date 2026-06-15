@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { Award, Users, SlidersHorizontal, Search, Workflow, Trash2 } from 'lucide-react'
+import { Award, Users, SlidersHorizontal, Search, Workflow, Trash2, Mail, Copy, Check, Send } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import ModalShell from '../components/ModalShell'
 import { useAuth } from '../lib/AuthProvider'
@@ -140,6 +140,14 @@ export default function AdminPanel() {
           <Award size={15} /> #Success requests ({queue.length})
         </button>
         <button
+          onClick={() => setTab('invites')}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
+            tab === 'invites' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'
+          }`}
+        >
+          <Mail size={15} /> Invites
+        </button>
+        <button
           onClick={() => setTab('settings')}
           className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
             tab === 'settings' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'
@@ -153,7 +161,9 @@ export default function AdminPanel() {
         <div role="alert" className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>
       )}
 
-      {loading ? (
+      {tab === 'invites' ? (
+        <InvitesTab />
+      ) : loading ? (
         <div className="mt-6 flex items-center gap-2 text-sm text-muted"><Spinner /> Loading...</div>
       ) : tab === 'pipeline' ? (
         <PipelineTab />
@@ -525,6 +535,219 @@ function PipelineTab() {
               </div>
             )
           })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Invite mentors/admins (any domain). They cannot self-register — the server
+// only lets @ifheindia.org students through unless their email has a live invite.
+// Paste many addresses at once; each gets its own one-time link to share.
+// Pin the link base to VITE_PUBLIC_URL so a link generated on a preview/localhost
+// deploy still points at production; fall back to the current origin if unset.
+const SITE_URL = import.meta.env.VITE_PUBLIC_URL || window.location.origin
+const inviteLink = (token) => `${SITE_URL.replace(/\/$/, '')}/register?invite=${token}`
+const parseEmails = (raw) =>
+  [...new Set(raw.split(/[\s,;]+/).map((s) => s.trim().toLowerCase()).filter(Boolean))]
+
+function InvitesTab() {
+  const [emails, setEmails] = useState('')
+  const [role, setRole] = useState('mentor')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [created, setCreated] = useState([]) // rows from the latest generate
+  const [list, setList] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [copied, setCopied] = useState('')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const { data, error: e } = await supabase.rpc('admin_list_invites')
+    if (e) { console.error(e); setError(GENERIC_ERR) }
+    setList(data || [])
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  async function copy(text, key) {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(key)
+      setTimeout(() => setCopied((c) => (c === key ? '' : c)), 1500)
+    } catch { /* clipboard blocked; ignore */ }
+  }
+
+  async function generate() {
+    setError('')
+    const parsed = parseEmails(emails)
+    if (parsed.length === 0) return setError('Paste at least one email address.')
+    setBusy(true)
+    const { data, error: e } = await supabase.rpc('admin_create_invites', { p_emails: parsed, p_role: role })
+    setBusy(false)
+    if (e) { console.error(e); return setError(e.message || GENERIC_ERR) }
+    const rows = data || []
+    setCreated(rows)
+    setEmails('')
+    const skipped = parsed.length - rows.length
+    if (rows.length === 0) setError('No valid new invites were created (check the addresses).')
+    else if (skipped > 0) setError(`${rows.length} invite${rows.length > 1 ? 's' : ''} created. ${skipped} skipped (invalid or duplicate).`)
+    load()
+  }
+
+  // Create + email the invites via the send-invites Edge Function (Resend).
+  // emailsArg + roleArg let the per-row "Resend email" reuse this for one address
+  // while keeping that invite's own role (not the compose dropdown).
+  async function sendInvites(emailsArg, roleArg) {
+    setError('')
+    const parsed = parseEmails(emailsArg ?? emails)
+    if (parsed.length === 0) return setError('Paste at least one email address.')
+    setBusy(true)
+    const { data, error: e } = await supabase.functions.invoke('send-invites', {
+      body: { emails: parsed, role: roleArg ?? role },
+    })
+    setBusy(false)
+    if (e) {
+      console.error(e)
+      // FunctionsHttpError carries the JSON body on .context; fall back to a hint.
+      let msg = e.message
+      try { msg = (await e.context?.json())?.error || msg } catch { /* keep msg */ }
+      return setError(msg === 'Failed to send a request to the Edge Function'
+        ? 'Could not reach the email service. Is the send-invites function deployed?'
+        : msg || GENERIC_ERR)
+    }
+    if (data?.error) return setError(data.error)
+    if (!emailsArg) setEmails('')
+    const failed = data?.failed?.length || 0
+    setError(`Emailed ${data?.sent || 0} invite${data?.sent === 1 ? '' : 's'}.${failed ? ` ${failed} failed to send.` : ''}`)
+    load()
+  }
+
+  const STATUS_TONE = {
+    pending: 'bg-accent-soft text-accent',
+    accepted: 'bg-success/15 text-success',
+    expired: 'bg-line text-muted',
+  }
+
+  return (
+    <div className="mt-4 space-y-4">
+      {/* compose */}
+      <div className="card p-4">
+        <div className="text-sm font-bold">Invite mentors &amp; admins</div>
+        <p className="mt-0.5 text-xs text-muted">
+          One email per line (or comma-separated). Everyone in the batch gets the same role and their own link.
+        </p>
+        <textarea
+          className="input mt-3 min-h-[88px] resize-y font-mono text-sm"
+          placeholder={'jane@acme.com\nbob@partner.org'}
+          value={emails}
+          onChange={(e) => setEmails(e.target.value)}
+        />
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <select className="input w-auto py-2 text-sm" value={role} onChange={(e) => setRole(e.target.value)}>
+            {ROLES.filter((r) => r.v !== 'student').map((r) => <option key={r.v} value={r.v}>{r.label}</option>)}
+          </select>
+          <button className="btn-primary inline-flex items-center gap-1.5 px-4 py-2 text-sm" onClick={() => sendInvites()} disabled={busy || !emails.trim()}>
+            <Send size={15} /> {busy ? 'Working...' : 'Send invites'}
+          </button>
+          <button className="btn-outline px-4 py-2 text-sm" onClick={generate} disabled={busy || !emails.trim()}>
+            Generate links only
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-faint">
+          <strong>Send invites</strong> emails each link directly. <strong>Generate links only</strong> creates them to copy and share yourself.
+        </p>
+        {error && (
+          <div role="alert" className="mt-3 rounded-lg border border-line bg-black/5 px-3 py-2 text-sm text-muted">{error}</div>
+        )}
+      </div>
+
+      {/* freshly generated links — easy to copy and hand out now */}
+      {created.length > 0 && (
+        <div className="card p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-bold">{created.length} link{created.length > 1 ? 's' : ''} ready</div>
+            <button
+              className="btn-outline px-3 py-1.5 text-xs"
+              onClick={() => copy(created.map((r) => `${r.email}: ${inviteLink(r.token)}`).join('\n'), 'all')}
+            >
+              {copied === 'all' ? 'Copied!' : 'Copy all'}
+            </button>
+          </div>
+          <div className="mt-3 divide-y divide-line">
+            {created.map((r) => (
+              <div key={r.token} className="flex items-center gap-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold">{r.email}</div>
+                  <div className="truncate text-xs text-muted">{inviteLink(r.token)}</div>
+                </div>
+                <button
+                  className="shrink-0 rounded-lg border border-line p-2 text-muted hover:bg-black/5"
+                  onClick={() => copy(inviteLink(r.token), r.token)}
+                  aria-label={`Copy link for ${r.email}`}
+                >
+                  {copied === r.token ? <Check size={15} className="text-success" /> : <Copy size={15} />}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* all invites */}
+      {loading ? (
+        <div className="flex items-center gap-2 text-sm text-muted"><Spinner /> Loading...</div>
+      ) : list.length === 0 ? (
+        <div className="card p-8 text-center text-sm text-muted">No invites yet.</div>
+      ) : (
+        <div className="card divide-y divide-line">
+          {list.map((iv) => (
+            <div key={iv.id} className="flex flex-wrap items-center gap-3 p-4">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-sm font-semibold">{iv.email}</span>
+                  <RoleBadge role={iv.role} />
+                  <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${STATUS_TONE[iv.status]}`}>
+                    {iv.status}
+                  </span>
+                </div>
+                <div className="truncate text-xs text-muted">
+                  {iv.status === 'accepted'
+                    ? `Joined ${timeAgo(iv.accepted_at)}`
+                    : iv.status === 'expired'
+                      ? `Expired ${timeAgo(iv.expires_at)}`
+                      : `Expires ${timeAgo(iv.expires_at)} · ${iv.sent_at ? `emailed ${timeAgo(iv.sent_at)}` : 'not emailed'}`}
+                  {iv.invited_by_name ? ` · by ${iv.invited_by_name}` : ''}
+                </div>
+              </div>
+              {iv.status === 'pending' && (
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    className="btn-outline inline-flex items-center gap-1.5 px-3 py-1.5 text-xs"
+                    disabled={busy}
+                    onClick={() => sendInvites(iv.email, iv.role)}
+                  >
+                    <Send size={13} /> {iv.sent_at ? 'Resend' : 'Email'}
+                  </button>
+                  <button className="btn-outline px-3 py-1.5 text-xs" onClick={() => copy(inviteLink(iv.token), iv.id)}>
+                    {copied === iv.id ? 'Copied!' : 'Copy link'}
+                  </button>
+                  <button
+                    className="btn px-3 py-1.5 text-xs border border-down/40 text-down hover:bg-down/10"
+                    onClick={async () => {
+                      if (!window.confirm(`Revoke the invite for ${iv.email}? The link will stop working.`)) return
+                      const { error: e } = await supabase.rpc('admin_revoke_invite', { p_id: iv.id })
+                      if (e) { console.error(e); return setError(GENERIC_ERR) }
+                      load()
+                    }}
+                  >
+                    Revoke
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>

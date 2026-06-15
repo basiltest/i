@@ -190,7 +190,7 @@ Severity: Critical, High, Medium, Low. Status: Open or Handled.
 | ID | Finding | Severity | Status | Fix |
 |----|---------|----------|--------|-----|
 | S1 | Session JWT in localStorage; readable by JS, so XSS can steal it | Medium | Mitigated | Strict CSP added via vercel.json (script-src 'self', no inline/eval) plus nosniff, frame-deny, referrer headers. Residual risk: move to httpOnly cookies (Next.js SSR) if it grows |
-| S2 | Email domain restriction | n/a | Removed on request | Domain check removed (any email can register). If re-added, do it server-side (auth hook or trigger), not client-only |
+| S2 | Email domain restriction | High | Handled | Enforced server-side: `enforce_registration_policy` BEFORE-INSERT trigger on `auth.users` (db/invites.sql) rejects signups that are not `@ifheindia.org` unless the email has a live invite. Role is granted only on email confirm and is never read from the client. Mentors/admins are onboarded via admin invite links (Admin Panel -> Invites; optional Resend auto-email via the `send-invites` Edge Function). The Register.jsx check is UX-only. Coexists with `block_banned_signup` |
 | S3 | Logged-in session can change password with no re-auth (`updateUser({password})`); a hijacked session can lock the user out | Medium | Open | Require recent re-authentication for password change; keep JWT expiry short |
 | S4 | Password min length mismatch: client requires 8, Supabase server default is lower, so a direct API call can set a weaker password | Medium | Open | Set Supabase Auth min password length to 8 (and consider complexity) |
 | S5 | Role self-escalation via profile update or signup metadata | High | Handled | RLS revokes update on `role`; trigger sets role by DB default and never reads role from metadata |
@@ -225,7 +225,7 @@ Severity: Critical, High, Medium, Low. Status: Open or Handled.
 | E6 | Logout is local scope; sessions on other devices persist | Low | Info | Use global sign-out scope if full revoke is desired |
 
 ## 5. Prioritised fixes
-1. **S2 (High)** server-side `@ifheindia.org` enforcement (auth hook or trigger). The current rule is cosmetic.
+1. ~~**S2 (High)** server-side `@ifheindia.org` enforcement (auth hook or trigger).~~ **Done** — `enforce_registration_policy` trigger + invites (db/invites.sql). See S2.
 2. **E1 (Medium)** try/catch/finally around every auth call, so a dropped network does not freeze the form.
 3. **S4 (Medium)** set the Supabase password min length to 8 to match the client.
 4. **S3 (Medium)** require re-auth for password change.
