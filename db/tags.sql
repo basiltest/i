@@ -69,7 +69,9 @@ declare
 begin
   if v_uid is null then raise exception 'not authenticated'; end if;
   if exists (select 1 from public.profiles where id = v_uid and banned) then raise exception 'account is banned'; end if;
-  if p_kind not in ('idea', 'problem', 'discussion') then raise exception 'invalid kind'; end if;
+  -- 'post' is the generic kind used by the feed now; legacy kinds still accepted for old rows.
+  -- 'poll' is intentionally excluded here: polls are admin-only via create_poll().
+  if p_kind not in ('idea', 'problem', 'discussion', 'post') then raise exception 'invalid kind'; end if;
   -- global feed lock: only admins may post when feed_locked is on
   if coalesce((select feed_locked from public.app_settings where id), false)
      and (select role from public.profiles where id = v_uid) is distinct from 'admin' then

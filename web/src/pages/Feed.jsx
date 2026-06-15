@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import PostCard from '../components/PostCard'
 import PostCardSkeleton from '../components/PostCardSkeleton'
 import CreatePostModal from '../components/CreatePostModal'
+import CreatePollModal from '../components/CreatePollModal'
 import Dropdown, { MenuItem } from '../components/Dropdown'
 import { useAuth } from '../lib/AuthProvider'
 
@@ -13,12 +14,6 @@ const SORTS = [
   { s: 'hot', label: 'Hot' },
   { s: 'new', label: 'Newest' },
   { s: 'top', label: 'Top' },
-]
-const KINDS = [
-  { k: 'all', label: 'All types' },
-  { k: 'idea', label: 'Ideas' },
-  { k: 'problem', label: 'Problems' },
-  { k: 'discussion', label: 'Discussions' },
 ]
 
 const normTag = (s) => s.toLowerCase().replace(/[^a-z0-9-]/g, '')
@@ -52,7 +47,6 @@ export default function Feed() {
   const [feedLocked, setFeedLocked] = useState(false)
 
   const [sort, setSort] = useState('hot')
-  const [kind, setKind] = useState('all')
   const [q, setQ] = useState('')
   const [filters, setFilters] = useState({ text: '', tags: [] })
 
@@ -65,6 +59,7 @@ export default function Feed() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
+  const [createPollOpen, setCreatePollOpen] = useState(false)
   const [notice, setNotice] = useState('')
 
   const [newestAt, setNewestAt] = useState(null)
@@ -107,7 +102,7 @@ export default function Feed() {
   const fetchPage = useCallback(
     async (off, replace) => {
       const { data, error: e } = await supabase.rpc('feed_posts', {
-        p_kind: kind === 'all' ? null : kind,
+        p_kind: null,
         p_search: filters.text || null,
         p_tags: filters.tags.length ? filters.tags : null,
         p_sort: sort,
@@ -131,7 +126,7 @@ export default function Feed() {
       return rows.length
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [kind, sort, filters.text, tagsKey],
+    [sort, filters.text, tagsKey],
   )
 
   // reload from the top when filters/sort/search change
@@ -259,6 +254,9 @@ export default function Feed() {
             </div>
           )}
         </div>
+        {isAdmin && (
+          <button className="btn-outline shrink-0" onClick={() => setCreatePollOpen(true)}>Create poll</button>
+        )}
         {(!feedLocked || isAdmin) && (
           <button className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>Create post</button>
         )}
@@ -270,7 +268,7 @@ export default function Feed() {
         </div>
       )}
 
-      {/* controls: sort / type */}
+      {/* controls: sort */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Dropdown label={SORTS.find((o) => o.s === sort).label}>
           {(close) =>
@@ -281,17 +279,6 @@ export default function Feed() {
             ))
           }
         </Dropdown>
-
-        <Dropdown label={KINDS.find((f) => f.k === kind).label}>
-          {(close) =>
-            KINDS.map((f) => (
-              <MenuItem key={f.k} active={kind === f.k} onClick={() => { setKind(f.k); close() }}>
-                {f.label}
-              </MenuItem>
-            ))
-          }
-        </Dropdown>
-
       </div>
 
       {/* active supertag filters */}
@@ -377,6 +364,17 @@ export default function Feed() {
           setNotice(status === 'draft' ? 'Saved as draft.' : 'Posted.')
           reload()
           supabase.rpc('feed_tags').then(({ data }) => setAvailableTags(data || []))
+          setTimeout(() => setNotice(''), 3000)
+        }}
+      />
+
+      <CreatePollModal
+        open={createPollOpen}
+        onClose={() => setCreatePollOpen(false)}
+        onCreated={() => {
+          setCreatePollOpen(false)
+          setNotice('Poll posted.')
+          reload()
           setTimeout(() => setNotice(''), 3000)
         }}
       />

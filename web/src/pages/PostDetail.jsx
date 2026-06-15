@@ -7,8 +7,8 @@ import RoleBadge from '../components/RoleBadge'
 import Dropdown, { MenuItem } from '../components/Dropdown'
 import PostDetailSkeleton from '../components/PostDetailSkeleton'
 import CreatePostModal from '../components/CreatePostModal'
+import PollBlock from '../components/PollBlock'
 import { timeAgo } from '../lib/format'
-import { kindLabel, kindChipClass } from '../lib/postKind'
 
 const CSORTS = [
   { s: 'new', label: 'Newest' },
@@ -243,14 +243,14 @@ export default function PostDetail() {
               {post.badges?.includes('Success') && (
                 <span className="rounded-md bg-success/15 px-2.5 py-0.5 text-[11px] font-semibold text-success">#Success</span>
               )}
-              <span className={`rounded-md px-2.5 py-0.5 text-[11px] font-semibold ${kindChipClass(post.kind)}`}>
-                {kindLabel(post.kind)}
-              </span>
+              {post.kind === 'poll' && (
+                <span className="rounded-md bg-accent-soft px-2.5 py-0.5 text-[11px] font-semibold text-accent">Poll</span>
+              )}
               {(post.is_mine || isAdmin) && (
                 <Kebab>
                   {(close) => (
                     <>
-                      {post.is_mine && (
+                      {post.is_mine && post.kind !== 'poll' && (
                         <MenuItem onClick={() => { close(); setEditOpen(true) }}>Edit post</MenuItem>
                       )}
                       {post.is_mine && !post.badges?.includes('Success') && post.success_request !== 'pending' && (
@@ -285,7 +285,10 @@ export default function PostDetail() {
           {/* title + body */}
           <h1 className="mt-3 break-words text-2xl font-extrabold leading-tight">{post.title}</h1>
           {post.startup && <p className="mt-0.5 break-words text-sm font-semibold text-muted">{post.startup}</p>}
-          <p className="mt-3 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-ink">{post.problem}</p>
+          {post.problem && (
+            <p className="mt-3 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-ink">{post.problem}</p>
+          )}
+          {post.kind === 'poll' && <PollBlock postId={post.id} />}
           {post.kind === 'idea' && post.solution && (
             <div className="mt-3 rounded-lg bg-card p-4">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">Solution</div>

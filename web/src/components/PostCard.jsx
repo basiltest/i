@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowBigUp, ArrowBigDown, MessageCircle, Pin } from 'lucide-react'
 import RoleBadge from './RoleBadge'
+import PollBlock from './PollBlock'
 import { timeAgo } from '../lib/format'
-import { kindLabel, kindChipClass } from '../lib/postKind'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 
@@ -76,17 +76,20 @@ export default function PostCard({ post }) {
           {post.badges?.includes('Success') && (
             <span className="rounded-md bg-success/15 px-2 py-0.5 text-[11px] font-semibold text-success">#Success</span>
           )}
-          <span className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${kindChipClass(post.kind)}`}>
-            {kindLabel(post.kind)}
-          </span>
+          {post.kind === 'poll' && (
+            <span className="rounded-md bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent">Poll</span>
+          )}
         </span>
       </header>
 
       <h3 className="mt-3 break-words text-base font-bold">{post.title}</h3>
-      {post.startup && <p className="break-words text-sm font-semibold text-muted">{post.startup}</p>}
 
-      {/* compact: clamp to 4 lines; full text (and the Solution box) lives on the detail page */}
-      <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words text-sm text-ink">{post.problem}</p>
+      {/* compact: clamp to 4 lines; full text lives on the detail page */}
+      {post.problem && (
+        <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words text-sm text-ink">{post.problem}</p>
+      )}
+
+      {post.kind === 'poll' && <PollBlock postId={post.id} />}
 
       {post.tags?.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">

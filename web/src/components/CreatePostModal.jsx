@@ -3,19 +3,14 @@ import { X, FileText, ArrowLeft } from 'lucide-react'
 import ModalShell from './ModalShell'
 import { supabase } from '../lib/supabase'
 import { timeAgo } from '../lib/format'
-import { kindLabel, kindChipClass } from '../lib/postKind'
-
-const KINDS = ['idea', 'problem', 'discussion']
 
 const MAX_TAGS = 10
 
+// One generic post: title + body + tags. (Kinds/ideas/problems were retired from the feed.)
 export default function CreatePostModal({ open, onClose, onCreated, onUpdated, editPost }) {
   const isEdit = !!editPost
-  const [kind, setKind] = useState('idea')
   const [title, setTitle] = useState('')
-  const [startup, setStartup] = useState('')
-  const [problem, setProblem] = useState('')
-  const [solution, setSolution] = useState('')
+  const [body, setBody] = useState('')
   const [anonymous, setAnonymous] = useState(false)
   const [tags, setTags] = useState([])
   const [tagInput, setTagInput] = useState('')
@@ -34,7 +29,7 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
   async function fetchDrafts() {
     const { data } = await supabase
       .from('posts')
-      .select('id, kind, title, problem, solution, startup, created_at, post_tags(tags(name))')
+      .select('id, title, problem, created_at, post_tags(tags(name))')
       .eq('status', 'draft')
       .order('created_at', { ascending: false })
     setDrafts(data || [])
@@ -46,24 +41,17 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
     setDraft(null)
     setView('form')
     if (editPost) {
-      setKind(editPost.kind || 'idea')
       setTitle(editPost.title || '')
-      setStartup(editPost.startup || '')
-      setProblem(editPost.problem || '')
-      setSolution(editPost.solution || '')
+      setBody(editPost.problem || '')
       setTags(editPost.tags || [])
     } else {
-      setKind('idea'); setTitle(''); setStartup(''); setProblem(''); setSolution('')
-      setAnonymous(false); setTags([])
+      setTitle(''); setBody(''); setAnonymous(false); setTags([])
       fetchDrafts()
     }
     setTagInput(''); setError('')
     initialRef.current = formSnap({
-      kind: editPost?.kind || 'idea',
       title: editPost?.title || '',
-      startup: editPost?.startup || '',
-      problem: editPost?.problem || '',
-      solution: editPost?.solution || '',
+      body: editPost?.problem || '',
       tags: editPost?.tags || [],
     })
   }, [open, editPost])
@@ -74,27 +62,21 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
     if (busy) return
     const dirty =
       view === 'form' &&
-      (formSnap({ kind, title, startup, problem, solution, tags }) !== initialRef.current || tagInput.trim() !== '')
+      (formSnap({ title, body, tags }) !== initialRef.current || tagInput.trim() !== '')
     if (dirty && !window.confirm(isEdit ? 'Discard your changes?' : 'Discard this post? Your text will be lost.')) return
     onClose()
   }
 
   function loadDraft(d) {
-    setKind(d.kind || 'idea')
     setTitle(d.title || '')
-    setStartup(d.startup || '')
-    setProblem(d.problem || '')
-    setSolution(d.solution || '')
+    setBody(d.problem || '')
     setTags(d.post_tags?.map((pt) => pt.tags?.name).filter(Boolean) || [])
     setDraft(d)
     setView('form')
     setError('')
     initialRef.current = formSnap({
-      kind: d.kind || 'idea',
       title: d.title || '',
-      startup: d.startup || '',
-      problem: d.problem || '',
-      solution: d.solution || '',
+      body: d.problem || '',
       tags: d.post_tags?.map((pt) => pt.tags?.name).filter(Boolean) || [],
     })
   }
@@ -126,7 +108,7 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
   async function save(status) {
     setError('')
     if (!title.trim()) return setError('Title is required.')
-    if (!problem.trim()) return setError(kind === 'discussion' ? 'Body is required.' : 'Problem statement is required.')
+    if (!body.trim()) return setError('Body is required.')
 
     setBusy(true)
     try {
@@ -135,9 +117,9 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
         const { error: rpcErr } = await supabase.rpc('update_post', {
           p_id: id,
           p_title: title.trim(),
-          p_problem: problem.trim(),
-          p_solution: kind === 'idea' ? solution.trim() : null,
-          p_startup: kind === 'discussion' ? null : (startup.trim() || null),
+          p_problem: body.trim(),
+          p_solution: null,
+          p_startup: null,
           p_tags: tags,
         })
         if (rpcErr) { console.error(rpcErr); setError('Could not save your post. Check your connection and try again.'); return }
@@ -150,11 +132,11 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
         onCreated?.(status)
       } else {
         const { error: rpcErr } = await supabase.rpc('create_post', {
-          p_kind: kind,
+          p_kind: 'post',
           p_title: title.trim(),
-          p_problem: problem.trim(),
-          p_solution: kind === 'idea' ? solution.trim() : null,
-          p_startup: kind === 'discussion' ? null : (startup.trim() || null),
+          p_problem: body.trim(),
+          p_solution: null,
+          p_startup: null,
           p_anonymous: anonymous,
           p_status: status,
           p_tags: tags,
@@ -168,8 +150,6 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
       setBusy(false)
     }
   }
-
-  const kindLocked = isEdit || !!draft
 
   return (
     <ModalShell onRequestClose={close} labelledBy="create-post-title">
@@ -204,11 +184,8 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
               {drafts.map((d) => (
                 <li key={d.id} className="flex items-center gap-2 py-2.5">
                   <button type="button" onClick={() => loadDraft(d)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                    <span className={`shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold ${kindChipClass(d.kind)}`}>
-                      {kindLabel(d.kind)}
-                    </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-bold">{d.title}</span>
+                      <span className="block truncate text-sm font-bold">{d.title || 'Untitled'}</span>
                       <span className="block text-xs text-muted">Saved {timeAgo(d.created_at)}</span>
                     </span>
                   </button>
@@ -230,42 +207,13 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
           </>
         ) : (
           <>
-            <div className="mt-4 inline-flex rounded-lg border border-line p-0.5">
-              {KINDS.map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => !kindLocked && setKind(k)}
-                  disabled={kindLocked}
-                  className={`rounded-md px-4 py-1.5 text-sm font-semibold transition-colors ${
-                    kind === k ? 'bg-accent-soft text-accent' : 'text-muted'
-                  } ${kindLocked ? 'cursor-not-allowed opacity-60' : ''}`}
-                >
-                  {kindLabel(k)}
-                </button>
-              ))}
-            </div>
-
             <div className="mt-4 space-y-3">
               <input className="input" placeholder="Title" maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} />
-              {kind !== 'discussion' && (
-                <input className="input" placeholder="Startup name (optional)" maxLength={100} value={startup} onChange={(e) => setStartup(e.target.value)} />
-              )}
               <textarea
-                className="input min-h-[80px] resize-y"
-                placeholder={
-                  kind === 'idea' ? 'The problem you are solving'
-                    : kind === 'problem' ? 'Describe the problem'
-                      : 'Share an update, a question, or a win'
-                }
-                maxLength={5000} value={problem} onChange={(e) => setProblem(e.target.value)}
+                className="input min-h-[120px] resize-y"
+                placeholder="Share an idea, a problem, a question, or a win"
+                maxLength={5000} value={body} onChange={(e) => setBody(e.target.value)}
               />
-              {kind === 'idea' && (
-                <textarea
-                  className="input min-h-[80px] resize-y" placeholder="Your solution"
-                  maxLength={5000} value={solution} onChange={(e) => setSolution(e.target.value)}
-                />
-              )}
 
               {/* supertags */}
               <div>
@@ -291,7 +239,7 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
                 </div>
               </div>
 
-              {!kindLocked && (
+              {!isEdit && !draft && (
                 <>
                   <label className="flex items-center gap-2 text-sm text-ink">
                     <input type="checkbox" checked={anonymous} onChange={(e) => setAnonymous(e.target.checked)} />
