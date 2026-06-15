@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Workflow, Plus, Lock } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import ModalShell from '../components/ModalShell'
+import MultiSelect from '../components/MultiSelect'
 import { useAuth } from '../lib/AuthProvider'
 import { PipelineListSkeleton } from '../components/PipelineSkeleton'
 import { timeAgo } from '../lib/format'
@@ -123,7 +124,7 @@ export default function Pipeline() {
 // question with a real example as the placeholder. Required = non-empty; long answers are
 // capped at 500 chars (clarity over volume). Draft autosaves per account.
 const EMPTY_APP = {
-  title: '', sector: '', market_size: '', problem: '', target_user: '',
+  title: '', sectors: [], market_size: '', problem: '', target_user: '',
   solution: '', team: '', traction: '',
 }
 
@@ -135,7 +136,9 @@ export function ApplicationModal({ idea, onClose, onDone }) {
   const [f, setF] = useState(() => {
     if (editing) {
       return {
-        title: idea.title || '', sector: idea.sector || '', problem: idea.problem || '',
+        title: idea.title || '',
+        sectors: idea.sectors?.length ? idea.sectors : (idea.sector ? [idea.sector] : []),
+        problem: idea.problem || '',
         solution: idea.solution || '',
         market_size: idea.application?.market_size || '',
         target_user: idea.application?.target_user || '',
@@ -163,7 +166,7 @@ export function ApplicationModal({ idea, onClose, onDone }) {
     return () => clearTimeout(t)
   }, [f, editing, draftKey])
 
-  const valid = f.title.trim() && f.sector && f.problem.trim() && f.target_user.trim()
+  const valid = f.title.trim() && f.sectors.length > 0 && f.problem.trim() && f.target_user.trim()
     && f.solution.trim() && f.team.trim()
 
   async function submit() {
@@ -172,7 +175,7 @@ export function ApplicationModal({ idea, onClose, onDone }) {
     setError('')
     const params = {
       p_title: f.title.trim(),
-      p_sector: f.sector,
+      p_sectors: f.sectors,
       p_problem: f.problem.trim(),
       p_solution: f.solution.trim(),
       p_application: {
@@ -206,11 +209,13 @@ export function ApplicationModal({ idea, onClose, onDone }) {
           <AppField label="Startup / concept title *">
             <input className="input" maxLength={120} value={f.title} onChange={set('title')} placeholder="e.g. AgriSense Rust Disease Spotter" />
           </AppField>
-          <AppField label="Sector *">
-            <select className="input" value={f.sector} onChange={set('sector')}>
-              <option value="">Select sector...</option>
-              {SECTORS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+          <AppField label="Sectors * (pick one or more)">
+            <MultiSelect
+              value={f.sectors}
+              onChange={(v) => setF((cur) => ({ ...cur, sectors: v }))}
+              options={SECTORS}
+              placeholder="Select sectors..."
+            />
           </AppField>
 
           <div className="sm:col-span-2">

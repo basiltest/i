@@ -84,12 +84,12 @@ export default function PipelineIdea() {
 
       {/* the application: identical Q&A format on every dossier, built for 60-second reads */}
       <div className="card mt-4 p-4">
-        {(idea.sector || idea.oneliner) && (
+        {((idea.sectors?.length || idea.sector) || idea.oneliner) && (
           <div className="flex flex-wrap items-center gap-2">
             {idea.oneliner && <p className="min-w-0 flex-1 text-[15px] font-semibold leading-snug text-ink">{idea.oneliner}</p>}
-            {idea.sector && (
-              <span className="shrink-0 rounded-md bg-accent-soft px-2.5 py-0.5 text-[11px] font-bold text-accent">{idea.sector}</span>
-            )}
+            {(idea.sectors?.length ? idea.sectors : (idea.sector ? [idea.sector] : [])).map((s) => (
+              <span key={s} className="shrink-0 rounded-md bg-accent-soft px-2.5 py-0.5 text-[11px] font-bold text-accent">{s}</span>
+            ))}
           </div>
         )}
         <QA q="Problem hypothesis" a={idea.problem} />
@@ -162,7 +162,7 @@ function exportDossier(d) {
   const ts = (x) => new Date(x).toLocaleString()
   const L = []
   L.push(`# ${ifnTag(i.ifn)} - ${i.title}`)
-  L.push(`Founder: ${i.author_name} · Sector: ${i.sector || '-'} · Mentor: ${i.mentor_name || 'none'}`)
+  L.push(`Founder: ${i.author_name} · Sectors: ${(i.sectors?.length ? i.sectors : [i.sector]).filter(Boolean).join(', ') || '-'} · Mentor: ${i.mentor_name || 'none'}`)
   L.push(`State: G${i.gate} ${gateLabel(i.gate)} · ${i.gate_status.replace(/_/g, ' ')} · ${i.pipeline_state}`)
   L.push(`Filed: ${ts(i.created_at)}`)
   L.push('', '## Application')
