@@ -43,7 +43,7 @@ export default function Register() {
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError('Please enter a valid email.')
     // Without an invite, only ICFAI students may register. Invited mentors/admins are exempt.
     if (!invite?.valid && email.trim().split('@')[1]?.toLowerCase() !== STUDENT_DOMAIN) {
-      return setError(`Registration is for @${STUDENT_DOMAIN} students. Mentors and admins need an invite link from an admin.`)
+      return setError(`Registration is for @${STUDENT_DOMAIN} email users only. Other emails need an invite link from an admin.`)
     }
     if (password.length < 8) return setError('Password must be at least 8 characters.')
 
@@ -135,7 +135,7 @@ export default function Register() {
             readOnly={!!invite?.valid}
             autoComplete="email" onChange={(e) => setEmail(e.target.value)} />
           {!invite?.valid && (
-            <span className="text-xs text-faint">Students register with their @{STUDENT_DOMAIN} email.</span>
+            <span className="text-xs text-faint">Use your @{STUDENT_DOMAIN} email. Other emails need an invite from an admin.</span>
           )}
         </div>
 

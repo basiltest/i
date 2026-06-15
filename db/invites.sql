@@ -76,7 +76,7 @@ language plpgsql security definer set search_path = public as $$
 begin
   if public.email_signup_role(new.email) is null then
     raise exception
-      'Registration is limited to @% accounts. Mentors and admins need an invite link from an admin.',
+      'Registration is for @% email users only. Other emails need an invite link from an admin.',
       public.student_domain()
       using errcode = 'check_violation';
   end if;
