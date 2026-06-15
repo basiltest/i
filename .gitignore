@@ -4,3 +4,6 @@
 
 # impeccable local tooling state (critique snapshots, config)
 .impeccable/
+
+# supabase CLI local link/state
+supabase/.temp/
