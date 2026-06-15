@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom'
 import { Award, Users, SlidersHorizontal, Search, Workflow, Trash2, Mail, Copy, Check, Send } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import ModalShell from '../components/ModalShell'
+import Combobox from '../components/Combobox'
 import { useAuth } from '../lib/AuthProvider'
 import { REGIONS, SECTORS, DOMAINS } from '../lib/options'
 import RoleBadge from '../components/RoleBadge'
@@ -808,10 +809,12 @@ function AdminEditProfileModal({ member, onClose, onSaved }) {
               <Field label="Startup"><input className="input" maxLength={80} value={form.startup} onChange={set('startup')} /></Field>
               <Field label="LinkedIn"><input className="input" maxLength={200} value={form.linkedin} onChange={set('linkedin')} placeholder="https://..." /></Field>
               <Field label="Region">
-                <select className="input" value={form.region} onChange={set('region')}>
-                  <option value="">Select region</option>
-                  {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                </select>
+                <Combobox
+                  value={form.region}
+                  onChange={(v) => setForm({ ...form, region: v })}
+                  options={REGIONS}
+                  placeholder="Select or type a state"
+                />
               </Field>
               <Field label="Sector">
                 <select className="input" value={form.sector} onChange={set('sector')}>

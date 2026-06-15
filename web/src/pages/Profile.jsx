@@ -4,6 +4,7 @@ import { useAuth } from '../lib/AuthProvider'
 import { REGIONS, SECTORS, DOMAINS } from '../lib/options'
 import RoleBadge from '../components/RoleBadge'
 import ProfileSkeleton from '../components/ProfileSkeleton'
+import Combobox from '../components/Combobox'
 
 export default function Profile() {
   const { session } = useAuth()
@@ -168,10 +169,12 @@ export default function Profile() {
                     <input className="input" maxLength={80} value={form.startup} onChange={(e) => setForm({ ...form, startup: e.target.value })} />
                   </Edit>
                   <Edit label="Region">
-                    <select className="input" value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })}>
-                      <option value="">Select region</option>
-                      {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                    </select>
+                    <Combobox
+                      value={form.region}
+                      onChange={(v) => setForm({ ...form, region: v })}
+                      options={REGIONS}
+                      placeholder="Select or type a state"
+                    />
                   </Edit>
                   <Edit label="Sector">
                     <select className="input" value={form.sector} onChange={(e) => setForm({ ...form, sector: e.target.value })}>

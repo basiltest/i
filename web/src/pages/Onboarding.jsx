@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import { REGIONS, SECTORS, DOMAINS } from '../lib/options'
 import Logo from '../components/Logo'
+import Combobox from '../components/Combobox'
 
 export default function Onboarding() {
   const navigate = useNavigate()
@@ -83,10 +84,12 @@ export default function Onboarding() {
               <input className="input bg-page text-faint" value={email || ''} disabled />
             </Field>
             <Field label="Region *">
-              <select className="input" value={form.region} onChange={set('region')}>
-                <option value="">Select region</option>
-                {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
+              <Combobox
+                value={form.region}
+                onChange={(v) => setForm((f) => ({ ...f, region: v }))}
+                options={REGIONS}
+                placeholder="Select or type a state"
+              />
             </Field>
             <Field label="Sector *">
               <select className="input" value={form.sector} onChange={set('sector')}>
