@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Workflow, Users, Calendar, LayoutGrid, Shield, ClipboardCheck } from 'lucide-react'
+// 1. ADDED 'FolderHeart' to the lucide-react imports list here:
+import { Home, Workflow, Users, Calendar, LayoutGrid, Shield, ClipboardCheck, FolderHeart } from 'lucide-react'
 import { useAuth } from '../lib/AuthProvider'
 
 // Twitter-style left rail. Built sections are links; the rest are placeholders until built,
@@ -10,6 +11,8 @@ const ITEMS = [
   { to: '/team', label: 'Team Acquisition', icon: Users },
   { to: '/calendar', label: 'Calendar', icon: Calendar },
   { to: '/directory', label: 'Directory', icon: LayoutGrid },
+  // 2. ADDED your new Autopsy Library link right here!
+  { to: '/autopsy-library', label: 'Autopsy Library', icon: FolderHeart },
 ]
 
 const base = 'flex items-center gap-3.5 rounded-full px-4 py-3 text-base font-semibold transition-colors'

@@ -28,7 +28,7 @@ export default function Register() {
         password,
         options: {
           data: { name: name.trim() }, // -> raw_user_meta_data -> trigger -> profiles.name
-          emailRedirectTo: `${window.location.origin}/login`,
+          emailRedirectTo: 'http://localhost:5173',
         },
       })
       if (signUpError) {

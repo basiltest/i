@@ -20,6 +20,10 @@ import ProtectedRoute from './components/ProtectedRoute'
 import OnboardingGate from './components/OnboardingGate'
 import PublicOnlyRoute from './components/PublicOnlyRoute'
 import ProblemHub from './pages/ProblemHub';
+import AutopsyLibrary from './pages/AutopsyLibrary';
+
+// Inside your main <Routes> array block:
+
 
 function App() {
   return (
@@ -47,6 +51,7 @@ function App() {
         <Route path="directory" element={<Directory />} />
         <Route path="admin" element={<AdminPanel />} />
         <Route path="/problem-hub" element={<ProblemHub />} />
+        <Route path="/autopsy-library" element={<AutopsyLibrary />} />
       </Route>
     </Routes>
   )
