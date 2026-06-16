@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { Award, Users, SlidersHorizontal, Search, Workflow, Trash2, Mail, Copy, Check, Send } from 'lucide-react'
+import { Users, SlidersHorizontal, Search, Workflow, Trash2, Mail, Copy, Check, Send } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import ModalShell from '../components/ModalShell'
 import Combobox from '../components/Combobox'
@@ -22,33 +22,32 @@ export default function AdminPanel() {
   const { session, profile, isAdmin } = useAuth()
   const uid = session?.user?.id
 
-  const [tab, setTab] = useState('members') // 'members' | 'success'
+  const [tab, setTab] = useState('members') // 'members' | 'pipeline' | 'invites' | 'settings'
   const [members, setMembers] = useState([])
-  const [queue, setQueue] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState(null)
   const [feedLocked, setFeedLocked] = useState(false)
   const [pipelineLocked, setPipelineLocked] = useState(false)
+  const [iiecEnabled, setIiecEnabled] = useState(false)
   const [editMember, setEditMember] = useState(null)
   const [memberQuery, setMemberQuery] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
     setError('')
-    const [m, q, s] = await Promise.all([
+    const [m, s] = await Promise.all([
       supabase.rpc('admin_members'),
-      supabase.rpc('admin_success_queue'),
-      supabase.from('app_settings').select('feed_locked, pipeline_locked').single(),
+      supabase.from('app_settings').select('feed_locked, pipeline_locked, iiec_enabled').single(),
     ])
-    if (m.error || q.error) {
-      console.error(m.error || q.error)
+    if (m.error) {
+      console.error(m.error)
       setError(GENERIC_ERR)
     } else {
       setMembers(m.data || [])
-      setQueue(q.data || [])
       setFeedLocked(!!s.data?.feed_locked)
       setPipelineLocked(!!s.data?.pipeline_locked)
+      setIiecEnabled(!!s.data?.iiec_enabled)
     }
     setLoading(false)
   }, [])
@@ -67,6 +66,13 @@ export default function AdminPanel() {
     setPipelineLocked(next)
   }
 
+  async function toggleIiec() {
+    const next = !iiecEnabled
+    const { error: e } = await supabase.rpc('admin_set_iiec_enabled', { p_enabled: next })
+    if (e) { console.error(e); return setError('Could not change the IIEC option. Try again.') }
+    setIiecEnabled(next)
+  }
+
   useEffect(() => { if (isAdmin) load() }, [isAdmin, load])
 
   // profile not loaded yet -> wait; loaded and not admin -> bounce to the feed
@@ -81,13 +87,6 @@ export default function AdminPanel() {
     setMembers((prev) => prev.map((m) => (m.id === userId ? { ...m, role } : m)))
   }
 
-  async function reviewSuccess(postId, approve) {
-    setBusyId(postId)
-    const { error: e } = await supabase.rpc('admin_review_success', { p_id: postId, p_approve: approve })
-    setBusyId(null)
-    if (e) { console.error(e); return setError(GENERIC_ERR) }
-    setQueue((prev) => prev.filter((r) => r.id !== postId))
-  }
 
   async function toggleBan(m) {
     const ban = !m.banned
@@ -99,6 +98,18 @@ export default function AdminPanel() {
     setBusyId(null)
     if (e) { console.error(e); return setError(GENERIC_ERR) }
     setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, banned: ban } : x)))
+  }
+
+  async function toggleRestrict(m) {
+    const restrict = !m.restricted
+    if (restrict && !window.confirm(`Put ${m.name || m.email} in read-only mode? They stay logged in but cannot post, edit, vote, or message until you lift it.`)) return
+    setBusyId(m.id)
+    const { error: e } = restrict
+      ? await supabase.rpc('admin_restrict_user', { p_user: m.id, p_reason: null })
+      : await supabase.rpc('admin_unrestrict_user', { p_user: m.id })
+    setBusyId(null)
+    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, restricted: restrict } : x)))
   }
 
   const shownMembers = members.filter((m) => {
@@ -133,14 +144,6 @@ export default function AdminPanel() {
           <Workflow size={15} /> Pipeline
         </button>
         <button
-          onClick={() => setTab('success')}
-          className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
-            tab === 'success' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'
-          }`}
-        >
-          <Award size={15} /> #Success requests ({queue.length})
-        </button>
-        <button
           onClick={() => setTab('invites')}
           className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
             tab === 'invites' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'
@@ -165,7 +168,7 @@ export default function AdminPanel() {
       {tab === 'invites' ? (
         <InvitesTab />
       ) : loading ? (
-        <div className="mt-6 flex items-center gap-2 text-sm text-muted"><Spinner /> Loading...</div>
+        <ListSkeleton />
       ) : tab === 'pipeline' ? (
         <PipelineTab />
       ) : tab === 'members' ? (
@@ -193,6 +196,7 @@ export default function AdminPanel() {
                   <span className="truncate text-sm font-bold">{m.name || 'Unnamed'}</span>
                   <RoleBadge role={m.role} />
                   {m.banned && <span className="rounded-md bg-down/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-down">Banned</span>}
+                  {!m.banned && m.restricted && <span className="rounded-md bg-warn/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warnink">Read-only</span>}
                   {m.id === uid && <span className="text-xs text-faint">(you)</span>}
                 </div>
                 <div className="truncate text-xs text-muted">{m.email}{m.startup ? ` · ${m.startup}` : ''}</div>
@@ -211,6 +215,15 @@ export default function AdminPanel() {
                       {ROLES.map((r) => <option key={r.v} value={r.v}>{r.label}</option>)}
                     </select>
                     <button className="btn-outline px-3 py-1.5 text-xs" onClick={() => setEditMember(m)}>Edit</button>
+                    {!m.banned && (
+                      <button
+                        className={`btn px-3 py-1.5 text-xs ${m.restricted ? 'btn-outline' : 'border border-warn/40 text-warnink hover:bg-warn/10'}`}
+                        disabled={busyId === m.id}
+                        onClick={() => toggleRestrict(m)}
+                      >
+                        {m.restricted ? 'Lift read-only' : 'Read-only'}
+                      </button>
+                    )}
                     <button
                       className={`btn px-3 py-1.5 text-xs ${m.banned ? 'btn-outline' : 'border border-down/40 text-down hover:bg-down/10'}`}
                       disabled={busyId === m.id}
@@ -259,40 +272,24 @@ export default function AdminPanel() {
               {pipelineLocked ? 'Submissions CLOSED' : 'Submissions OPEN'}
             </button>
           </div>
-        </div>
-      ) : queue.length === 0 ? (
-        <div className="card mt-4 p-8 text-center">
-          <p className="font-semibold">No pending #Success requests.</p>
-          <p className="mt-1 text-sm text-muted">Authors request the badge from their post's menu.</p>
-        </div>
-      ) : (
-        <div className="card mt-4 divide-y divide-line">
-          {queue.map((r) => (
-            <div key={r.id} className="flex flex-wrap items-center gap-3 p-4">
-              <div className="min-w-0 flex-1">
-                <Link to={`/post/${r.id}`} className="block truncate text-sm font-bold hover:underline">{r.title}</Link>
-                <div className="text-xs text-muted">{r.author_name} · {timeAgo(r.created_at)}</div>
-              </div>
-              <div className="flex shrink-0 gap-2">
-                <button
-                  className="btn-primary px-3 py-1.5 text-xs"
-                  disabled={busyId === r.id}
-                  onClick={() => reviewSuccess(r.id, true)}
-                >
-                  Approve
-                </button>
-                <button
-                  className="btn-outline px-3 py-1.5 text-xs"
-                  disabled={busyId === r.id}
-                  onClick={() => reviewSuccess(r.id, false)}
-                >
-                  Reject
-                </button>
+          <div className="flex flex-wrap items-center gap-3 p-4">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-bold">IIEC funding requests</div>
+              <div className="text-xs text-muted">
+                When on, founders can flag a G5 submission to request IIEC funding. The mentor sees it and takes it to the council.
               </div>
             </div>
-          ))}
+            <button
+              onClick={toggleIiec}
+              className={`inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
+                iiecEnabled ? 'border-success/40 bg-success/10 text-success' : 'border-line bg-black/5 text-muted'
+              }`}
+            >
+              {iiecEnabled ? 'Option ON' : 'Option OFF'}
+            </button>
+          </div>
         </div>
-      )}
+      ) : null}
 
       {editMember && (
         <AdminEditProfileModal
@@ -485,7 +482,7 @@ function PipelineTab() {
       {error && <div role="alert" className="mt-3 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
 
       {loading ? (
-        <div className="mt-6 flex items-center gap-2 text-sm text-muted"><Spinner /> Loading...</div>
+        <ListSkeleton avatar={false} className="mt-3" />
       ) : rows.length === 0 ? (
         <div className="card mt-3 p-8 text-center">
           <p className="font-semibold">{view === 'inbox' ? 'Inbox zero.' : 'No ideas match.'}</p>
@@ -698,7 +695,7 @@ function InvitesTab() {
 
       {/* all invites */}
       {loading ? (
-        <div className="flex items-center gap-2 text-sm text-muted"><Spinner /> Loading...</div>
+        <ListSkeleton avatar={false} className="" />
       ) : list.length === 0 ? (
         <div className="card p-8 text-center text-sm text-muted">No invites yet.</div>
       ) : (
@@ -817,16 +814,10 @@ function AdminEditProfileModal({ member, onClose, onSaved }) {
                 />
               </Field>
               <Field label="Sector">
-                <select className="input" value={form.sector} onChange={set('sector')}>
-                  <option value="">Select sector</option>
-                  {SECTORS.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
+                <Combobox value={form.sector} onChange={(v) => setForm({ ...form, sector: v })} options={SECTORS} placeholder="Search or type a sector" />
               </Field>
               <Field label="Domain">
-                <select className="input" value={form.domain} onChange={set('domain')}>
-                  <option value="">Select domain</option>
-                  {DOMAINS.map((d) => <option key={d} value={d}>{d}</option>)}
-                </select>
+                <Combobox value={form.domain} onChange={(v) => setForm({ ...form, domain: v })} options={DOMAINS} placeholder="Search or type a domain" />
               </Field>
               <div className="sm:col-span-2">
                 <Field label="About"><textarea className="input min-h-[70px] resize-y" maxLength={160} value={form.bio} onChange={set('bio')} /></Field>
@@ -852,5 +843,24 @@ function Field({ label, children }) {
       <span className="mb-1 block text-xs font-medium text-muted">{label}</span>
       {children}
     </label>
+  )
+}
+
+// Skeleton that mirrors a list row (avatar + two text lines + a trailing control),
+// so the page keeps its shape while loading instead of flashing a centered spinner.
+function ListSkeleton({ rows = 6, avatar = true, className = 'mt-4' }) {
+  return (
+    <div className={`card animate-pulse divide-y divide-line ${className}`}>
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 p-4">
+          {avatar && <div className="h-9 w-9 shrink-0 rounded-full bg-line" />}
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-3 rounded bg-line" style={{ width: `${32 + (i % 3) * 14}%` }} />
+            <div className="h-2.5 w-1/2 rounded bg-line" />
+          </div>
+          <div className="h-7 w-20 shrink-0 rounded-lg bg-line" />
+        </div>
+      ))}
+    </div>
   )
 }

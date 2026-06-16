@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import ModalShell from '../components/ModalShell'
 import { useAuth } from '../lib/AuthProvider'
 import RoleBadge from '../components/RoleBadge'
+import AuthorLink from '../components/AuthorLink'
 import Spinner from '../components/Spinner'
 import { timeAgo } from '../lib/format'
 
@@ -121,10 +122,10 @@ export default function TeamAcquisition() {
               className={`card flex h-52 cursor-pointer flex-col overflow-hidden p-4 text-left transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-pop ${t.closed ? 'opacity-60' : ''}`}
             >
               <div className="mb-2 flex items-center gap-2">
-                <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
+                <AuthorLink id={t.author_id} className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
                   {(t.author_name || '?').charAt(0).toUpperCase()}
-                </div>
-                <span className="truncate text-sm font-bold">{t.author_name}</span>
+                </AuthorLink>
+                <AuthorLink id={t.author_id} className="truncate text-sm font-bold">{t.author_name}</AuthorLink>
                 {t.author_role && <RoleBadge role={t.author_role} />}
                 {t.closed && <span className="rounded-md bg-down/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-down">Closed</span>}
                 <span className="ml-auto shrink-0 text-xs text-faint">{timeAgo(t.created_at)}</span>
@@ -209,10 +210,10 @@ function DetailModal({ post, isAdmin, onClose, onApply, onWithdraw, onEdit, onAp
   return (
     <Shell title={post.title} onClose={onClose}>
       <div className="mt-3 flex items-center gap-2">
-        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
+        <AuthorLink id={post.author_id} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
           {(post.author_name || '?').charAt(0).toUpperCase()}
-        </div>
-        <span className="truncate text-sm font-bold">{post.author_name}</span>
+        </AuthorLink>
+        <AuthorLink id={post.author_id} className="truncate text-sm font-bold">{post.author_name}</AuthorLink>
         {post.author_role && <RoleBadge role={post.author_role} />}
         {post.closed && <span className="rounded-md bg-down/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-down">Closed</span>}
         <span className="ml-auto shrink-0 text-xs text-faint">{timeAgo(post.created_at)}</span>
@@ -495,10 +496,10 @@ function ApplicantsModal({ post, onClose }) {
           {rows.map((r) => (
             <li key={r.id} className="rounded-lg border border-line p-3">
               <div className="flex items-center gap-2">
-                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
+                <AuthorLink id={r.applicant_id} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
                   {(r.applicant_name || '?').charAt(0).toUpperCase()}
-                </div>
-                <span className="text-sm font-bold">{r.applicant_name}</span>
+                </AuthorLink>
+                <AuthorLink id={r.applicant_id} className="text-sm font-bold">{r.applicant_name}</AuthorLink>
                 {r.applicant_role && <RoleBadge role={r.applicant_role} />}
                 <span className="ml-auto text-xs text-faint">{timeAgo(r.created_at)}</span>
               </div>

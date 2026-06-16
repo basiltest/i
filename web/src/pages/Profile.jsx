@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import { REGIONS, SECTORS, DOMAINS } from '../lib/options'
+import { errMessage } from '../lib/errors'
 import RoleBadge from '../components/RoleBadge'
 import ProfileSkeleton from '../components/ProfileSkeleton'
 import Combobox from '../components/Combobox'
@@ -88,7 +89,7 @@ export default function Profile() {
         .select()
         .single()
       if (e) {
-        setError(e.message)
+        setError(errMessage(e, 'Could not save your profile. Check your connection and try again.'))
         return
       }
       setProfile(data)
@@ -177,16 +178,10 @@ export default function Profile() {
                     />
                   </Edit>
                   <Edit label="Sector">
-                    <select className="input" value={form.sector} onChange={(e) => setForm({ ...form, sector: e.target.value })}>
-                      <option value="">Select sector</option>
-                      {SECTORS.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    <Combobox value={form.sector} onChange={(v) => setForm({ ...form, sector: v })} options={SECTORS} placeholder="Search or type a sector" />
                   </Edit>
                   <Edit label="Domain">
-                    <select className="input" value={form.domain} onChange={(e) => setForm({ ...form, domain: e.target.value })}>
-                      <option value="">Select domain</option>
-                      {DOMAINS.map((d) => <option key={d} value={d}>{d}</option>)}
-                    </select>
+                    <Combobox value={form.domain} onChange={(v) => setForm({ ...form, domain: v })} options={DOMAINS} placeholder="Search or type a domain" />
                   </Edit>
                   <Edit label="LinkedIn">
                     <input className="input" maxLength={200} value={form.linkedin} placeholder="https://linkedin.com/in/..."

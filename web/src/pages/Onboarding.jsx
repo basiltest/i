@@ -92,16 +92,10 @@ export default function Onboarding() {
               />
             </Field>
             <Field label="Sector *">
-              <select className="input" value={form.sector} onChange={set('sector')}>
-                <option value="">Select sector</option>
-                {SECTORS.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <Combobox value={form.sector} onChange={(v) => setForm((f) => ({ ...f, sector: v }))} options={SECTORS} placeholder="Search or type a sector" />
             </Field>
             <Field label="Domain *">
-              <select className="input" value={form.domain} onChange={set('domain')}>
-                <option value="">Select domain</option>
-                {DOMAINS.map((d) => <option key={d} value={d}>{d}</option>)}
-              </select>
+              <Combobox value={form.domain} onChange={(v) => setForm((f) => ({ ...f, domain: v }))} options={DOMAINS} placeholder="Search or type a domain" />
             </Field>
             <Field label="Startup (optional)">
               <input className="input" maxLength={80} value={form.startup} onChange={set('startup')} placeholder="Your startup name" />

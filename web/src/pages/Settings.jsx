@@ -19,7 +19,7 @@ export default function Settings() {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [listed, setListed] = useState(true)
-  const [showEmail, setShowEmail] = useState(false)
+  const [contactable, setContactable] = useState(true)
   const [notif, setNotif] = useState({ pipeline: true, problems: true, team: true })
   const [status, setStatus] = useState({}) // per-row: 'saved' | 'error'
   const [isDark, setIsDark] = useState(
@@ -38,14 +38,14 @@ export default function Settings() {
     let active = true
     supabase
       .from('profiles')
-      .select('name, role, directory_visible, show_email, notification_prefs')
+      .select('name, role, directory_visible, contactable, notification_prefs')
       .eq('id', userId)
       .single()
       .then(({ data }) => {
         if (!active || !data) { if (active) setLoading(false); return }
         setProfile(data)
         setListed(data.directory_visible !== false)
-        setShowEmail(!!data.show_email)
+        setContactable(data.contactable !== false)
         const p = data.notification_prefs || {}
         setNotif({ pipeline: p.pipeline !== false, problems: p.problems !== false, team: p.team !== false })
         setLoading(false)
@@ -71,10 +71,10 @@ export default function Settings() {
     setListed(next)
     if (!(await saveColumn('listed', 'directory_visible', next))) setListed(!next)
   }
-  async function toggleShowEmail() {
-    const next = !showEmail
-    setShowEmail(next)
-    if (!(await saveColumn('email', 'show_email', next))) setShowEmail(!next)
+  async function toggleContactable() {
+    const next = !contactable
+    setContactable(next)
+    if (!(await saveColumn('contact', 'contactable', next))) setContactable(!next)
   }
   async function toggleNotif(catKey) {
     const next = !notif[catKey]
@@ -173,11 +173,11 @@ export default function Settings() {
             disabled={loading}
           />
           <Row
-            label="Show my email"
-            desc={`Display your email on your Directory card. ${showEmail ? 'On' : 'Off'}`}
-            on={showEmail}
-            status={status.email}
-            onToggle={toggleShowEmail}
+            label="Let people contact you"
+            desc={`Members can send you a message through the network (your email stays private). ${contactable ? 'On' : 'Off'}`}
+            on={contactable}
+            status={status.contact}
+            onToggle={toggleContactable}
             disabled={loading}
           />
         </div>
