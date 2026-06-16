@@ -6,14 +6,19 @@ import PostCard from '../components/PostCard'
 import PostCardSkeleton from '../components/PostCardSkeleton'
 import CreatePostModal from '../components/CreatePostModal'
 import CreatePollModal from '../components/CreatePollModal'
-import Dropdown, { MenuItem } from '../components/Dropdown'
 import { useAuth } from '../lib/AuthProvider'
 
 const PAGE = 20
 const SORTS = [
   { s: 'hot', label: 'Hot' },
-  { s: 'new', label: 'Newest' },
+  { s: 'new', label: 'New' },
   { s: 'top', label: 'Top' },
+]
+// time window for the Top sort (null = all time)
+const TOP_WINDOWS = [
+  { w: 'today', label: 'Today', days: 1 },
+  { w: 'week', label: 'Week', days: 7 },
+  { w: 'all', label: 'All time', days: null },
 ]
 
 const normTag = (s) => s.toLowerCase().replace(/[^a-z0-9-]/g, '')
@@ -42,11 +47,12 @@ function parseQuery(q) {
 }
 
 export default function Feed() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, restricted } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const [feedLocked, setFeedLocked] = useState(false)
 
   const [sort, setSort] = useState('hot')
+  const [topWindow, setTopWindow] = useState('week') // window for the Top sort
   const [q, setQ] = useState('')
   const [filters, setFilters] = useState({ text: '', tags: [] })
 
@@ -108,6 +114,7 @@ export default function Feed() {
         p_sort: sort,
         p_limit: PAGE,
         p_offset: off,
+        p_top_days: sort === 'top' ? (TOP_WINDOWS.find((t) => t.w === topWindow)?.days ?? null) : null,
       })
       if (e) { console.error('feed_posts failed:', e); setError(e.message); return 0 }
       setError('')
@@ -126,7 +133,7 @@ export default function Feed() {
       return rows.length
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sort, filters.text, tagsKey],
+    [sort, topWindow, filters.text, tagsKey],
   )
 
   // reload from the top when filters/sort/search change
@@ -254,10 +261,10 @@ export default function Feed() {
             </div>
           )}
         </div>
-        {isAdmin && (
+        {isAdmin && !restricted && (
           <button className="btn-outline shrink-0" onClick={() => setCreatePollOpen(true)}>Create poll</button>
         )}
-        {(!feedLocked || isAdmin) && (
+        {(!feedLocked || isAdmin) && !restricted && (
           <button className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>Create post</button>
         )}
       </div>
@@ -270,15 +277,41 @@ export default function Feed() {
 
       {/* controls: sort */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <Dropdown label={SORTS.find((o) => o.s === sort).label}>
-          {(close) =>
-            SORTS.map((o) => (
-              <MenuItem key={o.s} active={sort === o.s} onClick={() => { setSort(o.s); close() }}>
-                {o.label}
-              </MenuItem>
-            ))
-          }
-        </Dropdown>
+        {/* sort: segmented control, all options visible + self-labeling */}
+        <div className="inline-flex rounded-lg border border-line p-0.5" role="tablist" aria-label="Sort posts">
+          {SORTS.map((o) => (
+            <button
+              key={o.s}
+              role="tab"
+              aria-selected={sort === o.s}
+              onClick={() => setSort(o.s)}
+              className={`rounded-md px-3.5 py-1.5 text-sm font-semibold transition-colors ${
+                sort === o.s ? 'bg-accent-soft text-accent' : 'text-muted hover:text-ink'
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Top needs a window, else it silently rots into all-time */}
+        {sort === 'top' && (
+          <div className="inline-flex rounded-lg border border-line p-0.5" role="tablist" aria-label="Top window">
+            {TOP_WINDOWS.map((t) => (
+              <button
+                key={t.w}
+                role="tab"
+                aria-selected={topWindow === t.w}
+                onClick={() => setTopWindow(t.w)}
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  topWindow === t.w ? 'bg-accent-soft text-accent' : 'text-muted hover:text-ink'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* active supertag filters */}

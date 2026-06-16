@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Search, CalendarClock, MessageCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import RoleBadge from '../components/RoleBadge'
+import AuthorLink from '../components/AuthorLink'
 import ProblemModal from '../components/ProblemModal'
 import { timeAgo } from '../lib/format'
 
@@ -89,12 +90,12 @@ export default function ProblemHub() {
               className={`card cursor-pointer p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-pop ${p.closed ? 'opacity-60' : ''}`}
             >
               <header className="flex items-center gap-2">
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent">
+                <AuthorLink id={p.author_id} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent">
                   {(p.author_name || '?').charAt(0).toUpperCase()}
-                </div>
+                </AuthorLink>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="truncate text-sm font-bold">{p.author_name}</span>
+                    <AuthorLink id={p.author_id} className="truncate text-sm font-bold">{p.author_name}</AuthorLink>
                     {p.author_role && <RoleBadge role={p.author_role} />}
                   </div>
                   <div className="text-xs text-muted">{timeAgo(p.created_at)}</div>

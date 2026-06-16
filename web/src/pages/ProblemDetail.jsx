@@ -4,14 +4,19 @@ import { ArrowLeft, CalendarClock, MessageCircle, MoreHorizontal } from 'lucide-
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import RoleBadge from '../components/RoleBadge'
-import Dropdown, { MenuItem } from '../components/Dropdown'
+import AuthorLink from '../components/AuthorLink'
+import { MenuItem } from '../components/Dropdown'
 import ProblemModal from '../components/ProblemModal'
 import { timeAgo } from '../lib/format'
+import { errMessage } from '../lib/errors'
 
 const SSORTS = [
-  { s: 'new', label: 'Newest' },
-  { s: 'old', label: 'Oldest' },
+  { s: 'top', label: 'Top' },
+  { s: 'new', label: 'New' },
+  { s: 'old', label: 'Old' },
 ]
+// a reviewed solution's score = impact + feasibility (out of 20); unreviewed sink to the bottom
+const sscore = (s) => (s.reviewed_at ? (Number(s.impact) || 0) + (Number(s.feasibility) || 0) : -1)
 const GENERIC_ERR = 'Something went wrong. Please try again.'
 
 // kebab "..." menu with outside-click close; children is a render fn receiving close().
@@ -58,7 +63,9 @@ export default function ProblemDetail() {
   const [composerOpen, setComposerOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
-  const [ssort, setSsort] = useState('new')
+  const [ssort, setSsort] = useState('top')
+  const [editingId, setEditingId] = useState(null)
+  const [editBody, setEditBody] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -99,6 +106,18 @@ export default function ProblemDetail() {
     refreshSolutions()
   }
 
+  function startEdit(s) { setEditingId(s.id); setEditBody(s.description) }
+  async function saveEdit(s) {
+    if (!editBody.trim()) return
+    setBusy(true)
+    const { error } = await supabase.rpc('update_solution', { p_solution: s.id, p_body: editBody.trim() })
+    setBusy(false)
+    if (error) { console.error(error); return setActionError(errMessage(error, GENERIC_ERR)) }
+    setActionError('')
+    setEditingId(null)
+    refreshSolutions()
+  }
+
   async function deleteSolution(sid, mine) {
     // own solutions delete via RLS; others (admin moderation) via the admin RPC
     const { error } = mine
@@ -123,11 +142,19 @@ export default function ProblemDetail() {
     setProblem((p) => ({ ...p, closed: !p.closed }))
   }
 
-  const sortedSolutions = [...solutions].sort((a, b) =>
-    ssort === 'new'
+  // one solution per member: find yours so the composer becomes an edit affordance
+  const mySolution = uid ? solutions.find((s) => s.author_id === uid) : null
+  // the single highest-scored reviewed solution gets the "Top solution" badge
+  const topId = solutions.filter((s) => s.reviewed_at).sort((a, b) => sscore(b) - sscore(a))[0]?.id
+  const sortedSolutions = [...solutions].sort((a, b) => {
+    if (ssort === 'top') {
+      const d = sscore(b) - sscore(a)
+      return d !== 0 ? d : new Date(b.created_at) - new Date(a.created_at)
+    }
+    return ssort === 'new'
       ? new Date(b.created_at) - new Date(a.created_at)
-      : new Date(a.created_at) - new Date(b.created_at),
-  )
+      : new Date(a.created_at) - new Date(b.created_at)
+  })
 
   return (
     <div className="max-w-2xl">
@@ -155,12 +182,12 @@ export default function ProblemDetail() {
 
           {/* problem header */}
           <div className="flex items-center gap-2">
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent">
+            <AuthorLink id={problem.author_id} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent">
               {(problem.author_name || '?').charAt(0).toUpperCase()}
-            </div>
+            </AuthorLink>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="truncate text-sm font-bold">{problem.author_name}</span>
+                <AuthorLink id={problem.author_id} className="truncate text-sm font-bold">{problem.author_name}</AuthorLink>
                 {problem.author_role && <RoleBadge role={problem.author_role} />}
               </div>
               <div className="text-xs text-muted">{timeAgo(problem.created_at)}</div>
@@ -207,31 +234,35 @@ export default function ProblemDetail() {
             </div>
           )}
 
-          <div className="mt-4 flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-3 py-2 text-sm font-semibold text-muted">
-              <MessageCircle size={18} /> {solutions.length}
-            </span>
-          </div>
-
           {/* solutions header + sort */}
-          <div className="mb-3 mt-6 flex items-center justify-between">
-            <h3 className="text-sm font-bold">{solutions.length} {solutions.length === 1 ? 'Solution' : 'Solutions'}</h3>
+          <div className="mb-3 mt-6 flex items-center justify-between gap-2">
+            <h3 className="inline-flex items-center gap-1.5 text-sm font-bold">
+              <MessageCircle size={16} className="text-muted" /> {solutions.length} {solutions.length === 1 ? 'Solution' : 'Solutions'}
+            </h3>
             {solutions.length > 1 && (
-              <Dropdown label={`Sort: ${SSORTS.find((o) => o.s === ssort).label}`}>
-                {(close) =>
-                  SSORTS.map((o) => (
-                    <MenuItem key={o.s} active={ssort === o.s} onClick={() => { setSsort(o.s); close() }}>
-                      {o.label}
-                    </MenuItem>
-                  ))
-                }
-              </Dropdown>
+              <div className="inline-flex rounded-lg border border-line p-0.5" role="tablist" aria-label="Sort solutions">
+                {SSORTS.map((o) => (
+                  <button
+                    key={o.s}
+                    role="tab"
+                    aria-selected={ssort === o.s}
+                    onClick={() => setSsort(o.s)}
+                    className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                      ssort === o.s ? 'bg-accent-soft text-accent' : 'text-muted hover:text-ink'
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
 
-          {/* solution composer; hidden when the problem is closed */}
+          {/* solution composer; one per member, hidden when closed or when you've already solved */}
           {problem.closed ? (
             <p className="mb-4 rounded-lg bg-page px-3 py-2.5 text-sm text-muted">This problem is closed. New solutions are turned off.</p>
+          ) : mySolution ? (
+            <p className="mb-4 rounded-lg bg-page px-3 py-2.5 text-sm text-muted">You&rsquo;ve proposed a solution. Edit it below to update it.</p>
           ) : (
             <form onSubmit={addSolution} className="mb-4">
               <textarea
@@ -273,15 +304,34 @@ export default function ProblemDetail() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 text-xs text-muted">
-                        <span className="font-semibold text-ink">{s.author_name}</span>
+                        <AuthorLink id={s.author_id} className="font-semibold text-ink">{s.author_name}</AuthorLink>
                         {s.author_role && <RoleBadge role={s.author_role} />}
+                        {s.id === topId && (
+                          <span className="rounded-md bg-success/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-success">Top solution</span>
+                        )}
                         <span>· {timeAgo(s.created_at)}</span>
                         {(mine || isAdmin) && (
-                          <button onClick={() => deleteSolution(s.id, mine)} className="ml-auto text-faint hover:text-down">delete</button>
+                          <span className="ml-auto flex items-center gap-2">
+                            {mine && editingId !== s.id && (
+                              <button onClick={() => startEdit(s)} className="text-faint hover:text-ink">edit</button>
+                            )}
+                            <button onClick={() => deleteSolution(s.id, mine)} className="text-faint hover:text-down">delete</button>
+                          </span>
                         )}
                       </div>
                       {s.title && <h4 className="mt-1 text-sm font-extrabold">{s.title}</h4>}
-                      <p className="mt-1 whitespace-pre-wrap break-words text-sm text-ink">{s.description}</p>
+                      {editingId === s.id ? (
+                        <div className="mt-1.5">
+                          <textarea className="input min-h-[80px] resize-y" maxLength={3000} value={editBody} onChange={(e) => setEditBody(e.target.value)} />
+                          {s.reviewed_at && <p className="mt-1 text-xs text-warnink">Saving clears your Impact/Feasibility score; a mentor will re-review.</p>}
+                          <div className="mt-2 flex justify-end gap-2">
+                            <button className="btn-outline px-3 py-1 text-xs" onClick={() => setEditingId(null)} disabled={busy}>Cancel</button>
+                            <button className="btn-primary px-3 py-1 text-xs" onClick={() => saveEdit(s)} disabled={busy || !editBody.trim()}>Save</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="mt-1 whitespace-pre-wrap break-words text-sm text-ink">{s.description}</p>
+                      )}
                       {s.course_context && (
                         <div className="mt-1.5 text-xs text-muted">
                           <span className="font-bold uppercase tracking-wide">Draws on:</span> {s.course_context}

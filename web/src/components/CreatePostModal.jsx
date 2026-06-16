@@ -3,6 +3,7 @@ import { X, FileText, ArrowLeft } from 'lucide-react'
 import ModalShell from './ModalShell'
 import { supabase } from '../lib/supabase'
 import { timeAgo } from '../lib/format'
+import { errMessage } from '../lib/errors'
 
 const MAX_TAGS = 10
 
@@ -122,7 +123,7 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
           p_startup: null,
           p_tags: tags,
         })
-        if (rpcErr) { console.error(rpcErr); setError('Could not save your post. Check your connection and try again.'); return }
+        if (rpcErr) { console.error(rpcErr); setError(errMessage(rpcErr, 'Could not save your post. Check your connection and try again.')); return }
         if (isEdit) { onUpdated?.(); return }
         // loaded draft: optionally publish after saving the edits
         if (status === 'published') {
@@ -141,7 +142,7 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
           p_status: status,
           p_tags: tags,
         })
-        if (rpcErr) { console.error(rpcErr); setError('Could not save your post. Check your connection and try again.'); return }
+        if (rpcErr) { console.error(rpcErr); setError(errMessage(rpcErr, 'Could not save your post. Check your connection and try again.')); return }
         onCreated?.(status)
       }
     } catch {
