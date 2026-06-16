@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowBigUp, ArrowBigDown, MessageCircle, Pin } from 'lucide-react'
 import RoleBadge from './RoleBadge'
 import PollBlock from './PollBlock'
+import AuthorLink from './AuthorLink'
 import { timeAgo } from '../lib/format'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
@@ -55,12 +56,12 @@ export default function PostCard({ post }) {
       className="card cursor-pointer p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-pop"
     >
       <header className="flex items-center gap-2">
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent">
+        <AuthorLink id={post.author_id} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent">
           {anon ? '?' : post.author_name.charAt(0).toUpperCase()}
-        </div>
+        </AuthorLink>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-bold">{anon ? 'Anonymous Founder' : post.author_name}</span>
+            <AuthorLink id={post.author_id} className="truncate text-sm font-bold">{anon ? 'Anonymous Founder' : post.author_name}</AuthorLink>
             {!anon && post.author_role && <RoleBadge role={post.author_role} />}
           </div>
           <div className="flex items-center gap-1 text-xs text-muted">

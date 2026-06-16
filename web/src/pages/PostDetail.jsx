@@ -4,11 +4,13 @@ import { ArrowLeft, ArrowBigUp, ArrowBigDown, MessageCircle, MoreHorizontal, Pin
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import RoleBadge from '../components/RoleBadge'
+import AuthorLink from '../components/AuthorLink'
 import Dropdown, { MenuItem } from '../components/Dropdown'
 import PostDetailSkeleton from '../components/PostDetailSkeleton'
 import CreatePostModal from '../components/CreatePostModal'
 import PollBlock from '../components/PollBlock'
 import { timeAgo } from '../lib/format'
+import { errMessage } from '../lib/errors'
 
 const CSORTS = [
   { s: 'new', label: 'Newest' },
@@ -124,7 +126,7 @@ export default function PostDetail() {
     setBusy(true)
     const { error } = await supabase.from('comments').insert({ post_id: id, author_id: uid, body })
     setBusy(false)
-    if (error) { console.error(error); return setActionError('Could not post your comment. Check your connection and try again.') }
+    if (error) { console.error(error); return setActionError(errMessage(error, 'Could not post your comment. Check your connection and try again.')) }
     setActionError('')
     setCommentBody('')
     setCommentOpen(false)
@@ -227,7 +229,7 @@ export default function PostDetail() {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="truncate text-sm font-bold">{anon ? 'Anonymous Founder' : post.author_name}</span>
+                <AuthorLink id={post.author_id} className="truncate text-sm font-bold">{anon ? 'Anonymous Founder' : post.author_name}</AuthorLink>
                 {!anon && post.author_role && <RoleBadge role={post.author_role} />}
               </div>
               <div className="flex items-center gap-1 text-xs text-muted">
@@ -419,7 +421,7 @@ export default function PostDetail() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 text-xs text-muted">
-                      <span className="font-semibold text-ink">{c.author_name || 'Anonymous Founder'}</span>
+                      <AuthorLink id={c.author_id} className="font-semibold text-ink">{c.author_name || 'Member'}</AuthorLink>
                       <span>· {timeAgo(c.created_at)}</span>
                       {(c.is_mine || isAdmin) && (
                         <button onClick={() => deleteComment(c.id, c.is_mine)} className="ml-auto text-faint hover:text-down">delete</button>
