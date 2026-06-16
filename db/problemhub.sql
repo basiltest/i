@@ -53,8 +53,12 @@ create table if not exists public.problem_solutions (
 );
 create index if not exists problem_solutions_problem_idx on public.problem_solutions (problem_id);
 
--- Migration for deployments created under the structured one-per-member shape.
+-- One solution per member per problem (editable, not multiple). Collapse any existing
+-- duplicates (keep the most recent per author+problem), then enforce uniqueness.
 alter table public.problem_solutions drop constraint if exists problem_solutions_problem_id_author_id_key;
+delete from public.problem_solutions s using public.problem_solutions s2
+  where s.problem_id = s2.problem_id and s.author_id = s2.author_id and s.id <> s2.id and s.created_at < s2.created_at;
+alter table public.problem_solutions add constraint problem_solutions_problem_id_author_id_key unique (problem_id, author_id);
 alter table public.problem_solutions alter column title set default '';
 
 alter table public.problems enable row level security;
@@ -68,7 +72,7 @@ drop policy if exists "problems insert own" on public.problems;
 create policy "problems insert own" on public.problems
   for insert to authenticated with check (
     author_id = auth.uid()
-    and not exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.banned)
+    and public.can_write(auth.uid())
   );
 drop policy if exists "problems update own" on public.problems;
 create policy "problems update own" on public.problems
@@ -154,11 +158,14 @@ declare
   v_p public.problems;
 begin
   if v_uid is null then raise exception 'not authenticated'; end if;
-  if exists (select 1 from public.profiles where id = v_uid and banned) then raise exception 'account is banned'; end if;
+  perform public.write_guard();
   if coalesce(trim(p_body), '') = '' then raise exception 'body required'; end if;
   select * into v_p from public.problems where id = p_problem;
   if not found then raise exception 'problem not found'; end if;
   if v_p.closed then raise exception 'this problem is closed'; end if;
+  if exists (select 1 from public.problem_solutions where problem_id = p_problem and author_id = v_uid) then
+    raise exception 'you already proposed a solution; edit it instead';
+  end if;
 
   insert into public.problem_solutions (problem_id, author_id, description)
   values (p_problem, v_uid, trim(p_body));
@@ -170,6 +177,26 @@ begin
 end
 $$;
 grant execute on function public.problem_solve(uuid, text) to authenticated;
+
+-- Edit your own solution. Editing CLEARS any prior mentor review (the score no longer
+-- matches the new text), so the mentor re-scores.
+create or replace function public.update_solution(p_solution uuid, p_body text)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare v_uid uuid := auth.uid();
+begin
+  if v_uid is null then raise exception 'not authenticated'; end if;
+  perform public.write_guard();
+  if coalesce(trim(p_body), '') = '' then raise exception 'body required'; end if;
+  update public.problem_solutions
+     set description = trim(p_body),
+         impact = null, feasibility = null, review_note = null, reviewed_by = null, reviewed_at = null
+   where id = p_solution and author_id = v_uid;
+  if not found then raise exception 'not your solution'; end if;
+end
+$$;
+grant execute on function public.update_solution(uuid, text) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Solutions for a problem, with the solver's public profile and the reviewer's name.
