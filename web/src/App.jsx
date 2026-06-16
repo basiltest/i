@@ -23,6 +23,7 @@ import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import OnboardingGate from './components/OnboardingGate'
 import PublicOnlyRoute from './components/PublicOnlyRoute'
+import AutopsyLibrary from './pages/AutopsyLibrary'
 
 function App() {
   return (
@@ -53,6 +54,7 @@ function App() {
         <Route path="u/:id" element={<UserProfile />} />
         <Route path="notifications" element={<Notifications />} />
         <Route path="admin" element={<AdminPanel />} />
+        <Route path="autopsy-library" element={<AutopsyLibrary />} />
       </Route>
     </Routes>
   )

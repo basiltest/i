@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Workflow, Users, Calendar, LayoutGrid, Shield, ClipboardCheck, Puzzle, Bell } from 'lucide-react'
+// COMBINED ALL ICONS INTO ONE SINGLE CLEAN IMPORT BLOCK:
+import { Home, Workflow, Users, Calendar, LayoutGrid, Shield, ClipboardCheck, FolderHeart, Puzzle, Bell } from 'lucide-react'
 import { useAuth } from '../lib/AuthProvider'
 
 // Twitter-style left rail. Built sections are links; the rest are placeholders until built,
@@ -11,6 +12,7 @@ const ITEMS = [
   { to: '/team', label: 'Team Acquisition', icon: Users },
   { to: '/calendar', label: 'Calendar', icon: Calendar },
   { to: '/directory', label: 'Directory', icon: LayoutGrid },
+  { to: '/autopsy-library', label: 'Autopsy Library', icon: FolderHeart },
   { to: '/notifications', label: 'Notifications', icon: Bell },
 ]
 
