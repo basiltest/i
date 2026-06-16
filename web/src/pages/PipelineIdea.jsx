@@ -7,7 +7,8 @@ import { DossierSkeleton } from '../components/PipelineSkeleton'
 import { ApplicationModal } from './Pipeline'
 import { timeAgo } from '../lib/format'
 import { googleCalUrl, downloadICS, actionEvent } from '../lib/calendar'
-import { GATES, gateLabel, waitingChip, STATES, RUBRIC, LEVELS, ifnTag } from '../lib/pipeline'
+import { errMessage } from '../lib/errors'
+import { GATES, gateLabel, waitingChip, STATES, RUBRIC, LEVELS, ifnTag, currentTask, JUST_UNLOCKED, stepDotClass } from '../lib/pipeline'
 
 const GENERIC_ERR = 'Something went wrong. Please try again.'
 
@@ -60,10 +61,6 @@ export default function PipelineIdea() {
       {/* header */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-md bg-line px-2.5 py-0.5 text-xs font-bold text-muted">{ifnTag(idea.ifn)}</span>
-        {idea.pipeline_state !== 'active' && st && (
-          <span className={`rounded-md px-2.5 py-0.5 text-xs font-semibold ${st.tone}`}>{st.label}</span>
-        )}
-        <span className={`rounded-md px-2.5 py-0.5 text-xs font-semibold ${w.tone}`}>{w.label}</span>
         <span className="ml-auto inline-flex items-center gap-1.5">
           {canEdit && (
             <button onClick={() => setEditOpen(true)} className="inline-flex items-center gap-1 rounded-lg border border-line px-3 py-1 text-xs font-semibold text-muted hover:bg-black/5 hover:text-ink">
@@ -82,28 +79,51 @@ export default function PipelineIdea() {
         {idea.mentor_name && <> · Mentor: <span className="font-semibold text-ink">{idea.mentor_name}</span></>}
       </div>
 
-      {/* the application: identical Q&A format on every dossier, built for 60-second reads */}
-      <div className="card mt-4 p-4">
-        {((idea.sectors?.length || idea.sector) || idea.oneliner) && (
-          <div className="flex flex-wrap items-center gap-2">
-            {idea.oneliner && <p className="min-w-0 flex-1 text-[15px] font-semibold leading-snug text-ink">{idea.oneliner}</p>}
-            {(idea.sectors?.length ? idea.sectors : (idea.sector ? [idea.sector] : [])).map((s) => (
-              <span key={s} className="shrink-0 rounded-md bg-accent-soft px-2.5 py-0.5 text-[11px] font-bold text-accent">{s}</span>
-            ))}
-          </div>
+      {/* one status line resolves gate + task + whose-move + state (no chip arithmetic) */}
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+        <span className="text-sm font-bold text-ink">Stage {Math.min(idea.gate, 6)} of 6 · {currentTask(idea)}</span>
+        {idea.pipeline_state === 'active' && (
+          <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${w.tone}`}>{w.label}</span>
         )}
-        <QA q="Problem hypothesis" a={idea.problem} />
-        <QA q="Target market segments" a={idea.application?.target_user} />
-        <QA q="Proposed solution / mechanisms" a={idea.solution} />
-        <QA q="Team composition and key roles" a={idea.application?.team} />
-        <QA q="Experimentations / discussions held" a={idea.application?.traction} />
-        <QA q="Market size estimation" a={idea.application?.market_size} />
-        {/* legacy rows from earlier form versions */}
-        <QA q="How do they cope today?" a={idea.application?.alternatives} />
-        <QA q="Why this founder?" a={idea.application?.why_you} />
+        {idea.pipeline_state !== 'active' && st && (
+          <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${st.tone}`}>{st.label}</span>
+        )}
       </div>
 
-      <GateBar gate={idea.gate} state={idea.pipeline_state} />
+      {/* the application: identical Q&A on every dossier (kept for the mentor's 60-second read).
+          Collapsed for the founder past G3 so each later stage doesn't read like the first. */}
+      <details open={idea.gate <= 3 || mentorView} className="card mt-4 p-4">
+        <summary className="cursor-pointer text-sm font-bold text-ink">Application</summary>
+        <div className="mt-3">
+          {((idea.sectors?.length || idea.sector) || idea.oneliner) && (
+            <div className="flex flex-wrap items-center gap-2">
+              {idea.oneliner && <p className="min-w-0 flex-1 text-[15px] font-semibold leading-snug text-ink">{idea.oneliner}</p>}
+              {(idea.sectors?.length ? idea.sectors : (idea.sector ? [idea.sector] : [])).map((s) => (
+                <span key={s} className="shrink-0 rounded-md bg-accent-soft px-2.5 py-0.5 text-[11px] font-bold text-accent">{s}</span>
+              ))}
+            </div>
+          )}
+          <QA q="Problem hypothesis" a={idea.problem} />
+          <QA q="Target market segments" a={idea.application?.target_user} />
+          <QA q="Proposed solution / mechanisms" a={idea.solution} />
+          <QA q="Team composition and key roles" a={idea.application?.team} />
+          <QA q="Experimentations / discussions held" a={idea.application?.traction} />
+          <QA q="Market size estimation" a={idea.application?.market_size} />
+          {/* legacy rows from earlier form versions */}
+          <QA q="How do they cope today?" a={idea.application?.alternatives} />
+          <QA q="Why this founder?" a={idea.application?.why_you} />
+        </div>
+      </details>
+
+      <GateBar gate={idea.gate} state={idea.pipeline_state} status={idea.gate_status} />
+
+      {/* forward handoff: name what just unlocked + the next task (the happy path was the
+          least-explained transition — banners only existed for rejected/refine). */}
+      {idea.pipeline_state === 'active' && idea.gate_status === 'awaiting_submission' && JUST_UNLOCKED[idea.gate] && (
+        <div className="mt-4 rounded-lg border border-success/30 bg-success/10 px-3 py-2.5 text-sm text-success">
+          <span className="font-semibold">✓ {JUST_UNLOCKED[idea.gate]}</span> — next: {currentTask(idea).toLowerCase()}.
+        </div>
+      )}
 
       {/* state banners */}
       {idea.pipeline_state === 'rejected' && (
@@ -114,6 +134,7 @@ export default function PipelineIdea() {
       {idea.pipeline_state === 'refine' && (
         <div className="mt-4 rounded-lg border border-accent/30 bg-accent-soft px-3 py-2.5 text-sm text-accent">
           <div className="font-semibold">Sent back: refine &amp; retry{lastRejection?.reason ? ` - ${lastRejection.reason}` : ''}</div>
+          <div className="mt-0.5 text-xs text-accent/80">Editing and resubmitting re-enters the idea at G1 to climb the gates again — your IFN number stays the same.</div>
           {mine && (
             <div className="mt-2 flex items-center gap-2">
               <button onClick={() => setEditOpen(true)} className="btn-outline px-3 py-1.5 text-xs">Edit application</button>
@@ -252,7 +273,7 @@ function QA({ q, a }) {
   )
 }
 
-function GateBar({ gate, state }) {
+function GateBar({ gate, state, status }) {
   const [sel, setSel] = useState(null)
   const shown = GATES.find((g) => g.g === (sel || gate))
   return (
@@ -266,7 +287,7 @@ function GateBar({ gate, state }) {
               title={g.label}
               className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-bold transition-colors ${
                 g.g < gate ? 'bg-accent text-onaccent'
-                : g.g === gate ? (state === 'rejected' ? 'bg-down text-white' : 'bg-accent text-onaccent ring-4 ring-accent/20')
+                : g.g === gate ? stepDotClass(status, state)
                 : 'border border-line bg-card text-muted hover:border-accent'
               }`}
             >
@@ -355,6 +376,7 @@ function SubmitGateForm({ d, lastRevision, onDone }) {
     users_count: prev.users_count || '', interviews_count: prev.interviews_count || '',
     learnings: prev.learnings || '',
     bypass_requested: !!prev.bypass_requested, bypass_reason: prev.bypass_reason || '',
+    iiec_funds_requested: !!prev.iiec_funds_requested, iiec_reason: prev.iiec_reason || '',
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -374,19 +396,20 @@ function SubmitGateForm({ d, lastRevision, onDone }) {
       if (!f.beta_plan.trim()) return setError('A beta plan is required.')
       payload = { beta_plan: f.beta_plan.trim(), milestones: f.milestones.trim() }
     } else {
-      if (!f.learnings.trim()) return setError('Learnings are required.')
       if (f.bypass_requested && !f.bypass_reason.trim()) return setError('Explain why the prototype cannot be built yet.')
+      if (f.iiec_funds_requested && !f.iiec_reason.trim()) return setError('Add a reason for the IIEC funding request.')
       payload = {
         prototype_url: f.prototype_url.trim(), demo_url: f.demo_url.trim(),
         users_count: f.users_count, interviews_count: f.interviews_count, learnings: f.learnings.trim(),
         bypass_requested: f.bypass_requested, bypass_reason: f.bypass_reason.trim(),
+        iiec_funds_requested: f.iiec_funds_requested, iiec_reason: f.iiec_reason.trim(),
       }
     }
     setBusy(true)
     setError('')
     const { error: e } = await supabase.rpc('submit_gate', { p_idea: idea.id, p_payload: payload })
     setBusy(false)
-    if (e) { console.error(e); return setError(e.message?.includes('evidence') ? 'Evidence required: add a prototype/demo link or upload a file below first.' : GENERIC_ERR) }
+    if (e) { console.error(e); return setError(e.message?.includes('evidence') ? 'Evidence required: add a prototype/demo link or upload a file below first.' : errMessage(e, GENERIC_ERR)) }
     onDone()
   }
 
@@ -431,7 +454,7 @@ function SubmitGateForm({ d, lastRevision, onDone }) {
             <F label="Demo / video URL (optional)"><input className="input" maxLength={300} value={f.demo_url} onChange={set('demo_url')} placeholder="https://..." disabled={f.bypass_requested} /></F>
             <F label="Users / testers so far"><input className="input" type="number" min="0" value={f.users_count} onChange={set('users_count')} /></F>
             <F label="Customer interviews done"><input className="input" type="number" min="0" value={f.interviews_count} onChange={set('interviews_count')} /></F>
-            <div className="sm:col-span-2"><F label="What did you learn from real users?"><textarea className="input min-h-[80px] resize-y" maxLength={3000} value={f.learnings} onChange={set('learnings')} /></F></div>
+            <div className="sm:col-span-2"><F label="What did you learn from real users? (optional)"><textarea className="input min-h-[80px] resize-y" maxLength={3000} value={f.learnings} onChange={set('learnings')} /></F></div>
             <p className="sm:col-span-2 text-xs text-muted">G5 advances on evidence: a prototype/demo link, or upload your demo file in Files below.</p>
             <div className="sm:col-span-2 rounded-lg border border-accent/30 bg-accent-soft/40 p-3">
               <label className="flex items-start gap-2.5 text-sm text-ink">
@@ -439,7 +462,7 @@ function SubmitGateForm({ d, lastRevision, onDone }) {
                   type="checkbox"
                   className="mt-0.5"
                   checked={f.bypass_requested}
-                  onChange={(e) => setF({ ...f, bypass_requested: e.target.checked })}
+                  onChange={(e) => setF({ ...f, bypass_requested: e.target.checked, iiec_funds_requested: e.target.checked ? false : f.iiec_funds_requested })}
                 />
                 <span>
                   <span className="font-semibold">Request a mentor bypass.</span>{' '}
@@ -457,6 +480,31 @@ function SubmitGateForm({ d, lastRevision, onDone }) {
                 />
               )}
             </div>
+            {idea.iiec_enabled && (
+              <div className="sm:col-span-2 rounded-lg border border-line p-3">
+                <label className="flex items-start gap-2.5 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={f.iiec_funds_requested}
+                    onChange={(e) => setF({ ...f, iiec_funds_requested: e.target.checked, bypass_requested: e.target.checked ? false : f.bypass_requested })}
+                  />
+                  <span>
+                    <span className="font-semibold">Request IIEC for funds.</span>{' '}
+                    Flag this for the IFHE Innovation &amp; Entrepreneurship Council. Your mentor takes it to the IIEC.
+                  </span>
+                </label>
+                {f.iiec_funds_requested && (
+                  <textarea
+                    className="input mt-2 min-h-[60px] resize-y"
+                    maxLength={1000}
+                    value={f.iiec_reason}
+                    onChange={set('iiec_reason')}
+                    placeholder="What do you need funding for, how much, and what will it unlock?"
+                  />
+                )}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -504,6 +552,12 @@ function ReviewForm({ d, onDone }) {
         <div className="mt-2 rounded-lg border border-accent/40 bg-accent-soft px-3 py-2 text-sm text-accent">
           <span className="font-bold">Mentor bypass requested</span> - the founder says the prototype
           needs money/resources they do not have. Approving this review advances without built evidence.
+        </div>
+      )}
+      {sub?.payload?.iiec_funds_requested && (
+        <div className="mt-2 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warnink">
+          <span className="font-bold">IIEC funding requested</span> — take this to the IFHE Innovation &amp; Entrepreneurship Council.
+          {sub.payload.iiec_reason && <div className="mt-1 whitespace-pre-wrap text-warnink/90">{sub.payload.iiec_reason}</div>}
         </div>
       )}
       {sub && <Payload payload={sub.payload} className="mt-2" />}
@@ -556,6 +610,7 @@ function ReviewForm({ d, onDone }) {
 // ---------------------------------------------------------------------------
 // Action items: the off-app commitment tracker.
 function ActionItems({ d, mine, mentorView, onChanged }) {
+  const canComplete = mine || mentorView // founder, the idea's mentor, or an admin
   const actions = d.actions || []
   const [adding, setAdding] = useState(false)
   const [label, setLabel] = useState('')
@@ -654,7 +709,7 @@ function ActionItems({ d, mine, mentorView, onChanged }) {
                     </div>
                   )}
                 </div>
-                {mine && a.status === 'open' && noteFor !== a.id && (
+                {canComplete && a.status === 'open' && noteFor !== a.id && (
                   <button className="btn-outline shrink-0 px-3 py-1.5 text-xs" onClick={() => { setNoteFor(a.id); setNote('') }}>Mark done</button>
                 )}
               </div>
@@ -875,7 +930,7 @@ function ReviewItem({ r }) {
 
 // Render a submission payload as label/value rows. The bypass flag is rendered as a banner
 // by the callers, so its raw keys are skipped here.
-const PAYLOAD_HIDDEN = new Set(['bypass_requested'])
+const PAYLOAD_HIDDEN = new Set(['bypass_requested', 'iiec_funds_requested', 'iiec_reason'])
 function Payload({ payload, className = '' }) {
   if (!payload) return null
   const rows = Object.entries(payload).flatMap(([k, v]) => {

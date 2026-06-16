@@ -7,6 +7,7 @@ import MultiSelect from '../components/MultiSelect'
 import { useAuth } from '../lib/AuthProvider'
 import { PipelineListSkeleton } from '../components/PipelineSkeleton'
 import { timeAgo } from '../lib/format'
+import { errMessage } from '../lib/errors'
 import { SECTORS } from '../lib/options'
 import { GATES, gateLabel, waitingChip, STATES, ifnTag } from '../lib/pipeline'
 
@@ -191,7 +192,7 @@ export function ApplicationModal({ idea, onClose, onDone }) {
     setBusy(false)
     if (e) {
       console.error(e)
-      return setError(e.message?.includes('closed') ? 'Submissions are currently closed.' : (e.message || GENERIC_ERR))
+      return setError(errMessage(e, GENERIC_ERR))
     }
     if (!editing) { try { localStorage.removeItem(draftKey) } catch { /* ignore */ } }
     onDone(editing ? idea.id : data)
