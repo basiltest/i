@@ -199,6 +199,8 @@ alter table public.notifications add constraint notifications_idea_fk
 
 -- global pipeline lock lives on the existing singleton settings row
 alter table public.app_settings add column if not exists pipeline_locked boolean not null default false;
+-- Feature flag: when on, founders may add a "Request IIEC for funds" note to a G5 submission.
+alter table public.app_settings add column if not exists iiec_enabled boolean not null default false;
 
 -- ---------------------------------------------------------------------------
 -- Helpers
@@ -359,7 +361,7 @@ declare
   v_sectors text[];
 begin
   if v_uid is null then raise exception 'not authenticated'; end if;
-  if exists (select 1 from public.profiles where id = v_uid and banned) then raise exception 'account is banned'; end if;
+  perform public.write_guard();
   if coalesce((select pipeline_locked from public.app_settings where id), false) and not public.is_admin() then
     raise exception 'pipeline submissions are currently closed';
   end if;
@@ -450,7 +452,7 @@ declare
   v_uid uuid := auth.uid();
   v_i public.pipeline_ideas;
 begin
-  if exists (select 1 from public.profiles where id = v_uid and banned) then raise exception 'account is banned'; end if;
+  perform public.write_guard();
   select * into v_i from public.pipeline_ideas where id = p_idea;
   if not found then raise exception 'application not found'; end if;
   if v_i.author_id <> v_uid then raise exception 'not your application'; end if;
@@ -470,7 +472,7 @@ begin
   elsif v_i.gate = 4 then
     if coalesce(trim(p_payload->>'beta_plan'), '') = '' then raise exception 'beta plan is required'; end if;
   elsif v_i.gate = 5 then
-    if coalesce(trim(p_payload->>'learnings'), '') = '' then raise exception 'learnings are required'; end if;
+    -- learnings are optional at G5; evidence (or a bypass) is what gates advancement.
     -- mentor bypass: when the prototype needs money/resources the founder does not have,
     -- they may request a bypass with a justification; the mentor's review IS the approval.
     if (p_payload->>'bypass_requested')::boolean is true then
@@ -482,6 +484,17 @@ begin
        and coalesce(trim(p_payload->>'demo_url'), '') = ''
        and not exists (select 1 from public.attachments a where a.idea_id = p_idea and a.gate = 5) then
       raise exception 'evidence required: a prototype/demo link or an uploaded file (or request a mentor bypass)';
+    end if;
+    -- optional IIEC funding request (admin-gated on the client): a reason is required if flagged.
+    -- No routing here; the mentor sees a banner and handles the IIEC offline.
+    if (p_payload->>'iiec_funds_requested')::boolean is true
+       and coalesce(trim(p_payload->>'iiec_reason'), '') = '' then
+      raise exception 'IIEC funding reason required';
+    end if;
+    -- a founder picks at most one escape hatch: mentor bypass OR IIEC funds, not both.
+    if (p_payload->>'bypass_requested')::boolean is true
+       and (p_payload->>'iiec_funds_requested')::boolean is true then
+      raise exception 'choose either a mentor bypass or an IIEC funding request, not both';
     end if;
   end if;
 
@@ -503,7 +516,7 @@ declare
   v_uid uuid := auth.uid();
   v_i public.pipeline_ideas;
 begin
-  if exists (select 1 from public.profiles where id = v_uid and banned) then raise exception 'account is banned'; end if;
+  perform public.write_guard();
   select * into v_i from public.pipeline_ideas where id = p_idea;
   if not found then raise exception 'application not found'; end if;
   if v_i.author_id <> v_uid then raise exception 'not your application'; end if;
@@ -527,7 +540,10 @@ declare
 begin
   select * into v_act from public.idea_actions where id = p_action;
   if not found then raise exception 'action not found'; end if;
-  if not exists (select 1 from public.pipeline_ideas i where i.id = v_act.idea_id and i.author_id = v_uid) then
+  -- founder, the idea's mentor, or any admin can mark an action done / cross it out.
+  if not public.is_admin()
+     and not exists (select 1 from public.pipeline_ideas i
+                     where i.id = v_act.idea_id and (i.author_id = v_uid or i.mentor_id = v_uid)) then
     raise exception 'not your application';
   end if;
   if v_act.status = 'done' then raise exception 'already done'; end if;
@@ -548,7 +564,7 @@ declare
   v_uid uuid := auth.uid();
   v_i public.pipeline_ideas;
 begin
-  if exists (select 1 from public.profiles where id = v_uid and banned) then raise exception 'account is banned'; end if;
+  perform public.write_guard();
   if not public.can_access_idea(p_idea) then raise exception 'not allowed'; end if;
   if coalesce(trim(p_body), '') = '' then raise exception 'message required'; end if;
   if length(p_body) > 4000 then raise exception 'message too long'; end if;
@@ -644,7 +660,8 @@ begin
         'entered_gate_at', i.entered_gate_at, 'created_at', i.created_at,
         'is_mine', coalesce(i.author_id = auth.uid(), false),
         'is_mentor', coalesce(i.mentor_id = auth.uid(), false),
-        'locked', coalesce((select pipeline_locked from public.app_settings where id), false))
+        'locked', coalesce((select pipeline_locked from public.app_settings where id), false),
+        'iiec_enabled', coalesce((select iiec_enabled from public.app_settings where id), false))
       from public.pipeline_ideas i
       join public.profiles a on a.id = i.author_id
       left join public.profiles m on m.id = i.mentor_id
@@ -731,7 +748,7 @@ declare
   v_i public.pipeline_ideas;
 begin
   if not public.is_mentor_or_admin() then raise exception 'mentors only'; end if;
-  if exists (select 1 from public.profiles where id = v_uid and banned) then raise exception 'account is banned'; end if;
+  perform public.write_guard();
   select * into v_i from public.pipeline_ideas where id = p_idea for update;
   if not found then raise exception 'application not found'; end if;
   if v_i.pipeline_state <> 'active' or v_i.gate <> 1 or v_i.mentor_id is not null then
@@ -1102,6 +1119,17 @@ begin
 end
 $$;
 grant execute on function public.admin_set_pipeline_locked(boolean) to authenticated;
+
+create or replace function public.admin_set_iiec_enabled(p_enabled boolean)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if not public.is_admin() then raise exception 'admins only'; end if;
+  update public.app_settings set iiec_enabled = p_enabled where id;
+end
+$$;
+grant execute on function public.admin_set_iiec_enabled(boolean) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Storage: private bucket for pipeline files. 20MB cap + doc/PDF/PPT mime allowlist
