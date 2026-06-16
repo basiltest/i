@@ -15,21 +15,28 @@ create index if not exists posts_search_idx on public.posts using gin (search_ve
 drop function if exists public.feed_posts(text);
 drop function if exists public.feed_posts(text, text, text, text, int, int);
 drop function if exists public.feed_posts(text, text, text[], text, int, int);
+drop function if exists public.feed_posts(text, text, text[], text, int, int, uuid);
+drop function if exists public.feed_posts(text, text, text[], text, int, int, uuid, int);
 
 -- p_tags: filter to posts that have ALL of these supertags (AND). p_sort: 'hot' (default), 'new', 'top'.
+-- p_author: when set, return ONLY that member's NON-anonymous posts (for their profile page;
+-- anon posts are excluded so the profile can't de-anonymize them).
+-- p_top_days: window for the 'top' sort (e.g. 7 = top of the last week); null = all time.
 create function public.feed_posts(
   p_kind text default null,
   p_search text default null,
   p_tags text[] default null,
   p_sort text default 'hot',
   p_limit int default 20,
-  p_offset int default 0
+  p_offset int default 0,
+  p_author uuid default null,
+  p_top_days int default null
 )
 returns table (
   id uuid, kind text, title text, problem text, solution text, startup text,
   anonymous boolean, badges text[], success_request text, pinned boolean,
   edited boolean, created_at timestamptz,
-  author_name text, author_role text, is_mine boolean,
+  author_name text, author_role text, author_id uuid, is_mine boolean,
   tags text[], score bigint, my_vote int, comment_count bigint
 )
 language sql stable security definer set search_path = public
@@ -42,6 +49,7 @@ as $$
     p.anonymous, p.badges, p.success_request, p.pinned, p.edited, p.created_at,
     case when p.anonymous and me.role is distinct from 'admin' and p.author_id <> me.uid then null else a.name end,
     case when p.anonymous and me.role is distinct from 'admin' and p.author_id <> me.uid then null else a.role end,
+    case when p.anonymous and me.role is distinct from 'admin' and p.author_id <> me.uid then null else p.author_id end,
     (p.author_id = me.uid),
     coalesce((select array_agg(t.name order by t.name) from public.post_tags pt join public.tags t on t.id = pt.tag_id where pt.post_id = p.id and t.approved), '{}'),
     coalesce((select sum(v.value) from public.post_votes v where v.post_id = p.id), 0),
@@ -51,6 +59,8 @@ as $$
   join public.profiles a on a.id = p.author_id
   cross join me
   where p.status = 'published'
+    and (p_author is null or (p.author_id = p_author and not p.anonymous))
+    and (p_top_days is null or p.created_at > now() - make_interval(days => p_top_days))
     and (p_kind is null or p.kind = p_kind)
     and (p_search is null or p_search = '' or p.search_vec @@ websearch_to_tsquery('english', p_search))
     and (p_tags is null or p.id in (
@@ -74,7 +84,7 @@ as $$
   limit greatest(1, least(p_limit, 50))
   offset greatest(0, p_offset)
 $$;
-grant execute on function public.feed_posts(text, text, text[], text, int, int) to authenticated;
+grant execute on function public.feed_posts(text, text, text[], text, int, int, uuid, int) to authenticated;
 
 -- trending_tags: top approved tags by published-post count over the last p_days days.
 drop function if exists public.trending_tags(int, int);
