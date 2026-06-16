@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import { REGIONS, SECTORS, DOMAINS } from '../lib/options'
 import Logo from '../components/Logo'
+import Combobox from '../components/Combobox'
 
 export default function Onboarding() {
   const navigate = useNavigate()
@@ -73,7 +74,7 @@ export default function Onboarding() {
         </div>
 
         <form onSubmit={submit} className="card mt-6 p-6">
-          {error && <div className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+          {error && <div role="alert" className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Full name *">
@@ -83,22 +84,18 @@ export default function Onboarding() {
               <input className="input bg-page text-faint" value={email || ''} disabled />
             </Field>
             <Field label="Region *">
-              <select className="input" value={form.region} onChange={set('region')}>
-                <option value="">Select region</option>
-                {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
+              <Combobox
+                value={form.region}
+                onChange={(v) => setForm((f) => ({ ...f, region: v }))}
+                options={REGIONS}
+                placeholder="Select or type a state"
+              />
             </Field>
             <Field label="Sector *">
-              <select className="input" value={form.sector} onChange={set('sector')}>
-                <option value="">Select sector</option>
-                {SECTORS.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <Combobox value={form.sector} onChange={(v) => setForm((f) => ({ ...f, sector: v }))} options={SECTORS} placeholder="Search or type a sector" />
             </Field>
             <Field label="Domain *">
-              <select className="input" value={form.domain} onChange={set('domain')}>
-                <option value="">Select domain</option>
-                {DOMAINS.map((d) => <option key={d} value={d}>{d}</option>)}
-              </select>
+              <Combobox value={form.domain} onChange={(v) => setForm((f) => ({ ...f, domain: v }))} options={DOMAINS} placeholder="Search or type a domain" />
             </Field>
             <Field label="Startup (optional)">
               <input className="input" maxLength={80} value={form.startup} onChange={set('startup')} placeholder="Your startup name" />

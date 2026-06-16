@@ -1,25 +1,26 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X, FileText, ArrowLeft } from 'lucide-react'
+import ModalShell from './ModalShell'
 import { supabase } from '../lib/supabase'
 import { timeAgo } from '../lib/format'
-import { kindLabel, kindChipClass } from '../lib/postKind'
-
-const KINDS = ['idea', 'problem', 'discussion']
+import { errMessage } from '../lib/errors'
 
 const MAX_TAGS = 10
 
+// One generic post: title + body + tags. (Kinds/ideas/problems were retired from the feed.)
 export default function CreatePostModal({ open, onClose, onCreated, onUpdated, editPost }) {
   const isEdit = !!editPost
-  const [kind, setKind] = useState('idea')
   const [title, setTitle] = useState('')
-  const [startup, setStartup] = useState('')
-  const [problem, setProblem] = useState('')
-  const [solution, setSolution] = useState('')
+  const [body, setBody] = useState('')
   const [anonymous, setAnonymous] = useState(false)
   const [tags, setTags] = useState([])
   const [tagInput, setTagInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+
+  // snapshot of the form as it was opened/loaded; close() compares against it
+  const initialRef = useRef('')
+  const formSnap = (f) => JSON.stringify(f)
 
   // drafts live inside the create flow (like Reddit's composer / Instagram's gallery)
   const [drafts, setDrafts] = useState([])
@@ -29,7 +30,7 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
   async function fetchDrafts() {
     const { data } = await supabase
       .from('posts')
-      .select('id, kind, title, problem, solution, startup, created_at, post_tags(tags(name))')
+      .select('id, title, problem, created_at, post_tags(tags(name))')
       .eq('status', 'draft')
       .order('created_at', { ascending: false })
     setDrafts(data || [])
@@ -41,43 +42,50 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
     setDraft(null)
     setView('form')
     if (editPost) {
-      setKind(editPost.kind || 'idea')
       setTitle(editPost.title || '')
-      setStartup(editPost.startup || '')
-      setProblem(editPost.problem || '')
-      setSolution(editPost.solution || '')
+      setBody(editPost.problem || '')
       setTags(editPost.tags || [])
     } else {
-      setKind('idea'); setTitle(''); setStartup(''); setProblem(''); setSolution('')
-      setAnonymous(false); setTags([])
+      setTitle(''); setBody(''); setAnonymous(false); setTags([])
       fetchDrafts()
     }
     setTagInput(''); setError('')
+    initialRef.current = formSnap({
+      title: editPost?.title || '',
+      body: editPost?.problem || '',
+      tags: editPost?.tags || [],
+    })
   }, [open, editPost])
 
   if (!open) return null
 
   function close() {
     if (busy) return
+    const dirty =
+      view === 'form' &&
+      (formSnap({ title, body, tags }) !== initialRef.current || tagInput.trim() !== '')
+    if (dirty && !window.confirm(isEdit ? 'Discard your changes?' : 'Discard this post? Your text will be lost.')) return
     onClose()
   }
 
   function loadDraft(d) {
-    setKind(d.kind || 'idea')
     setTitle(d.title || '')
-    setStartup(d.startup || '')
-    setProblem(d.problem || '')
-    setSolution(d.solution || '')
+    setBody(d.problem || '')
     setTags(d.post_tags?.map((pt) => pt.tags?.name).filter(Boolean) || [])
     setDraft(d)
     setView('form')
     setError('')
+    initialRef.current = formSnap({
+      title: d.title || '',
+      body: d.problem || '',
+      tags: d.post_tags?.map((pt) => pt.tags?.name).filter(Boolean) || [],
+    })
   }
 
   async function deleteDraft(id) {
     if (!window.confirm('Delete this draft?')) return
     const { error: e } = await supabase.from('posts').delete().eq('id', id)
-    if (e) { console.error(e); return setError('Something went wrong. Please try again.') }
+    if (e) { console.error(e); return setError('Could not delete the draft. Try again.') }
     fetchDrafts()
   }
 
@@ -101,7 +109,7 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
   async function save(status) {
     setError('')
     if (!title.trim()) return setError('Title is required.')
-    if (!problem.trim()) return setError(kind === 'discussion' ? 'Body is required.' : 'Problem statement is required.')
+    if (!body.trim()) return setError('Body is required.')
 
     setBusy(true)
     try {
@@ -110,51 +118,45 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
         const { error: rpcErr } = await supabase.rpc('update_post', {
           p_id: id,
           p_title: title.trim(),
-          p_problem: problem.trim(),
-          p_solution: kind === 'idea' ? solution.trim() : null,
-          p_startup: kind === 'discussion' ? null : (startup.trim() || null),
+          p_problem: body.trim(),
+          p_solution: null,
+          p_startup: null,
           p_tags: tags,
         })
-        if (rpcErr) { console.error(rpcErr); setError('Something went wrong. Please try again.'); return }
+        if (rpcErr) { console.error(rpcErr); setError(errMessage(rpcErr, 'Could not save your post. Check your connection and try again.')); return }
         if (isEdit) { onUpdated?.(); return }
         // loaded draft: optionally publish after saving the edits
         if (status === 'published') {
           const { error: pubErr } = await supabase.rpc('publish_post', { p_id: id })
-          if (pubErr) { console.error(pubErr); setError('Something went wrong. Please try again.'); return }
+          if (pubErr) { console.error(pubErr); setError('Saved, but publishing failed. Open it from your drafts and publish again.'); return }
         }
         onCreated?.(status)
       } else {
         const { error: rpcErr } = await supabase.rpc('create_post', {
-          p_kind: kind,
+          p_kind: 'post',
           p_title: title.trim(),
-          p_problem: problem.trim(),
-          p_solution: kind === 'idea' ? solution.trim() : null,
-          p_startup: kind === 'discussion' ? null : (startup.trim() || null),
+          p_problem: body.trim(),
+          p_solution: null,
+          p_startup: null,
           p_anonymous: anonymous,
           p_status: status,
           p_tags: tags,
         })
-        if (rpcErr) { console.error(rpcErr); setError('Something went wrong. Please try again.'); return }
+        if (rpcErr) { console.error(rpcErr); setError(errMessage(rpcErr, 'Could not save your post. Check your connection and try again.')); return }
         onCreated?.(status)
       }
     } catch {
-      setError('Something went wrong. Please try again.')
+      setError('Could not save your post. Check your connection and try again.')
     } finally {
       setBusy(false)
     }
   }
 
-  const kindLocked = isEdit || !!draft
-
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={close} />
-      <form
-        onSubmit={(e) => { e.preventDefault(); save('published') }}
-        className="card relative z-10 my-8 w-full max-w-lg p-6 animate-pop-in"
-      >
+    <ModalShell onRequestClose={close} labelledBy="create-post-title">
+      <form onSubmit={(e) => { e.preventDefault(); save('published') }}>
         <div className="flex items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 text-lg font-bold">
+          <h2 id="create-post-title" className="flex items-center gap-2 text-lg font-bold">
             {view === 'drafts' && (
               <button type="button" onClick={() => setView('form')} aria-label="Back" className="rounded-full p-1 text-muted hover:bg-black/5">
                 <ArrowLeft size={18} />
@@ -166,7 +168,7 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
             <button
               type="button"
               onClick={() => setView('drafts')}
-              className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:bg-black/5"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:bg-black/5"
             >
               <FileText size={14} /> Drafts ({drafts.length})
             </button>
@@ -174,7 +176,7 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
         </div>
 
         {error && (
-          <div className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>
+          <div role="alert" className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>
         )}
 
         {view === 'drafts' ? (
@@ -183,11 +185,8 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
               {drafts.map((d) => (
                 <li key={d.id} className="flex items-center gap-2 py-2.5">
                   <button type="button" onClick={() => loadDraft(d)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${kindChipClass(d.kind)}`}>
-                      {kindLabel(d.kind)}
-                    </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-bold">{d.title}</span>
+                      <span className="block truncate text-sm font-bold">{d.title || 'Untitled'}</span>
                       <span className="block text-xs text-muted">Saved {timeAgo(d.created_at)}</span>
                     </span>
                   </button>
@@ -209,46 +208,17 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
           </>
         ) : (
           <>
-            <div className="mt-4 inline-flex rounded-full border border-line p-0.5">
-              {KINDS.map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => !kindLocked && setKind(k)}
-                  disabled={kindLocked}
-                  className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
-                    kind === k ? 'bg-accent-soft text-accent' : 'text-muted'
-                  } ${kindLocked ? 'cursor-not-allowed opacity-60' : ''}`}
-                >
-                  {kindLabel(k)}
-                </button>
-              ))}
-            </div>
-
             <div className="mt-4 space-y-3">
               <input className="input" placeholder="Title" maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} />
-              {kind !== 'discussion' && (
-                <input className="input" placeholder="Startup name (optional)" maxLength={100} value={startup} onChange={(e) => setStartup(e.target.value)} />
-              )}
               <textarea
-                className="input min-h-[80px] resize-y"
-                placeholder={
-                  kind === 'idea' ? 'The problem you are solving'
-                    : kind === 'problem' ? 'Describe the problem'
-                      : 'Share an update, a question, or a win'
-                }
-                maxLength={5000} value={problem} onChange={(e) => setProblem(e.target.value)}
+                className="input min-h-[120px] resize-y"
+                placeholder="Share an idea, a problem, a question, or a win"
+                maxLength={5000} value={body} onChange={(e) => setBody(e.target.value)}
               />
-              {kind === 'idea' && (
-                <textarea
-                  className="input min-h-[80px] resize-y" placeholder="Your solution"
-                  maxLength={5000} value={solution} onChange={(e) => setSolution(e.target.value)}
-                />
-              )}
 
               {/* supertags */}
               <div>
-                <div className="mb-1.5 text-xs font-medium text-muted">Supertags ({tags.length}/{MAX_TAGS})</div>
+                <div className="mb-1.5 text-xs font-medium text-muted">Tags ({tags.length}/{MAX_TAGS})</div>
                 {tags.length > 0 && (
                   <div className="mb-2 flex flex-wrap gap-1.5">
                     {tags.map((t) => (
@@ -270,11 +240,16 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
                 </div>
               </div>
 
-              {!kindLocked && (
-                <label className="flex items-center gap-2 text-sm text-ink">
-                  <input type="checkbox" checked={anonymous} onChange={(e) => setAnonymous(e.target.checked)} />
-                  Post anonymously
-                </label>
+              {!isEdit && !draft && (
+                <>
+                  <label className="flex items-center gap-2 text-sm text-ink">
+                    <input type="checkbox" checked={anonymous} onChange={(e) => setAnonymous(e.target.checked)} />
+                    Post anonymously
+                  </label>
+                  {anonymous && (
+                    <p className="text-xs text-muted">Your post will appear as "Anonymous Founder".</p>
+                  )}
+                </>
               )}
             </div>
 
@@ -294,6 +269,6 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
           </>
         )}
       </form>
-    </div>
+    </ModalShell>
   )
 }

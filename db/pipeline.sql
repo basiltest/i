@@ -54,6 +54,7 @@ drop function if exists public.admin_assign_mentor(uuid, uuid, text);
 drop function if exists public.admin_bulk_assign(uuid[], uuid, text);
 drop function if exists public.admin_move_gate(uuid, int, text);
 drop function if exists public.admin_reject_idea(uuid, boolean, text);
+drop function if exists public.admin_delete_pipeline_idea(uuid);  -- reason-less draft
 -- the storage policies depend on can_access_idea; drop them first (recreated at the bottom)
 drop policy if exists "idea files read" on storage.objects;
 drop policy if exists "idea files insert" on storage.objects;
@@ -93,6 +94,13 @@ alter table public.pipeline_ideas add column if not exists application jsonb not
 -- sector drives the mentor-queue and admin-board filters
 alter table public.pipeline_ideas add column if not exists sector text;
 create index if not exists pipeline_ideas_sector_idx on public.pipeline_ideas (sector);
+-- an idea can span multiple sectors. `sectors` is the real list; `sector` stays as the
+-- primary (sectors[1]) so legacy single-sector reads (list chips, queue sort) keep working.
+-- Filters check membership in `sectors` (a sector matches if it's any of the idea's sectors).
+alter table public.pipeline_ideas add column if not exists sectors text[] not null default '{}';
+create index if not exists pipeline_ideas_sectors_idx on public.pipeline_ideas using gin (sectors);
+update public.pipeline_ideas set sectors = array[sector]
+  where sector is not null and cardinality(sectors) = 0;
 -- the one-liner was replaced by the structured form; keep the column for old rows only
 alter table public.pipeline_ideas alter column oneliner drop not null;
 
@@ -191,6 +199,8 @@ alter table public.notifications add constraint notifications_idea_fk
 
 -- global pipeline lock lives on the existing singleton settings row
 alter table public.app_settings add column if not exists pipeline_locked boolean not null default false;
+-- Feature flag: when on, founders may add a "Request IIEC for funds" note to a G5 submission.
+alter table public.app_settings add column if not exists iiec_enabled boolean not null default false;
 
 -- ---------------------------------------------------------------------------
 -- Helpers
@@ -298,16 +308,25 @@ grant execute on function public.my_notifications(int) to authenticated;
 -- The application contract: required fields + 500-char caps on the long answers. No length
 -- minimums - the structured questions and concrete prompts carry the clarity. Enforced HERE
 -- so the form cannot be bypassed.
+drop function if exists public.check_application(text, text, text, text, jsonb);
 create or replace function public.check_application(
-  p_title text, p_sector text, p_problem text, p_solution text, p_application jsonb
+  p_title text, p_sectors text[], p_problem text, p_solution text, p_application jsonb
 ) returns void
 language plpgsql immutable
 as $$
+declare s text; n int := 0;
 begin
   if coalesce(trim(p_title), '') = '' then raise exception 'startup / concept title required'; end if;
-  if coalesce(trim(p_sector), '') = '' or char_length(trim(p_sector)) > 40 then
-    raise exception 'sector required';
+  if p_sectors is not null then
+    foreach s in array p_sectors loop
+      if coalesce(trim(s), '') <> '' then
+        n := n + 1;
+        if char_length(trim(s)) > 40 then raise exception 'sector name too long (max 40 characters)'; end if;
+      end if;
+    end loop;
   end if;
+  if n = 0 then raise exception 'at least one sector required'; end if;
+  if n > 6 then raise exception 'at most 6 sectors'; end if;
   if coalesce(trim(p_problem), '') = '' or char_length(trim(p_problem)) > 500 then
     raise exception 'problem hypothesis required (max 500 characters)';
   end if;
@@ -325,12 +344,13 @@ begin
   end if;
 end
 $$;
-revoke execute on function public.check_application(text, text, text, text, jsonb) from public, authenticated;
+revoke execute on function public.check_application(text, text[], text, text, jsonb) from public, authenticated;
 
 -- File a pipeline application (the structured G1 form).
 drop function if exists public.pipeline_submit(text, text, text, text, jsonb);
+drop function if exists public.pipeline_submit(text, text[], text, text, jsonb);
 create function public.pipeline_submit(
-  p_title text, p_sector text, p_problem text, p_solution text, p_application jsonb
+  p_title text, p_sectors text[], p_problem text, p_solution text, p_application jsonb
 ) returns uuid
 language plpgsql security definer set search_path = public
 as $$
@@ -338,19 +358,21 @@ declare
   v_uid uuid := auth.uid();
   v_ifn int;
   v_id uuid;
+  v_sectors text[];
 begin
   if v_uid is null then raise exception 'not authenticated'; end if;
-  if exists (select 1 from public.profiles where id = v_uid and banned) then raise exception 'account is banned'; end if;
+  perform public.write_guard();
   if coalesce((select pipeline_locked from public.app_settings where id), false) and not public.is_admin() then
     raise exception 'pipeline submissions are currently closed';
   end if;
-  perform public.check_application(p_title, p_sector, p_problem, p_solution, p_application);
+  perform public.check_application(p_title, p_sectors, p_problem, p_solution, p_application);
+  v_sectors := (select array_agg(distinct trim(x)) from unnest(p_sectors) x where coalesce(trim(x), '') <> '');
 
   perform pg_advisory_xact_lock(hashtext('ifn_counter'));
   select coalesce(max(ifn), 0) + 1 into v_ifn from public.pipeline_ideas;
 
-  insert into public.pipeline_ideas (author_id, ifn, title, sector, problem, solution, application)
-  values (v_uid, v_ifn, trim(p_title), trim(p_sector), trim(p_problem), trim(p_solution),
+  insert into public.pipeline_ideas (author_id, ifn, title, sector, sectors, problem, solution, application)
+  values (v_uid, v_ifn, trim(p_title), v_sectors[1], v_sectors, trim(p_problem), trim(p_solution),
           jsonb_build_object(
             'target_user', trim(p_application->>'target_user'),
             'team', trim(p_application->>'team'),
@@ -361,18 +383,20 @@ begin
   return v_id;
 end
 $$;
-grant execute on function public.pipeline_submit(text, text, text, text, jsonb) to authenticated;
+grant execute on function public.pipeline_submit(text, text[], text, text, jsonb) to authenticated;
 
 -- Edit the application: only before a mentor is engaged (G1) or when sent back to refine.
 drop function if exists public.update_pipeline_idea(uuid, text, text, text, text, jsonb);
+drop function if exists public.update_pipeline_idea(uuid, text, text[], text, text, jsonb);
 create function public.update_pipeline_idea(
-  p_idea uuid, p_title text, p_sector text, p_problem text, p_solution text, p_application jsonb
+  p_idea uuid, p_title text, p_sectors text[], p_problem text, p_solution text, p_application jsonb
 ) returns void
 language plpgsql security definer set search_path = public
 as $$
 declare
   v_uid uuid := auth.uid();
   v_i public.pipeline_ideas;
+  v_sectors text[];
 begin
   select * into v_i from public.pipeline_ideas where id = p_idea;
   if not found then raise exception 'application not found'; end if;
@@ -380,10 +404,12 @@ begin
   if not (v_i.pipeline_state = 'refine' or (v_i.pipeline_state = 'active' and v_i.gate = 1)) then
     raise exception 'the application can only be edited at G1 or during refine';
   end if;
-  perform public.check_application(p_title, p_sector, p_problem, p_solution, p_application);
+  perform public.check_application(p_title, p_sectors, p_problem, p_solution, p_application);
+  v_sectors := (select array_agg(distinct trim(x)) from unnest(p_sectors) x where coalesce(trim(x), '') <> '');
   update public.pipeline_ideas set
     title = trim(p_title),
-    sector = trim(p_sector),
+    sector = v_sectors[1],
+    sectors = v_sectors,
     problem = trim(p_problem),
     solution = trim(p_solution),
     application = jsonb_build_object(
@@ -394,7 +420,7 @@ begin
   where id = p_idea;
 end
 $$;
-grant execute on function public.update_pipeline_idea(uuid, text, text, text, text, jsonb) to authenticated;
+grant execute on function public.update_pipeline_idea(uuid, text, text[], text, text, jsonb) to authenticated;
 
 -- Withdraw: the founder deletes their own application outright (any state, cascades the
 -- whole dossier; uploaded storage objects are swept separately - documented trade-off).
@@ -426,7 +452,7 @@ declare
   v_uid uuid := auth.uid();
   v_i public.pipeline_ideas;
 begin
-  if exists (select 1 from public.profiles where id = v_uid and banned) then raise exception 'account is banned'; end if;
+  perform public.write_guard();
   select * into v_i from public.pipeline_ideas where id = p_idea;
   if not found then raise exception 'application not found'; end if;
   if v_i.author_id <> v_uid then raise exception 'not your application'; end if;
@@ -446,7 +472,7 @@ begin
   elsif v_i.gate = 4 then
     if coalesce(trim(p_payload->>'beta_plan'), '') = '' then raise exception 'beta plan is required'; end if;
   elsif v_i.gate = 5 then
-    if coalesce(trim(p_payload->>'learnings'), '') = '' then raise exception 'learnings are required'; end if;
+    -- learnings are optional at G5; evidence (or a bypass) is what gates advancement.
     -- mentor bypass: when the prototype needs money/resources the founder does not have,
     -- they may request a bypass with a justification; the mentor's review IS the approval.
     if (p_payload->>'bypass_requested')::boolean is true then
@@ -458,6 +484,17 @@ begin
        and coalesce(trim(p_payload->>'demo_url'), '') = ''
        and not exists (select 1 from public.attachments a where a.idea_id = p_idea and a.gate = 5) then
       raise exception 'evidence required: a prototype/demo link or an uploaded file (or request a mentor bypass)';
+    end if;
+    -- optional IIEC funding request (admin-gated on the client): a reason is required if flagged.
+    -- No routing here; the mentor sees a banner and handles the IIEC offline.
+    if (p_payload->>'iiec_funds_requested')::boolean is true
+       and coalesce(trim(p_payload->>'iiec_reason'), '') = '' then
+      raise exception 'IIEC funding reason required';
+    end if;
+    -- a founder picks at most one escape hatch: mentor bypass OR IIEC funds, not both.
+    if (p_payload->>'bypass_requested')::boolean is true
+       and (p_payload->>'iiec_funds_requested')::boolean is true then
+      raise exception 'choose either a mentor bypass or an IIEC funding request, not both';
     end if;
   end if;
 
@@ -479,7 +516,7 @@ declare
   v_uid uuid := auth.uid();
   v_i public.pipeline_ideas;
 begin
-  if exists (select 1 from public.profiles where id = v_uid and banned) then raise exception 'account is banned'; end if;
+  perform public.write_guard();
   select * into v_i from public.pipeline_ideas where id = p_idea;
   if not found then raise exception 'application not found'; end if;
   if v_i.author_id <> v_uid then raise exception 'not your application'; end if;
@@ -503,7 +540,10 @@ declare
 begin
   select * into v_act from public.idea_actions where id = p_action;
   if not found then raise exception 'action not found'; end if;
-  if not exists (select 1 from public.pipeline_ideas i where i.id = v_act.idea_id and i.author_id = v_uid) then
+  -- founder, the idea's mentor, or any admin can mark an action done / cross it out.
+  if not public.is_admin()
+     and not exists (select 1 from public.pipeline_ideas i
+                     where i.id = v_act.idea_id and (i.author_id = v_uid or i.mentor_id = v_uid)) then
     raise exception 'not your application';
   end if;
   if v_act.status = 'done' then raise exception 'already done'; end if;
@@ -524,7 +564,7 @@ declare
   v_uid uuid := auth.uid();
   v_i public.pipeline_ideas;
 begin
-  if exists (select 1 from public.profiles where id = v_uid and banned) then raise exception 'account is banned'; end if;
+  perform public.write_guard();
   if not public.can_access_idea(p_idea) then raise exception 'not allowed'; end if;
   if coalesce(trim(p_body), '') = '' then raise exception 'message required'; end if;
   if length(p_body) > 4000 then raise exception 'message too long'; end if;
@@ -609,7 +649,8 @@ begin
   select jsonb_build_object(
     'idea', (
       select jsonb_build_object(
-        'id', i.id, 'ifn', i.ifn, 'title', i.title, 'oneliner', i.oneliner, 'sector', i.sector,
+        'id', i.id, 'ifn', i.ifn, 'title', i.title, 'oneliner', i.oneliner,
+        'sector', i.sector, 'sectors', i.sectors,
         'problem', i.problem, 'solution', i.solution, 'startup', i.startup,
         'application', i.application,
         'gate', i.gate, 'gate_status', i.gate_status, 'pipeline_state', i.pipeline_state,
@@ -619,7 +660,8 @@ begin
         'entered_gate_at', i.entered_gate_at, 'created_at', i.created_at,
         'is_mine', coalesce(i.author_id = auth.uid(), false),
         'is_mentor', coalesce(i.mentor_id = auth.uid(), false),
-        'locked', coalesce((select pipeline_locked from public.app_settings where id), false))
+        'locked', coalesce((select pipeline_locked from public.app_settings where id), false),
+        'iiec_enabled', coalesce((select iiec_enabled from public.app_settings where id), false))
       from public.pipeline_ideas i
       join public.profiles a on a.id = i.author_id
       left join public.profiles m on m.id = i.mentor_id
@@ -679,19 +721,19 @@ drop function if exists public.mentor_queue();
 drop function if exists public.mentor_queue(text);
 create function public.mentor_queue(p_sector text default null)
 returns table (
-  id uuid, ifn int, title text, sector text, problem text, target_user text,
+  id uuid, ifn int, title text, sector text, sectors text[], problem text, target_user text,
   author_name text, created_at timestamptz
 )
 language sql stable security definer set search_path = public
 as $$
-  select i.id, i.ifn, i.title, i.sector, i.problem, i.application->>'target_user',
+  select i.id, i.ifn, i.title, i.sector, i.sectors, i.problem, i.application->>'target_user',
          a.name, i.created_at
   from public.pipeline_ideas i
   join public.profiles a on a.id = i.author_id
   where public.is_mentor_or_admin()
     and i.pipeline_state = 'active' and i.gate = 1 and i.mentor_id is null
-    and (p_sector is null or i.sector = p_sector)
-  order by (i.sector is not distinct from (select sector from public.profiles where id = auth.uid())) desc,
+    and (p_sector is null or p_sector = any(i.sectors))
+  order by ((select sector from public.profiles where id = auth.uid()) = any(i.sectors)) desc,
            i.created_at asc
 $$;
 grant execute on function public.mentor_queue(text) to authenticated;
@@ -706,7 +748,7 @@ declare
   v_i public.pipeline_ideas;
 begin
   if not public.is_mentor_or_admin() then raise exception 'mentors only'; end if;
-  if exists (select 1 from public.profiles where id = v_uid and banned) then raise exception 'account is banned'; end if;
+  perform public.write_guard();
   select * into v_i from public.pipeline_ideas where id = p_idea for update;
   if not found then raise exception 'application not found'; end if;
   if v_i.pipeline_state <> 'active' or v_i.gate <> 1 or v_i.mentor_id is not null then
@@ -866,13 +908,13 @@ create function public.admin_pipeline_board(
   p_offset int default 0
 )
 returns table (
-  id uuid, ifn int, title text, sector text, author_name text, gate int, gate_status text,
+  id uuid, ifn int, title text, sector text, sectors text[], author_name text, gate int, gate_status text,
   pipeline_state text, waiting_on text, mentor_id uuid, mentor_name text,
   days_in_gate int, created_at timestamptz
 )
 language sql stable security definer set search_path = public
 as $$
-  select i.id, i.ifn, i.title, i.sector, a.name, i.gate, i.gate_status,
+  select i.id, i.ifn, i.title, i.sector, i.sectors, a.name, i.gate, i.gate_status,
          i.pipeline_state, public.pipeline_waiting_on(i), i.mentor_id, m.name,
          extract(day from now() - i.entered_gate_at)::int, i.created_at
   from public.pipeline_ideas i
@@ -883,7 +925,7 @@ as $$
     and (p_state is null or i.pipeline_state = p_state)
     and (p_mentor is null or i.mentor_id = p_mentor)
     and (p_waiting is null or public.pipeline_waiting_on(i) = p_waiting)
-    and (p_sector is null or i.sector = p_sector)
+    and (p_sector is null or p_sector = any(i.sectors))
     and (p_stale_days is null or (i.pipeline_state = 'active' and i.gate_status <> 'approved'
          and i.entered_gate_at < now() - make_interval(days => p_stale_days)))
     and (p_search is null or p_search = ''
@@ -1028,17 +1070,29 @@ end
 $$;
 grant execute on function public.admin_reject_idea(uuid, boolean, text) to authenticated;
 
--- Moderation: delete an application outright (cascades the whole dossier).
-create or replace function public.admin_delete_pipeline_idea(p_idea uuid)
+-- Moderation: delete an application outright (cascades the whole dossier). Author and
+-- mentor are told afterwards via a notification with no idea reference (the row is gone);
+-- the mandatory reason rides in its payload - the only record that survives the cascade.
+-- Storage objects are swept separately (same documented trade-off as withdraw).
+create or replace function public.admin_delete_pipeline_idea(p_idea uuid, p_reason text)
 returns void
 language plpgsql security definer set search_path = public
 as $$
+declare
+  v_i public.pipeline_ideas;
 begin
   if not public.is_admin() then raise exception 'admins only'; end if;
+  if coalesce(trim(p_reason), '') = '' then raise exception 'reason required'; end if;
+  select * into v_i from public.pipeline_ideas where id = p_idea;
+  if not found then raise exception 'application not found'; end if;
   delete from public.pipeline_ideas where id = p_idea;
+  perform public.notify(v_i.author_id, 'application_deleted', null, auth.uid(),
+    jsonb_build_object('title', v_i.title, 'ifn', v_i.ifn, 'reason', trim(p_reason)));
+  perform public.notify(v_i.mentor_id, 'application_deleted', null, auth.uid(),
+    jsonb_build_object('title', v_i.title, 'ifn', v_i.ifn, 'reason', trim(p_reason)));
 end
 $$;
-grant execute on function public.admin_delete_pipeline_idea(uuid) to authenticated;
+grant execute on function public.admin_delete_pipeline_idea(uuid, text) to authenticated;
 
 -- Load per mentor so assignment is informed.
 drop function if exists public.admin_mentor_load();
@@ -1065,6 +1119,17 @@ begin
 end
 $$;
 grant execute on function public.admin_set_pipeline_locked(boolean) to authenticated;
+
+create or replace function public.admin_set_iiec_enabled(p_enabled boolean)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if not public.is_admin() then raise exception 'admins only'; end if;
+  update public.app_settings set iiec_enabled = p_enabled where id;
+end
+$$;
+grant execute on function public.admin_set_iiec_enabled(boolean) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Storage: private bucket for pipeline files. 20MB cap + doc/PDF/PPT mime allowlist

@@ -31,7 +31,7 @@ export default function MentorReview() {
       supabase.rpc('mentor_queue', { p_sector: sector || null }),
       supabase.rpc('my_mentees'),
     ])
-    if (q.error || m.error) { console.error(q.error || m.error); setError(GENERIC_ERR) }
+    if (q.error || m.error) { console.error(q.error || m.error); setError('Could not load your review queue. Check your connection and retry.') }
     else {
       setQueue(q.data || [])
       setMine(m.data || [])
@@ -75,7 +75,7 @@ export default function MentorReview() {
         )}
       </div>
 
-      {error && <div className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+      {error && <div role="alert" className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
 
       {loading ? (
         <PipelineListSkeleton />
@@ -92,10 +92,10 @@ export default function MentorReview() {
             {queue.map((r) => (
               <div key={r.id} className="p-4">
                 <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-line px-2 py-0.5 text-[11px] font-bold text-muted">{ifnTag(r.ifn)}</span>
+                  <span className="rounded-md bg-line px-2 py-0.5 text-[11px] font-bold text-muted">{ifnTag(r.ifn)}</span>
                   <span className="min-w-0 flex-1 truncate text-sm font-bold">{r.title}</span>
                   {r.sector && (
-                    <span className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-accent">{r.sector}</span>
+                    <span className="shrink-0 rounded-md bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-accent">{r.sector}</span>
                   )}
                   <span className="shrink-0 text-xs text-faint">{timeAgo(r.created_at)}</span>
                 </div>
@@ -134,12 +134,12 @@ export default function MentorReview() {
                 className="block w-full p-4 text-left hover:bg-black/5"
               >
                 <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-line px-2 py-0.5 text-[11px] font-bold text-muted">{ifnTag(r.ifn)}</span>
+                  <span className="rounded-md bg-line px-2 py-0.5 text-[11px] font-bold text-muted">{ifnTag(r.ifn)}</span>
                   <span className="min-w-0 flex-1 truncate text-sm font-bold">{r.title}</span>
                   {r.pipeline_state !== 'active' && st && (
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.tone}`}>{st.label}</span>
+                    <span className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${st.tone}`}>{st.label}</span>
                   )}
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${w.tone}`}>{w.label}</span>
+                  <span className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${w.tone}`}>{w.label}</span>
                 </div>
                 <div className="mt-1 text-xs text-muted">
                   <span className="font-semibold text-ink">G{r.gate} · {gateLabel(r.gate)}</span>
@@ -159,7 +159,7 @@ function Tab({ active, onClick, icon: Ic, children }) {
   return (
     <button
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
+      className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
         active ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'
       }`}
     >

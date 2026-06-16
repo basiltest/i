@@ -5,20 +5,20 @@ import { supabase } from '../lib/supabase'
 import PostCard from '../components/PostCard'
 import PostCardSkeleton from '../components/PostCardSkeleton'
 import CreatePostModal from '../components/CreatePostModal'
-import Dropdown, { MenuItem } from '../components/Dropdown'
+import CreatePollModal from '../components/CreatePollModal'
 import { useAuth } from '../lib/AuthProvider'
 
 const PAGE = 20
 const SORTS = [
   { s: 'hot', label: 'Hot' },
-  { s: 'new', label: 'Newest' },
+  { s: 'new', label: 'New' },
   { s: 'top', label: 'Top' },
 ]
-const KINDS = [
-  { k: 'all', label: 'All types' },
-  { k: 'idea', label: 'Ideas' },
-  { k: 'problem', label: 'Problems' },
-  { k: 'discussion', label: 'Discussions' },
+// time window for the Top sort (null = all time)
+const TOP_WINDOWS = [
+  { w: 'today', label: 'Today', days: 1 },
+  { w: 'week', label: 'Week', days: 7 },
+  { w: 'all', label: 'All time', days: null },
 ]
 
 const normTag = (s) => s.toLowerCase().replace(/[^a-z0-9-]/g, '')
@@ -47,12 +47,12 @@ function parseQuery(q) {
 }
 
 export default function Feed() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, restricted } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const [feedLocked, setFeedLocked] = useState(false)
 
   const [sort, setSort] = useState('hot')
-  const [kind, setKind] = useState('all')
+  const [topWindow, setTopWindow] = useState('week') // window for the Top sort
   const [q, setQ] = useState('')
   const [filters, setFilters] = useState({ text: '', tags: [] })
 
@@ -65,6 +65,7 @@ export default function Feed() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
+  const [createPollOpen, setCreatePollOpen] = useState(false)
   const [notice, setNotice] = useState('')
 
   const [newestAt, setNewestAt] = useState(null)
@@ -107,12 +108,13 @@ export default function Feed() {
   const fetchPage = useCallback(
     async (off, replace) => {
       const { data, error: e } = await supabase.rpc('feed_posts', {
-        p_kind: kind === 'all' ? null : kind,
+        p_kind: null,
         p_search: filters.text || null,
         p_tags: filters.tags.length ? filters.tags : null,
         p_sort: sort,
         p_limit: PAGE,
         p_offset: off,
+        p_top_days: sort === 'top' ? (TOP_WINDOWS.find((t) => t.w === topWindow)?.days ?? null) : null,
       })
       if (e) { console.error('feed_posts failed:', e); setError(e.message); return 0 }
       setError('')
@@ -131,7 +133,7 @@ export default function Feed() {
       return rows.length
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [kind, sort, filters.text, tagsKey],
+    [sort, topWindow, filters.text, tagsKey],
   )
 
   // reload from the top when filters/sort/search change
@@ -234,7 +236,7 @@ export default function Feed() {
         <div className="relative flex-1">
           <input
             className="input"
-            placeholder="Search posts, add #supertags to filter"
+            aria-label="Search posts" placeholder="Search posts, add #tags to filter"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
@@ -259,39 +261,57 @@ export default function Feed() {
             </div>
           )}
         </div>
-        {(!feedLocked || isAdmin) && (
+        {isAdmin && !restricted && (
+          <button className="btn-outline shrink-0" onClick={() => setCreatePollOpen(true)}>Create poll</button>
+        )}
+        {(!feedLocked || isAdmin) && !restricted && (
           <button className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>Create post</button>
         )}
       </div>
 
       {feedLocked && (
-        <div className="mb-3 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-sm text-[#8a6d00]">
+        <div role="status" className="mb-3 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-sm text-warnink">
           {isAdmin ? 'Posting is closed for members. You can still post as an admin.' : 'Posting is currently closed by an admin.'}
         </div>
       )}
 
-      {/* controls: sort / type */}
+      {/* controls: sort */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <Dropdown label={SORTS.find((o) => o.s === sort).label}>
-          {(close) =>
-            SORTS.map((o) => (
-              <MenuItem key={o.s} active={sort === o.s} onClick={() => { setSort(o.s); close() }}>
-                {o.label}
-              </MenuItem>
-            ))
-          }
-        </Dropdown>
+        {/* sort: segmented control, all options visible + self-labeling */}
+        <div className="inline-flex rounded-lg border border-line p-0.5" role="tablist" aria-label="Sort posts">
+          {SORTS.map((o) => (
+            <button
+              key={o.s}
+              role="tab"
+              aria-selected={sort === o.s}
+              onClick={() => setSort(o.s)}
+              className={`rounded-md px-3.5 py-1.5 text-sm font-semibold transition-colors ${
+                sort === o.s ? 'bg-accent-soft text-accent' : 'text-muted hover:text-ink'
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
 
-        <Dropdown label={KINDS.find((f) => f.k === kind).label}>
-          {(close) =>
-            KINDS.map((f) => (
-              <MenuItem key={f.k} active={kind === f.k} onClick={() => { setKind(f.k); close() }}>
-                {f.label}
-              </MenuItem>
-            ))
-          }
-        </Dropdown>
-
+        {/* Top needs a window, else it silently rots into all-time */}
+        {sort === 'top' && (
+          <div className="inline-flex rounded-lg border border-line p-0.5" role="tablist" aria-label="Top window">
+            {TOP_WINDOWS.map((t) => (
+              <button
+                key={t.w}
+                role="tab"
+                aria-selected={topWindow === t.w}
+                onClick={() => setTopWindow(t.w)}
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  topWindow === t.w ? 'bg-accent-soft text-accent' : 'text-muted hover:text-ink'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* active supertag filters */}
@@ -317,7 +337,7 @@ export default function Feed() {
       )}
 
       {notice && (
-        <div className="mb-4 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">{notice}</div>
+        <div role="status" className="mb-4 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">{notice}</div>
       )}
 
       {loading ? (
@@ -328,7 +348,7 @@ export default function Feed() {
         </div>
       ) : error ? (
         <div className="card p-6 text-center">
-          <p className="text-sm text-down">Could not load the feed.</p>
+          <p className="text-sm text-down">Could not load the feed. Check your connection and retry.</p>
           <button className="btn-outline mt-3" onClick={reload}>Retry</button>
         </div>
       ) : posts.length === 0 ? (
@@ -363,7 +383,7 @@ export default function Feed() {
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           aria-label="Back to top"
-          className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-4 py-2.5 text-sm font-semibold text-ink shadow-pop transition-colors hover:border-accent"
+          className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-4 py-2.5 text-sm font-semibold text-ink shadow-pop transition-colors hover:border-accent"
         >
           <ArrowUp size={16} /> Back to top
         </button>
@@ -377,6 +397,17 @@ export default function Feed() {
           setNotice(status === 'draft' ? 'Saved as draft.' : 'Posted.')
           reload()
           supabase.rpc('feed_tags').then(({ data }) => setAvailableTags(data || []))
+          setTimeout(() => setNotice(''), 3000)
+        }}
+      />
+
+      <CreatePollModal
+        open={createPollOpen}
+        onClose={() => setCreatePollOpen(false)}
+        onCreated={() => {
+          setCreatePollOpen(false)
+          setNotice('Poll posted.')
+          reload()
           setTimeout(() => setNotice(''), 3000)
         }}
       />

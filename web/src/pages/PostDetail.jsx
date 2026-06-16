@@ -4,11 +4,13 @@ import { ArrowLeft, ArrowBigUp, ArrowBigDown, MessageCircle, MoreHorizontal, Pin
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import RoleBadge from '../components/RoleBadge'
+import AuthorLink from '../components/AuthorLink'
 import Dropdown, { MenuItem } from '../components/Dropdown'
 import PostDetailSkeleton from '../components/PostDetailSkeleton'
 import CreatePostModal from '../components/CreatePostModal'
+import PollBlock from '../components/PollBlock'
 import { timeAgo } from '../lib/format'
-import { kindLabel, kindChipClass } from '../lib/postKind'
+import { errMessage } from '../lib/errors'
 
 const CSORTS = [
   { s: 'new', label: 'Newest' },
@@ -111,6 +113,7 @@ export default function PostDetail() {
     } catch {
       setMyVote(prevVote)
       setScore(prevScore)
+      setActionError('Your vote was not saved. Try again.')
     } finally {
       setVoting(false)
     }
@@ -123,7 +126,7 @@ export default function PostDetail() {
     setBusy(true)
     const { error } = await supabase.from('comments').insert({ post_id: id, author_id: uid, body })
     setBusy(false)
-    if (error) { console.error(error); return setActionError(GENERIC_ERR) }
+    if (error) { console.error(error); return setActionError(errMessage(error, 'Could not post your comment. Check your connection and try again.')) }
     setActionError('')
     setCommentBody('')
     setCommentOpen(false)
@@ -136,7 +139,7 @@ export default function PostDetail() {
     const { error } = mine
       ? await supabase.from('comments').delete().eq('id', cid)
       : await supabase.rpc('admin_delete_comment', { p_id: cid })
-    if (error) { console.error(error); return setActionError(GENERIC_ERR) }
+    if (error) { console.error(error); return setActionError('Could not delete the comment. Try again.') }
     setComments((prev) => prev.filter((c) => c.id !== cid))
   }
 
@@ -216,7 +219,7 @@ export default function PostDetail() {
       ) : (
         <>
           {actionError && (
-            <div className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{actionError}</div>
+            <div role="alert" className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{actionError}</div>
           )}
 
           {/* post header */}
@@ -226,7 +229,7 @@ export default function PostDetail() {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="truncate text-sm font-bold">{anon ? 'Anonymous Founder' : post.author_name}</span>
+                <AuthorLink id={post.author_id} className="truncate text-sm font-bold">{anon ? 'Anonymous Founder' : post.author_name}</AuthorLink>
                 {!anon && post.author_role && <RoleBadge role={post.author_role} />}
               </div>
               <div className="flex items-center gap-1 text-xs text-muted">
@@ -240,16 +243,16 @@ export default function PostDetail() {
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
               {post.badges?.includes('Success') && (
-                <span className="rounded-full bg-success/15 px-2.5 py-0.5 text-[11px] font-semibold text-success">#Success</span>
+                <span className="rounded-md bg-success/15 px-2.5 py-0.5 text-[11px] font-semibold text-success">#Success</span>
               )}
-              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${kindChipClass(post.kind)}`}>
-                {kindLabel(post.kind)}
-              </span>
+              {post.kind === 'poll' && (
+                <span className="rounded-md bg-accent-soft px-2.5 py-0.5 text-[11px] font-semibold text-accent">Poll</span>
+              )}
               {(post.is_mine || isAdmin) && (
                 <Kebab>
                   {(close) => (
                     <>
-                      {post.is_mine && (
+                      {post.is_mine && post.kind !== 'poll' && (
                         <MenuItem onClick={() => { close(); setEditOpen(true) }}>Edit post</MenuItem>
                       )}
                       {post.is_mine && !post.badges?.includes('Success') && post.success_request !== 'pending' && (
@@ -284,7 +287,10 @@ export default function PostDetail() {
           {/* title + body */}
           <h1 className="mt-3 break-words text-2xl font-extrabold leading-tight">{post.title}</h1>
           {post.startup && <p className="mt-0.5 break-words text-sm font-semibold text-muted">{post.startup}</p>}
-          <p className="mt-3 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-ink">{post.problem}</p>
+          {post.problem && (
+            <p className="mt-3 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-ink">{post.problem}</p>
+          )}
+          {post.kind === 'poll' && <PollBlock postId={post.id} />}
           {post.kind === 'idea' && post.solution && (
             <div className="mt-3 rounded-lg bg-card p-4">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">Solution</div>
@@ -302,7 +308,7 @@ export default function PostDetail() {
 
           {/* action bar */}
           <div className="mt-4 flex items-center gap-2">
-            <div className="inline-flex items-center gap-0.5 rounded-full border border-line bg-card px-1 py-0.5">
+            <div className="inline-flex items-center gap-0.5 rounded-lg border border-line bg-card px-1 py-0.5">
               <button
                 onClick={() => vote(1)}
                 aria-label="Upvote"
@@ -322,7 +328,7 @@ export default function PostDetail() {
               </button>
             </div>
 
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-3 py-2 text-sm font-semibold text-muted">
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-3 py-2 text-sm font-semibold text-muted">
               <MessageCircle size={18} /> {comments.length}
             </span>
           </div>
@@ -381,7 +387,7 @@ export default function PostDetail() {
           ) : (
             <form onSubmit={addComment} className="mb-4">
               <input
-                className="w-full rounded-full border border-line bg-card px-4 py-2.5 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none"
+                className="w-full rounded-lg border border-line bg-card px-4 py-2.5 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none"
                 placeholder="Add a comment"
                 maxLength={2000}
                 value={commentBody}
@@ -415,7 +421,7 @@ export default function PostDetail() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 text-xs text-muted">
-                      <span className="font-semibold text-ink">{c.author_name || 'Anonymous Founder'}</span>
+                      <AuthorLink id={c.author_id} className="font-semibold text-ink">{c.author_name || 'Member'}</AuthorLink>
                       <span>· {timeAgo(c.created_at)}</span>
                       {(c.is_mine || isAdmin) && (
                         <button onClick={() => deleteComment(c.id, c.is_mine)} className="ml-auto text-faint hover:text-down">delete</button>

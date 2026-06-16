@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import { REGIONS, SECTORS, DOMAINS } from '../lib/options'
+import { errMessage } from '../lib/errors'
 import RoleBadge from '../components/RoleBadge'
 import ProfileSkeleton from '../components/ProfileSkeleton'
+import Combobox from '../components/Combobox'
 
 export default function Profile() {
   const { session } = useAuth()
@@ -87,7 +89,7 @@ export default function Profile() {
         .select()
         .single()
       if (e) {
-        setError(e.message)
+        setError(errMessage(e, 'Could not save your profile. Check your connection and try again.'))
         return
       }
       setProfile(data)
@@ -135,10 +137,10 @@ export default function Profile() {
               </div>
 
               {msg && (
-                <div className="mb-4 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">{msg}</div>
+                <div role="status" className="mb-4 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">{msg}</div>
               )}
               {error && (
-                <div className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>
+                <div role="alert" className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>
               )}
 
               {!editing ? (
@@ -168,22 +170,18 @@ export default function Profile() {
                     <input className="input" maxLength={80} value={form.startup} onChange={(e) => setForm({ ...form, startup: e.target.value })} />
                   </Edit>
                   <Edit label="Region">
-                    <select className="input" value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })}>
-                      <option value="">Select region</option>
-                      {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                    </select>
+                    <Combobox
+                      value={form.region}
+                      onChange={(v) => setForm({ ...form, region: v })}
+                      options={REGIONS}
+                      placeholder="Select or type a state"
+                    />
                   </Edit>
                   <Edit label="Sector">
-                    <select className="input" value={form.sector} onChange={(e) => setForm({ ...form, sector: e.target.value })}>
-                      <option value="">Select sector</option>
-                      {SECTORS.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    <Combobox value={form.sector} onChange={(v) => setForm({ ...form, sector: v })} options={SECTORS} placeholder="Search or type a sector" />
                   </Edit>
                   <Edit label="Domain">
-                    <select className="input" value={form.domain} onChange={(e) => setForm({ ...form, domain: e.target.value })}>
-                      <option value="">Select domain</option>
-                      {DOMAINS.map((d) => <option key={d} value={d}>{d}</option>)}
-                    </select>
+                    <Combobox value={form.domain} onChange={(v) => setForm({ ...form, domain: v })} options={DOMAINS} placeholder="Search or type a domain" />
                   </Edit>
                   <Edit label="LinkedIn">
                     <input className="input" maxLength={200} value={form.linkedin} placeholder="https://linkedin.com/in/..."

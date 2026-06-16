@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Plus, Search, X, Trash2, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import ModalShell from '../components/ModalShell'
 import { useAuth } from '../lib/AuthProvider'
 import RoleBadge from '../components/RoleBadge'
+import AuthorLink from '../components/AuthorLink'
 import Spinner from '../components/Spinner'
 import { timeAgo } from '../lib/format'
 
@@ -33,7 +35,7 @@ export default function TeamAcquisition() {
   const load = useCallback(async () => {
     setLoading(true)
     const { data, error: e } = await supabase.rpc('team_feed', { p_search: debounced || null })
-    if (e) { console.error(e); setError(GENERIC_ERR) } else { setError(''); setPosts(data || []) }
+    if (e) { console.error(e); setError('Could not load the board. Check your connection and retry.') } else { setError(''); setPosts(data || []) }
     setLoading(false)
   }, [debounced])
   useEffect(() => { load() }, [load])
@@ -45,13 +47,13 @@ export default function TeamAcquisition() {
     const { error: e } = mine
       ? await supabase.from('team_posts').delete().eq('id', id)
       : await supabase.rpc('admin_delete_team_post', { p_id: id })
-    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    if (e) { console.error(e); return setError('Could not delete the role need. Try again.') }
     setPosts((prev) => prev.filter((p) => p.id !== id))
   }
 
   async function toggleClosed(post) {
     const { error: e } = await supabase.rpc('set_team_closed', { p_id: post.id, p_closed: !post.closed })
-    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    if (e) { console.error(e); return setError('Could not update the role. Try again.') }
     flash(post.closed ? 'Role reopened.' : 'Role closed.')
     load()
   }
@@ -63,7 +65,7 @@ export default function TeamAcquisition() {
       .delete()
       .eq('team_post_id', postId)
       .eq('applicant_id', uid)
-    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    if (e) { console.error(e); return setError('Could not withdraw your application. Try again.') }
     flash('Application withdrawn.')
     load()
   }
@@ -86,12 +88,12 @@ export default function TeamAcquisition() {
           className="input pl-9"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search roles, skills, startups..."
+          aria-label="Search roles" placeholder="Search roles, skills, startups..."
         />
       </div>
 
       {notice && (
-        <div className="mt-4 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">{notice}</div>
+        <div role="status" className="mt-4 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">{notice}</div>
       )}
 
       {loading ? (
@@ -120,12 +122,12 @@ export default function TeamAcquisition() {
               className={`card flex h-52 cursor-pointer flex-col overflow-hidden p-4 text-left transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-pop ${t.closed ? 'opacity-60' : ''}`}
             >
               <div className="mb-2 flex items-center gap-2">
-                <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
+                <AuthorLink id={t.author_id} className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
                   {(t.author_name || '?').charAt(0).toUpperCase()}
-                </div>
-                <span className="truncate text-sm font-bold">{t.author_name}</span>
+                </AuthorLink>
+                <AuthorLink id={t.author_id} className="truncate text-sm font-bold">{t.author_name}</AuthorLink>
                 {t.author_role && <RoleBadge role={t.author_role} />}
-                {t.closed && <span className="rounded-full bg-down/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-down">Closed</span>}
+                {t.closed && <span className="rounded-md bg-down/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-down">Closed</span>}
                 <span className="ml-auto shrink-0 text-xs text-faint">{timeAgo(t.created_at)}</span>
               </div>
 
@@ -140,7 +142,7 @@ export default function TeamAcquisition() {
               {t.skills?.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1.5 overflow-hidden">
                   {t.skills.slice(0, 4).map((s) => (
-                    <span key={s} className="rounded-full bg-page px-2 py-0.5 text-xs font-semibold text-ink ring-1 ring-line">{s}</span>
+                    <span key={s} className="rounded-md bg-page px-2 py-0.5 text-xs font-semibold text-ink ring-1 ring-line">{s}</span>
                   ))}
                   {t.skills.length > 4 && (
                     <span className="px-1 py-0.5 text-xs font-semibold text-muted">+{t.skills.length - 4}</span>
@@ -208,12 +210,12 @@ function DetailModal({ post, isAdmin, onClose, onApply, onWithdraw, onEdit, onAp
   return (
     <Shell title={post.title} onClose={onClose}>
       <div className="mt-3 flex items-center gap-2">
-        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
+        <AuthorLink id={post.author_id} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
           {(post.author_name || '?').charAt(0).toUpperCase()}
-        </div>
-        <span className="truncate text-sm font-bold">{post.author_name}</span>
+        </AuthorLink>
+        <AuthorLink id={post.author_id} className="truncate text-sm font-bold">{post.author_name}</AuthorLink>
         {post.author_role && <RoleBadge role={post.author_role} />}
-        {post.closed && <span className="rounded-full bg-down/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-down">Closed</span>}
+        {post.closed && <span className="rounded-md bg-down/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-down">Closed</span>}
         <span className="ml-auto shrink-0 text-xs text-faint">{timeAgo(post.created_at)}</span>
       </div>
 
@@ -233,7 +235,7 @@ function DetailModal({ post, isAdmin, onClose, onApply, onWithdraw, onEdit, onAp
           <div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-muted">Skills required</div>
           <div className="flex flex-wrap gap-1.5">
             {post.skills.map((s) => (
-              <span key={s} className="rounded-full bg-page px-2.5 py-1 text-xs font-semibold text-ink ring-1 ring-line">{s}</span>
+              <span key={s} className="rounded-md bg-page px-2.5 py-1 text-xs font-semibold text-ink ring-1 ring-line">{s}</span>
             ))}
           </div>
         </div>
@@ -306,13 +308,10 @@ function Row({ label, value }) {
 
 function Shell({ title, onClose, children }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="card relative z-10 my-8 w-full max-w-lg p-6 animate-pop-in">
-        <h2 className="text-lg font-bold">{title}</h2>
-        {children}
-      </div>
-    </div>
+    <ModalShell onRequestClose={onClose} labelledBy="shell-modal-title">
+      <h2 id="shell-modal-title" className="break-words text-lg font-bold">{title}</h2>
+      {children}
+    </ModalShell>
   )
 }
 
@@ -330,8 +329,16 @@ function PostNeedModal({ edit, onClose, onSaved }) {
   const [skillInput, setSkillInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const initialRef = useRef(JSON.stringify({ ...f, skills: edit?.skills || [] }))
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
   const valid = f.title.trim() && f.looking_for.trim() && f.description.trim()
+
+  function requestClose() {
+    if (busy) return
+    const dirty = JSON.stringify({ ...f, skills }) !== initialRef.current || skillInput.trim() !== ''
+    if (dirty && !window.confirm(edit ? 'Discard your changes?' : 'Discard this role need? Your text will be lost.')) return
+    onClose()
+  }
 
   function addSkill() {
     const s = skillInput.trim()
@@ -358,13 +365,13 @@ function PostNeedModal({ edit, onClose, onSaved }) {
       ? await supabase.from('team_posts').update(payload).eq('id', edit.id)
       : await supabase.from('team_posts').insert({ ...payload, author_id: session.user.id })
     setBusy(false)
-    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    if (e) { console.error(e); return setError('Could not save the role need. Check your connection and try again.') }
     onSaved()
   }
 
   return (
-    <Shell title={edit ? 'Edit role need' : 'Post a role need'} onClose={() => !busy && onClose()}>
-      {error && <div className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+    <Shell title={edit ? 'Edit role need' : 'Post a role need'} onClose={requestClose}>
+      {error && <div role="alert" className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
       <div className="mt-4 space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <L label="Role title *"><input className="input" maxLength={200} value={f.title} onChange={set('title')} placeholder="Full-Stack Developer" /></L>
@@ -413,6 +420,12 @@ function ApplyModal({ post, onClose, onSent }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
+  function requestClose() {
+    if (busy) return
+    if ((msg.trim() || contact.trim()) && !window.confirm('Discard this application? Your text will be lost.')) return
+    onClose()
+  }
+
   async function send() {
     if (!msg.trim()) return setError('Write a short message before sending.')
     if (!contact.trim()) return setError('Add contact info so they can reach you.')
@@ -423,17 +436,17 @@ function ApplyModal({ post, onClose, onSent }) {
       p_contact: contact.trim(),
     })
     setBusy(false)
-    if (e) { console.error(e); return setError(e.message === 'already applied' ? 'You already applied to this.' : GENERIC_ERR) }
+    if (e) { console.error(e); return setError(e.message === 'already applied' ? 'You already applied to this.' : 'Could not send your application. Check your connection and try again.') }
     onSent()
   }
 
   return (
-    <Shell title={`Apply: ${post.title}`} onClose={() => !busy && onClose()}>
+    <Shell title={`Apply: ${post.title}`} onClose={requestClose}>
       <p className="mt-3 text-sm text-muted">
         Applying to <span className="font-bold text-ink">{post.author_name}</span>
         {post.startup ? <> for <span className="font-bold text-ink">{post.startup}</span></> : null}. They will see your message and the contact info you share here. Your account email stays private.
       </p>
-      {error && <div className="mt-3 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+      {error && <div role="alert" className="mt-3 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
       <label className="mt-3 block">
         <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-muted">Message</span>
         <textarea
@@ -466,7 +479,7 @@ function ApplicantsModal({ post, onClose }) {
 
   useEffect(() => {
     supabase.rpc('team_applicants', { p_post: post.id }).then(({ data, error: e }) => {
-      if (e) { console.error(e); setError(GENERIC_ERR) } else setRows(data || [])
+      if (e) { console.error(e); setError('Could not load applicants. Try again.') } else setRows(data || [])
     })
   }, [post.id])
 
@@ -483,10 +496,10 @@ function ApplicantsModal({ post, onClose }) {
           {rows.map((r) => (
             <li key={r.id} className="rounded-lg border border-line p-3">
               <div className="flex items-center gap-2">
-                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
+                <AuthorLink id={r.applicant_id} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
                   {(r.applicant_name || '?').charAt(0).toUpperCase()}
-                </div>
-                <span className="text-sm font-bold">{r.applicant_name}</span>
+                </AuthorLink>
+                <AuthorLink id={r.applicant_id} className="text-sm font-bold">{r.applicant_name}</AuthorLink>
                 {r.applicant_role && <RoleBadge role={r.applicant_role} />}
                 <span className="ml-auto text-xs text-faint">{timeAgo(r.created_at)}</span>
               </div>

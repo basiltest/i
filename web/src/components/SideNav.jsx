@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
-// 1. ADDED 'FolderHeart' to the lucide-react imports list here:
-import { Home, Workflow, Users, Calendar, LayoutGrid, Shield, ClipboardCheck, FolderHeart } from 'lucide-react'
+// COMBINED ALL ICONS INTO ONE SINGLE CLEAN IMPORT BLOCK:
+import { Home, Workflow, Users, Calendar, LayoutGrid, Shield, ClipboardCheck, FolderHeart, Puzzle, Bell } from 'lucide-react'
 import { useAuth } from '../lib/AuthProvider'
 
 // Twitter-style left rail. Built sections are links; the rest are placeholders until built,
@@ -8,14 +8,15 @@ import { useAuth } from '../lib/AuthProvider'
 const ITEMS = [
   { to: '/', label: 'Feed', icon: Home, end: true },
   { to: '/pipeline', label: 'Idea Pipeline', icon: Workflow },
+  { to: '/problem-hub', label: 'Problem Hub', icon: Puzzle },
   { to: '/team', label: 'Team Acquisition', icon: Users },
   { to: '/calendar', label: 'Calendar', icon: Calendar },
   { to: '/directory', label: 'Directory', icon: LayoutGrid },
-  // 2. ADDED your new Autopsy Library link right here!
   { to: '/autopsy-library', label: 'Autopsy Library', icon: FolderHeart },
+  { to: '/notifications', label: 'Notifications', icon: Bell },
 ]
 
-const base = 'flex items-center gap-3.5 rounded-full px-4 py-3 text-base font-semibold transition-colors'
+const base = 'flex items-center gap-3.5 rounded-lg px-4 py-3 text-base font-semibold transition-colors'
 
 export default function SideNav({ onNavigate }) {
   const { isAdmin, isMentor } = useAuth()
@@ -34,7 +35,7 @@ export default function SideNav({ onNavigate }) {
             <span key={it.label} title="Coming soon" className={`${base} cursor-default text-ink`}>
               <Ic size={24} />
               <span>{it.label}</span>
-              <span className="ml-auto rounded-full bg-line px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">
+              <span className="ml-auto rounded bg-line px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">
                 soon
               </span>
             </span>

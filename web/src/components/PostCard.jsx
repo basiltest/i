@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowBigUp, ArrowBigDown, MessageCircle, Pin } from 'lucide-react'
 import RoleBadge from './RoleBadge'
+import PollBlock from './PollBlock'
+import AuthorLink from './AuthorLink'
 import { timeAgo } from '../lib/format'
-import { kindLabel, kindChipClass } from '../lib/postKind'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 
@@ -15,9 +16,11 @@ export default function PostCard({ post }) {
   const [score, setScore] = useState(Number(post.score) || 0)
   const [myVote, setMyVote] = useState(post.my_vote ?? 0)
   const [voting, setVoting] = useState(false)
+  const [voteError, setVoteError] = useState(false)
 
   const open = () => navigate(`/post/${post.id}`)
   const stop = (e) => e.stopPropagation()
+  const keyOpen = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open() } }
 
   async function vote(e, v) {
     e.stopPropagation()
@@ -37,6 +40,8 @@ export default function PostCard({ post }) {
     } catch {
       setMyVote(prevVote)
       setScore(prevScore)
+      setVoteError(true)
+      setTimeout(() => setVoteError(false), 3000)
     } finally {
       setVoting(false)
     }
@@ -45,15 +50,18 @@ export default function PostCard({ post }) {
   return (
     <article
       onClick={open}
-      className="card cursor-pointer p-5 transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-pop"
+      onKeyDown={keyOpen}
+      role="link"
+      tabIndex={0}
+      className="card cursor-pointer p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-pop"
     >
       <header className="flex items-center gap-2">
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent">
+        <AuthorLink id={post.author_id} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent">
           {anon ? '?' : post.author_name.charAt(0).toUpperCase()}
-        </div>
+        </AuthorLink>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-bold">{anon ? 'Anonymous Founder' : post.author_name}</span>
+            <AuthorLink id={post.author_id} className="truncate text-sm font-bold">{anon ? 'Anonymous Founder' : post.author_name}</AuthorLink>
             {!anon && post.author_role && <RoleBadge role={post.author_role} />}
           </div>
           <div className="flex items-center gap-1 text-xs text-muted">
@@ -67,19 +75,22 @@ export default function PostCard({ post }) {
         </div>
         <span className="ml-auto flex shrink-0 items-center gap-1.5">
           {post.badges?.includes('Success') && (
-            <span className="rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-semibold text-success">#Success</span>
+            <span className="rounded-md bg-success/15 px-2 py-0.5 text-[11px] font-semibold text-success">#Success</span>
           )}
-          <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${kindChipClass(post.kind)}`}>
-            {kindLabel(post.kind)}
-          </span>
+          {post.kind === 'poll' && (
+            <span className="rounded-md bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent">Poll</span>
+          )}
         </span>
       </header>
 
       <h3 className="mt-3 break-words text-base font-bold">{post.title}</h3>
-      {post.startup && <p className="break-words text-sm font-semibold text-muted">{post.startup}</p>}
 
-      {/* compact: clamp to 4 lines; full text (and the Solution box) lives on the detail page */}
-      <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words text-sm text-ink">{post.problem}</p>
+      {/* compact: clamp to 4 lines; full text lives on the detail page */}
+      {post.problem && (
+        <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words text-sm text-ink">{post.problem}</p>
+      )}
+
+      {post.kind === 'poll' && <PollBlock postId={post.id} />}
 
       {post.tags?.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
@@ -90,7 +101,7 @@ export default function PostCard({ post }) {
       )}
 
       <footer className="mt-3 flex items-center gap-2">
-        <div onClick={stop} className="inline-flex items-center gap-0.5 rounded-full bg-page px-1 py-0.5">
+        <div onClick={stop} className="inline-flex items-center gap-0.5 rounded-lg bg-page px-1 py-0.5">
           <button
             onClick={(e) => vote(e, 1)}
             aria-label="Upvote"
@@ -113,10 +124,11 @@ export default function PostCard({ post }) {
             <ArrowBigDown size={20} fill={myVote === -1 ? 'currentColor' : 'none'} />
           </button>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-page px-3 py-2 text-sm font-semibold text-muted">
+        <span className="inline-flex items-center gap-1.5 rounded-lg bg-page px-3 py-2 text-sm font-semibold text-muted">
           <MessageCircle size={18} /> {post.comment_count ?? 0}
         </span>
         {post.edited && <span className="ml-1 text-xs text-faint">edited</span>}
+        {voteError && <span role="alert" className="ml-1 text-xs font-semibold text-down">Vote not saved. Try again.</span>}
       </footer>
     </article>
   )

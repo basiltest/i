@@ -44,6 +44,25 @@ create policy "notifications delete own" on public.notifications
   for delete to authenticated using (user_id = auth.uid());
 revoke update (id, user_id, kind, idea_id, actor_id, payload, created_at) on public.notifications from authenticated;
 
+-- Per-user notification preferences. Coarse categories; a missing or true value means
+-- "send", only an explicit false suppresses. Default '{}' so everyone starts fully opted in
+-- and any newly added category is on until the user turns it off.
+alter table public.profiles
+  add column if not exists notification_prefs jsonb not null default '{}'::jsonb;
+
+-- Maps a notification kind to its user-facing preference category. Anything unmapped
+-- falls through to 'pipeline' so a new kind is never silently undeliverable.
+create or replace function public.notif_category(p_kind text)
+returns text
+language sql immutable
+as $$
+  select case
+    when p_kind in ('problem_solution_received', 'solution_reviewed') then 'problems'
+    when p_kind in ('application_withdrawn', 'application_deleted') then 'team'
+    else 'pipeline'
+  end
+$$;
+
 -- Internal writer used by the pipeline RPCs. Not callable by clients.
 -- (drop first: an earlier draft used p_post as the parameter name; replace cannot rename)
 drop function if exists public.notify(uuid, text, uuid, uuid, jsonb);
@@ -52,8 +71,15 @@ create function public.notify(
 ) returns void
 language plpgsql security definer set search_path = public
 as $$
+declare
+  v_prefs jsonb;
 begin
   if p_user is null or p_user = p_actor then return; end if;  -- never self-notify
+  -- honor the recipient's category preference; missing key = opted in
+  select notification_prefs into v_prefs from public.profiles where id = p_user;
+  if v_prefs is not null and (v_prefs -> public.notif_category(p_kind)) = 'false'::jsonb then
+    return;
+  end if;
   insert into public.notifications (user_id, kind, idea_id, actor_id, payload)
   values (p_user, p_kind, p_idea, p_actor, coalesce(p_payload, '{}'));
 end

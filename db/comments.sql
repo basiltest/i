@@ -30,7 +30,7 @@ create policy "comments insert own" on public.comments
   for insert to authenticated with check (
     author_id = auth.uid()
     and not exists (select 1 from public.posts p where p.id = post_id and p.comments_locked)
-    and not exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.banned)
+    and public.can_write(auth.uid())
   );
 drop policy if exists "comments delete own" on public.comments;
 create policy "comments delete own" on public.comments
@@ -55,7 +55,7 @@ returns table (
   id uuid, kind text, title text, problem text, solution text, startup text,
   anonymous boolean, badges text[], success_request text, pinned boolean,
   comments_locked boolean, edited boolean, created_at timestamptz,
-  author_name text, author_role text, is_mine boolean,
+  author_name text, author_role text, author_id uuid, is_mine boolean,
   tags text[], score bigint, my_vote int
 )
 language sql stable security definer set search_path = public
@@ -68,6 +68,7 @@ as $$
     p.anonymous, p.badges, p.success_request, p.pinned, p.comments_locked, p.edited, p.created_at,
     case when p.anonymous and me.role is distinct from 'admin' and p.author_id <> me.uid then null else a.name end,
     case when p.anonymous and me.role is distinct from 'admin' and p.author_id <> me.uid then null else a.role end,
+    case when p.anonymous and me.role is distinct from 'admin' and p.author_id <> me.uid then null else p.author_id end,
     (p.author_id = me.uid),
     coalesce((select array_agg(t.name order by t.name) from public.post_tags pt join public.tags t on t.id = pt.tag_id where pt.post_id = p.id and t.approved), '{}'),
     coalesce((select sum(v.value) from public.post_votes v where v.post_id = p.id), 0),
@@ -82,10 +83,10 @@ grant execute on function public.post_detail(uuid) to authenticated;
 -- Comments with author name/role (comments are never anonymous).
 drop function if exists public.post_comments(uuid);
 create function public.post_comments(p_id uuid)
-returns table (id uuid, body text, created_at timestamptz, author_name text, author_role text, is_mine boolean)
+returns table (id uuid, body text, created_at timestamptz, author_name text, author_role text, author_id uuid, is_mine boolean)
 language sql stable security definer set search_path = public
 as $$
-  select c.id, c.body, c.created_at, a.name, a.role, (c.author_id = auth.uid())
+  select c.id, c.body, c.created_at, a.name, a.role, c.author_id, (c.author_id = auth.uid())
   from public.comments c
   join public.profiles a on a.id = c.author_id
   where c.post_id = p_id

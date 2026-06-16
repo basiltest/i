@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { Award, Users, SlidersHorizontal, Search, Workflow } from 'lucide-react'
+import { Users, SlidersHorizontal, Search, Workflow, Trash2, Mail, Copy, Check, Send } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import ModalShell from '../components/ModalShell'
+import Combobox from '../components/Combobox'
 import { useAuth } from '../lib/AuthProvider'
 import { REGIONS, SECTORS, DOMAINS } from '../lib/options'
 import RoleBadge from '../components/RoleBadge'
@@ -20,33 +22,32 @@ export default function AdminPanel() {
   const { session, profile, isAdmin } = useAuth()
   const uid = session?.user?.id
 
-  const [tab, setTab] = useState('members') // 'members' | 'success'
+  const [tab, setTab] = useState('members') // 'members' | 'pipeline' | 'invites' | 'settings'
   const [members, setMembers] = useState([])
-  const [queue, setQueue] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState(null)
   const [feedLocked, setFeedLocked] = useState(false)
   const [pipelineLocked, setPipelineLocked] = useState(false)
+  const [iiecEnabled, setIiecEnabled] = useState(false)
   const [editMember, setEditMember] = useState(null)
   const [memberQuery, setMemberQuery] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
     setError('')
-    const [m, q, s] = await Promise.all([
+    const [m, s] = await Promise.all([
       supabase.rpc('admin_members'),
-      supabase.rpc('admin_success_queue'),
-      supabase.from('app_settings').select('feed_locked, pipeline_locked').single(),
+      supabase.from('app_settings').select('feed_locked, pipeline_locked, iiec_enabled').single(),
     ])
-    if (m.error || q.error) {
-      console.error(m.error || q.error)
+    if (m.error) {
+      console.error(m.error)
       setError(GENERIC_ERR)
     } else {
       setMembers(m.data || [])
-      setQueue(q.data || [])
       setFeedLocked(!!s.data?.feed_locked)
       setPipelineLocked(!!s.data?.pipeline_locked)
+      setIiecEnabled(!!s.data?.iiec_enabled)
     }
     setLoading(false)
   }, [])
@@ -54,15 +55,22 @@ export default function AdminPanel() {
   async function toggleFeedLock() {
     const next = !feedLocked
     const { error: e } = await supabase.rpc('admin_set_feed_locked', { p_locked: next })
-    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    if (e) { console.error(e); return setError('Could not change the feed lock. Try again.') }
     setFeedLocked(next)
   }
 
   async function togglePipelineLock() {
     const next = !pipelineLocked
     const { error: e } = await supabase.rpc('admin_set_pipeline_locked', { p_locked: next })
-    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    if (e) { console.error(e); return setError('Could not change the pipeline lock. Try again.') }
     setPipelineLocked(next)
+  }
+
+  async function toggleIiec() {
+    const next = !iiecEnabled
+    const { error: e } = await supabase.rpc('admin_set_iiec_enabled', { p_enabled: next })
+    if (e) { console.error(e); return setError('Could not change the IIEC option. Try again.') }
+    setIiecEnabled(next)
   }
 
   useEffect(() => { if (isAdmin) load() }, [isAdmin, load])
@@ -79,13 +87,6 @@ export default function AdminPanel() {
     setMembers((prev) => prev.map((m) => (m.id === userId ? { ...m, role } : m)))
   }
 
-  async function reviewSuccess(postId, approve) {
-    setBusyId(postId)
-    const { error: e } = await supabase.rpc('admin_review_success', { p_id: postId, p_approve: approve })
-    setBusyId(null)
-    if (e) { console.error(e); return setError(GENERIC_ERR) }
-    setQueue((prev) => prev.filter((r) => r.id !== postId))
-  }
 
   async function toggleBan(m) {
     const ban = !m.banned
@@ -97,6 +98,18 @@ export default function AdminPanel() {
     setBusyId(null)
     if (e) { console.error(e); return setError(GENERIC_ERR) }
     setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, banned: ban } : x)))
+  }
+
+  async function toggleRestrict(m) {
+    const restrict = !m.restricted
+    if (restrict && !window.confirm(`Put ${m.name || m.email} in read-only mode? They stay logged in but cannot post, edit, vote, or message until you lift it.`)) return
+    setBusyId(m.id)
+    const { error: e } = restrict
+      ? await supabase.rpc('admin_restrict_user', { p_user: m.id, p_reason: null })
+      : await supabase.rpc('admin_unrestrict_user', { p_user: m.id })
+    setBusyId(null)
+    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, restricted: restrict } : x)))
   }
 
   const shownMembers = members.filter((m) => {
@@ -116,7 +129,7 @@ export default function AdminPanel() {
       <div className="mt-4 flex gap-2">
         <button
           onClick={() => setTab('members')}
-          className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
             tab === 'members' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'
           }`}
         >
@@ -124,23 +137,23 @@ export default function AdminPanel() {
         </button>
         <button
           onClick={() => setTab('pipeline')}
-          className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
             tab === 'pipeline' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'
           }`}
         >
           <Workflow size={15} /> Pipeline
         </button>
         <button
-          onClick={() => setTab('success')}
-          className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
-            tab === 'success' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'
+          onClick={() => setTab('invites')}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
+            tab === 'invites' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'
           }`}
         >
-          <Award size={15} /> #Success requests ({queue.length})
+          <Mail size={15} /> Invites
         </button>
         <button
           onClick={() => setTab('settings')}
-          className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
             tab === 'settings' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'
           }`}
         >
@@ -149,11 +162,13 @@ export default function AdminPanel() {
       </div>
 
       {error && (
-        <div className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>
+        <div role="alert" className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>
       )}
 
-      {loading ? (
-        <div className="mt-6 flex items-center gap-2 text-sm text-muted"><Spinner /> Loading...</div>
+      {tab === 'invites' ? (
+        <InvitesTab />
+      ) : loading ? (
+        <ListSkeleton />
       ) : tab === 'pipeline' ? (
         <PipelineTab />
       ) : tab === 'members' ? (
@@ -164,7 +179,7 @@ export default function AdminPanel() {
             className="input pl-9"
             value={memberQuery}
             onChange={(e) => setMemberQuery(e.target.value)}
-            placeholder="Search members by name, email or startup..."
+            aria-label="Search members" placeholder="Search members by name, email or startup..."
           />
         </div>
         <div className="card mt-3 divide-y divide-line">
@@ -180,7 +195,8 @@ export default function AdminPanel() {
                 <div className="flex items-center gap-2">
                   <span className="truncate text-sm font-bold">{m.name || 'Unnamed'}</span>
                   <RoleBadge role={m.role} />
-                  {m.banned && <span className="rounded-full bg-down/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-down">Banned</span>}
+                  {m.banned && <span className="rounded-md bg-down/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-down">Banned</span>}
+                  {!m.banned && m.restricted && <span className="rounded-md bg-warn/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warnink">Read-only</span>}
                   {m.id === uid && <span className="text-xs text-faint">(you)</span>}
                 </div>
                 <div className="truncate text-xs text-muted">{m.email}{m.startup ? ` · ${m.startup}` : ''}</div>
@@ -199,6 +215,15 @@ export default function AdminPanel() {
                       {ROLES.map((r) => <option key={r.v} value={r.v}>{r.label}</option>)}
                     </select>
                     <button className="btn-outline px-3 py-1.5 text-xs" onClick={() => setEditMember(m)}>Edit</button>
+                    {!m.banned && (
+                      <button
+                        className={`btn px-3 py-1.5 text-xs ${m.restricted ? 'btn-outline' : 'border border-warn/40 text-warnink hover:bg-warn/10'}`}
+                        disabled={busyId === m.id}
+                        onClick={() => toggleRestrict(m)}
+                      >
+                        {m.restricted ? 'Lift read-only' : 'Read-only'}
+                      </button>
+                    )}
                     <button
                       className={`btn px-3 py-1.5 text-xs ${m.banned ? 'btn-outline' : 'border border-down/40 text-down hover:bg-down/10'}`}
                       disabled={busyId === m.id}
@@ -224,7 +249,7 @@ export default function AdminPanel() {
             </div>
             <button
               onClick={toggleFeedLock}
-              className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
+              className={`inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
                 feedLocked ? 'border-down/40 bg-down/10 text-down' : 'border-success/40 bg-success/10 text-success'
               }`}
             >
@@ -240,47 +265,31 @@ export default function AdminPanel() {
             </div>
             <button
               onClick={togglePipelineLock}
-              className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
+              className={`inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
                 pipelineLocked ? 'border-down/40 bg-down/10 text-down' : 'border-success/40 bg-success/10 text-success'
               }`}
             >
               {pipelineLocked ? 'Submissions CLOSED' : 'Submissions OPEN'}
             </button>
           </div>
-        </div>
-      ) : queue.length === 0 ? (
-        <div className="card mt-4 p-8 text-center">
-          <p className="font-semibold">No pending #Success requests.</p>
-          <p className="mt-1 text-sm text-muted">Authors request the badge from their post's menu.</p>
-        </div>
-      ) : (
-        <div className="card mt-4 divide-y divide-line">
-          {queue.map((r) => (
-            <div key={r.id} className="flex flex-wrap items-center gap-3 p-4">
-              <div className="min-w-0 flex-1">
-                <Link to={`/post/${r.id}`} className="block truncate text-sm font-bold hover:underline">{r.title}</Link>
-                <div className="text-xs text-muted">{r.author_name} · {timeAgo(r.created_at)}</div>
-              </div>
-              <div className="flex shrink-0 gap-2">
-                <button
-                  className="btn-primary px-3 py-1.5 text-xs"
-                  disabled={busyId === r.id}
-                  onClick={() => reviewSuccess(r.id, true)}
-                >
-                  Approve
-                </button>
-                <button
-                  className="btn-outline px-3 py-1.5 text-xs"
-                  disabled={busyId === r.id}
-                  onClick={() => reviewSuccess(r.id, false)}
-                >
-                  Reject
-                </button>
+          <div className="flex flex-wrap items-center gap-3 p-4">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-bold">IIEC funding requests</div>
+              <div className="text-xs text-muted">
+                When on, founders can flag a G5 submission to request IIEC funding. The mentor sees it and takes it to the council.
               </div>
             </div>
-          ))}
+            <button
+              onClick={toggleIiec}
+              className={`inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
+                iiecEnabled ? 'border-success/40 bg-success/10 text-success' : 'border-line bg-black/5 text-muted'
+              }`}
+            >
+              {iiecEnabled ? 'Option ON' : 'Option OFF'}
+            </button>
+          </div>
         </div>
-      )}
+      ) : null}
 
       {editMember && (
         <AdminEditProfileModal
@@ -373,6 +382,22 @@ function PipelineTab() {
     return next
   })
 
+  // moderation: remove an application outright. The prompt doubles as the confirm; the
+  // reason is mandatory (it rides in the author's/mentor's notification).
+  async function deleteIdea(r) {
+    const reason = window.prompt(
+      `Delete ${ifnTag(r.ifn)} "${r.title}" permanently?\n\nThis removes the application, its submissions, reviews, files and thread for everyone. This cannot be undone.\n\nReason (required, audited):`
+    )
+    if (reason === null) return
+    if (!reason.trim()) return setError('A reason is required for every admin action (it is audited).')
+    setBusy(true)
+    setError('')
+    const { error: e } = await supabase.rpc('admin_delete_pipeline_idea', { p_idea: r.id, p_reason: reason.trim() })
+    setBusy(false)
+    if (e) { console.error(e); return setError(e.message || GENERIC_ERR) }
+    load()
+  }
+
   const byGate = counts?.by_gate || {}
 
   return (
@@ -396,13 +421,13 @@ function PipelineTab() {
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           onClick={() => setView('inbox')}
-          className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${view === 'inbox' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}
+          className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${view === 'inbox' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}
         >
           Inbox (needs you)
         </button>
         <button
           onClick={() => setView('all')}
-          className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${view === 'all' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}
+          className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${view === 'all' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}
         >
           All ideas
         </button>
@@ -431,7 +456,7 @@ function PipelineTab() {
             </select>
             <input
               className="input w-44 py-1.5 text-xs"
-              placeholder="Search title / author / IFN"
+              aria-label="Search ideas" placeholder="Search title / author / IFN"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -454,10 +479,10 @@ function PipelineTab() {
         </div>
       )}
 
-      {error && <div className="mt-3 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+      {error && <div role="alert" className="mt-3 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
 
       {loading ? (
-        <div className="mt-6 flex items-center gap-2 text-sm text-muted"><Spinner /> Loading...</div>
+        <ListSkeleton avatar={false} className="mt-3" />
       ) : rows.length === 0 ? (
         <div className="card mt-3 p-8 text-center">
           <p className="font-semibold">{view === 'inbox' ? 'Inbox zero.' : 'No ideas match.'}</p>
@@ -480,12 +505,12 @@ function PipelineTab() {
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-line px-2 py-0.5 text-[11px] font-bold text-muted">{ifnTag(r.ifn)}</span>
+                    <span className="rounded-md bg-line px-2 py-0.5 text-[11px] font-bold text-muted">{ifnTag(r.ifn)}</span>
                     <Link to={`/pipeline/${r.id}`} className="min-w-0 truncate text-sm font-bold hover:underline">{r.title}</Link>
                     {r.pipeline_state !== 'active' && st && (
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.tone}`}>{st.label}</span>
+                      <span className={`shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold ${st.tone}`}>{st.label}</span>
                     )}
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${w.tone}`}>{w.label}</span>
+                    <span className={`shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold ${w.tone}`}>{w.label}</span>
                   </div>
                   <div className="mt-0.5 text-xs text-muted">
                     G{r.gate} · {r.author_name}
@@ -496,9 +521,231 @@ function PipelineTab() {
                     </span>
                   </div>
                 </div>
+                <button
+                  onClick={() => deleteIdea(r)}
+                  disabled={busy}
+                  title={`Delete ${ifnTag(r.ifn)} permanently`}
+                  aria-label={`Delete ${ifnTag(r.ifn)}`}
+                  className="shrink-0 rounded-full p-2 text-muted hover:bg-down/10 hover:text-down"
+                >
+                  <Trash2 size={15} />
+                </button>
               </div>
             )
           })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Invite mentors/admins (any domain). They cannot self-register — the server
+// only lets @ifheindia.org students through unless their email has a live invite.
+// Paste many addresses at once; each gets its own one-time link to share.
+// Pin the link base to VITE_PUBLIC_URL so a link generated on a preview/localhost
+// deploy still points at production; fall back to the current origin if unset.
+const SITE_URL = import.meta.env.VITE_PUBLIC_URL || window.location.origin
+const inviteLink = (token) => `${SITE_URL.replace(/\/$/, '')}/register?invite=${token}`
+const parseEmails = (raw) =>
+  [...new Set(raw.split(/[\s,;]+/).map((s) => s.trim().toLowerCase()).filter(Boolean))]
+
+function InvitesTab() {
+  const [emails, setEmails] = useState('')
+  const [role, setRole] = useState('mentor')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [created, setCreated] = useState([]) // rows from the latest generate
+  const [list, setList] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [copied, setCopied] = useState('')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const { data, error: e } = await supabase.rpc('admin_list_invites')
+    if (e) { console.error(e); setError(GENERIC_ERR) }
+    setList(data || [])
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  async function copy(text, key) {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(key)
+      setTimeout(() => setCopied((c) => (c === key ? '' : c)), 1500)
+    } catch { /* clipboard blocked; ignore */ }
+  }
+
+  async function generate() {
+    setError('')
+    const parsed = parseEmails(emails)
+    if (parsed.length === 0) return setError('Paste at least one email address.')
+    setBusy(true)
+    const { data, error: e } = await supabase.rpc('admin_create_invites', { p_emails: parsed, p_role: role })
+    setBusy(false)
+    if (e) { console.error(e); return setError(e.message || GENERIC_ERR) }
+    const rows = data || []
+    setCreated(rows)
+    setEmails('')
+    const skipped = parsed.length - rows.length
+    if (rows.length === 0) setError('No valid new invites were created (check the addresses).')
+    else if (skipped > 0) setError(`${rows.length} invite${rows.length > 1 ? 's' : ''} created. ${skipped} skipped (invalid or duplicate).`)
+    load()
+  }
+
+  // Create + email the invites via the send-invites Edge Function (Resend).
+  // emailsArg + roleArg let the per-row "Resend email" reuse this for one address
+  // while keeping that invite's own role (not the compose dropdown).
+  async function sendInvites(emailsArg, roleArg) {
+    setError('')
+    const parsed = parseEmails(emailsArg ?? emails)
+    if (parsed.length === 0) return setError('Paste at least one email address.')
+    setBusy(true)
+    const { data, error: e } = await supabase.functions.invoke('send-invites', {
+      body: { emails: parsed, role: roleArg ?? role },
+    })
+    setBusy(false)
+    if (e) {
+      console.error(e)
+      // FunctionsHttpError carries the JSON body on .context; fall back to a hint.
+      let msg = e.message
+      try { msg = (await e.context?.json())?.error || msg } catch { /* keep msg */ }
+      return setError(msg === 'Failed to send a request to the Edge Function'
+        ? 'Could not reach the email service. Is the send-invites function deployed?'
+        : msg || GENERIC_ERR)
+    }
+    if (data?.error) return setError(data.error)
+    if (!emailsArg) setEmails('')
+    const failed = data?.failed?.length || 0
+    setError(`Emailed ${data?.sent || 0} invite${data?.sent === 1 ? '' : 's'}.${failed ? ` ${failed} failed to send.` : ''}`)
+    load()
+  }
+
+  const STATUS_TONE = {
+    pending: 'bg-accent-soft text-accent',
+    accepted: 'bg-success/15 text-success',
+    expired: 'bg-line text-muted',
+  }
+
+  return (
+    <div className="mt-4 space-y-4">
+      {/* compose */}
+      <div className="card p-4">
+        <div className="text-sm font-bold">Invite mentors &amp; admins</div>
+        <p className="mt-0.5 text-xs text-muted">
+          One email per line (or comma-separated). Everyone in the batch gets the same role and their own link.
+        </p>
+        <textarea
+          className="input mt-3 min-h-[88px] resize-y font-mono text-sm"
+          placeholder={'jane@acme.com\nbob@partner.org'}
+          value={emails}
+          onChange={(e) => setEmails(e.target.value)}
+        />
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <select className="input w-auto py-2 text-sm" value={role} onChange={(e) => setRole(e.target.value)}>
+            {ROLES.filter((r) => r.v !== 'student').map((r) => <option key={r.v} value={r.v}>{r.label}</option>)}
+          </select>
+          <button className="btn-primary inline-flex items-center gap-1.5 px-4 py-2 text-sm" onClick={() => sendInvites()} disabled={busy || !emails.trim()}>
+            <Send size={15} /> {busy ? 'Working...' : 'Send invites'}
+          </button>
+          <button className="btn-outline px-4 py-2 text-sm" onClick={generate} disabled={busy || !emails.trim()}>
+            Generate links only
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-faint">
+          <strong>Send invites</strong> emails each link directly. <strong>Generate links only</strong> creates them to copy and share yourself.
+        </p>
+        {error && (
+          <div role="alert" className="mt-3 rounded-lg border border-line bg-black/5 px-3 py-2 text-sm text-muted">{error}</div>
+        )}
+      </div>
+
+      {/* freshly generated links — easy to copy and hand out now */}
+      {created.length > 0 && (
+        <div className="card p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-bold">{created.length} link{created.length > 1 ? 's' : ''} ready</div>
+            <button
+              className="btn-outline px-3 py-1.5 text-xs"
+              onClick={() => copy(created.map((r) => `${r.email}: ${inviteLink(r.token)}`).join('\n'), 'all')}
+            >
+              {copied === 'all' ? 'Copied!' : 'Copy all'}
+            </button>
+          </div>
+          <div className="mt-3 divide-y divide-line">
+            {created.map((r) => (
+              <div key={r.token} className="flex items-center gap-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold">{r.email}</div>
+                  <div className="truncate text-xs text-muted">{inviteLink(r.token)}</div>
+                </div>
+                <button
+                  className="shrink-0 rounded-lg border border-line p-2 text-muted hover:bg-black/5"
+                  onClick={() => copy(inviteLink(r.token), r.token)}
+                  aria-label={`Copy link for ${r.email}`}
+                >
+                  {copied === r.token ? <Check size={15} className="text-success" /> : <Copy size={15} />}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* all invites */}
+      {loading ? (
+        <ListSkeleton avatar={false} className="" />
+      ) : list.length === 0 ? (
+        <div className="card p-8 text-center text-sm text-muted">No invites yet.</div>
+      ) : (
+        <div className="card divide-y divide-line">
+          {list.map((iv) => (
+            <div key={iv.id} className="flex flex-wrap items-center gap-3 p-4">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-sm font-semibold">{iv.email}</span>
+                  <RoleBadge role={iv.role} />
+                  <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${STATUS_TONE[iv.status]}`}>
+                    {iv.status}
+                  </span>
+                </div>
+                <div className="truncate text-xs text-muted">
+                  {iv.status === 'accepted'
+                    ? `Joined ${timeAgo(iv.accepted_at)}`
+                    : iv.status === 'expired'
+                      ? `Expired ${timeAgo(iv.expires_at)}`
+                      : `Expires ${timeAgo(iv.expires_at)} · ${iv.sent_at ? `emailed ${timeAgo(iv.sent_at)}` : 'not emailed'}`}
+                  {iv.invited_by_name ? ` · by ${iv.invited_by_name}` : ''}
+                </div>
+              </div>
+              {iv.status === 'pending' && (
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    className="btn-outline inline-flex items-center gap-1.5 px-3 py-1.5 text-xs"
+                    disabled={busy}
+                    onClick={() => sendInvites(iv.email, iv.role)}
+                  >
+                    <Send size={13} /> {iv.sent_at ? 'Resend' : 'Email'}
+                  </button>
+                  <button className="btn-outline px-3 py-1.5 text-xs" onClick={() => copy(inviteLink(iv.token), iv.id)}>
+                    {copied === iv.id ? 'Copied!' : 'Copy link'}
+                  </button>
+                  <button
+                    className="btn px-3 py-1.5 text-xs border border-down/40 text-down hover:bg-down/10"
+                    onClick={async () => {
+                      if (!window.confirm(`Revoke the invite for ${iv.email}? The link will stop working.`)) return
+                      const { error: e } = await supabase.rpc('admin_revoke_invite', { p_id: iv.id })
+                      if (e) { console.error(e); return setError(GENERIC_ERR) }
+                      load()
+                    }}
+                  >
+                    Revoke
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -540,17 +787,15 @@ function AdminEditProfileModal({ member, onClose, onSaved }) {
       p_incubation: form.incubation_interest,
     })
     setBusy(false)
-    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    if (e) { console.error(e); return setError('Could not save the profile. Check your connection and try again.') }
     onSaved({ name: form.name.trim(), startup: form.startup.trim() })
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !busy && onClose()} />
-      <div className="card relative z-10 my-8 w-full max-w-lg p-6 animate-pop-in">
-        <h2 className="text-lg font-bold">Edit profile</h2>
+    <ModalShell onRequestClose={() => !busy && onClose()} labelledBy="admin-edit-title">
+      <h2 id="admin-edit-title" className="text-lg font-bold">Edit profile</h2>
         <p className="mt-0.5 text-xs text-muted">{member.email}</p>
-        {error && <div className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+        {error && <div role="alert" className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
         {!form ? (
           <div className="mt-6 flex items-center gap-2 text-sm text-muted"><Spinner /> Loading...</div>
         ) : (
@@ -561,22 +806,18 @@ function AdminEditProfileModal({ member, onClose, onSaved }) {
               <Field label="Startup"><input className="input" maxLength={80} value={form.startup} onChange={set('startup')} /></Field>
               <Field label="LinkedIn"><input className="input" maxLength={200} value={form.linkedin} onChange={set('linkedin')} placeholder="https://..." /></Field>
               <Field label="Region">
-                <select className="input" value={form.region} onChange={set('region')}>
-                  <option value="">Select region</option>
-                  {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                </select>
+                <Combobox
+                  value={form.region}
+                  onChange={(v) => setForm({ ...form, region: v })}
+                  options={REGIONS}
+                  placeholder="Select or type a state"
+                />
               </Field>
               <Field label="Sector">
-                <select className="input" value={form.sector} onChange={set('sector')}>
-                  <option value="">Select sector</option>
-                  {SECTORS.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
+                <Combobox value={form.sector} onChange={(v) => setForm({ ...form, sector: v })} options={SECTORS} placeholder="Search or type a sector" />
               </Field>
               <Field label="Domain">
-                <select className="input" value={form.domain} onChange={set('domain')}>
-                  <option value="">Select domain</option>
-                  {DOMAINS.map((d) => <option key={d} value={d}>{d}</option>)}
-                </select>
+                <Combobox value={form.domain} onChange={(v) => setForm({ ...form, domain: v })} options={DOMAINS} placeholder="Search or type a domain" />
               </Field>
               <div className="sm:col-span-2">
                 <Field label="About"><textarea className="input min-h-[70px] resize-y" maxLength={160} value={form.bio} onChange={set('bio')} /></Field>
@@ -592,8 +833,7 @@ function AdminEditProfileModal({ member, onClose, onSaved }) {
             </div>
           </>
         )}
-      </div>
-    </div>
+    </ModalShell>
   )
 }
 
@@ -603,5 +843,24 @@ function Field({ label, children }) {
       <span className="mb-1 block text-xs font-medium text-muted">{label}</span>
       {children}
     </label>
+  )
+}
+
+// Skeleton that mirrors a list row (avatar + two text lines + a trailing control),
+// so the page keeps its shape while loading instead of flashing a centered spinner.
+function ListSkeleton({ rows = 6, avatar = true, className = 'mt-4' }) {
+  return (
+    <div className={`card animate-pulse divide-y divide-line ${className}`}>
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 p-4">
+          {avatar && <div className="h-9 w-9 shrink-0 rounded-full bg-line" />}
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-3 rounded bg-line" style={{ width: `${32 + (i % 3) * 14}%` }} />
+            <div className="h-2.5 w-1/2 rounded bg-line" />
+          </div>
+          <div className="h-7 w-20 shrink-0 rounded-lg bg-line" />
+        </div>
+      ))}
+    </div>
   )
 }

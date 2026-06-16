@@ -2,9 +2,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Workflow, Plus, Lock } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import ModalShell from '../components/ModalShell'
+import MultiSelect from '../components/MultiSelect'
 import { useAuth } from '../lib/AuthProvider'
 import { PipelineListSkeleton } from '../components/PipelineSkeleton'
 import { timeAgo } from '../lib/format'
+import { errMessage } from '../lib/errors'
 import { SECTORS } from '../lib/options'
 import { GATES, gateLabel, waitingChip, STATES, ifnTag } from '../lib/pipeline'
 
@@ -54,7 +57,7 @@ export default function Pipeline() {
           <Lock size={15} /> Submissions are closed right now. Existing applications keep moving.
         </div>
       )}
-      {error && <div className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+      {error && <div role="alert" className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
 
       {/* how it works */}
       <div className="card mt-4 p-4">
@@ -90,12 +93,12 @@ export default function Pipeline() {
                 className="block w-full p-4 text-left hover:bg-black/5"
               >
                 <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-line px-2 py-0.5 text-[11px] font-bold text-muted">{ifnTag(r.ifn)}</span>
+                  <span className="rounded-md bg-line px-2 py-0.5 text-[11px] font-bold text-muted">{ifnTag(r.ifn)}</span>
                   <span className="min-w-0 flex-1 truncate text-sm font-bold">{r.title}</span>
                   {r.pipeline_state !== 'active' && st && (
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.tone}`}>{st.label}</span>
+                    <span className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${st.tone}`}>{st.label}</span>
                   )}
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${w.tone}`}>{w.label}</span>
+                  <span className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${w.tone}`}>{w.label}</span>
                 </div>
                 <div className="mt-1 flex items-center gap-2 text-xs text-muted">
                   <span className="font-semibold text-ink">G{r.gate} · {gateLabel(r.gate)}</span>
@@ -122,7 +125,7 @@ export default function Pipeline() {
 // question with a real example as the placeholder. Required = non-empty; long answers are
 // capped at 500 chars (clarity over volume). Draft autosaves per account.
 const EMPTY_APP = {
-  title: '', sector: '', market_size: '', problem: '', target_user: '',
+  title: '', sectors: [], market_size: '', problem: '', target_user: '',
   solution: '', team: '', traction: '',
 }
 
@@ -134,7 +137,9 @@ export function ApplicationModal({ idea, onClose, onDone }) {
   const [f, setF] = useState(() => {
     if (editing) {
       return {
-        title: idea.title || '', sector: idea.sector || '', problem: idea.problem || '',
+        title: idea.title || '',
+        sectors: idea.sectors?.length ? idea.sectors : (idea.sector ? [idea.sector] : []),
+        problem: idea.problem || '',
         solution: idea.solution || '',
         market_size: idea.application?.market_size || '',
         target_user: idea.application?.target_user || '',
@@ -162,7 +167,7 @@ export function ApplicationModal({ idea, onClose, onDone }) {
     return () => clearTimeout(t)
   }, [f, editing, draftKey])
 
-  const valid = f.title.trim() && f.sector && f.problem.trim() && f.target_user.trim()
+  const valid = f.title.trim() && f.sectors.length > 0 && f.problem.trim() && f.target_user.trim()
     && f.solution.trim() && f.team.trim()
 
   async function submit() {
@@ -171,7 +176,7 @@ export function ApplicationModal({ idea, onClose, onDone }) {
     setError('')
     const params = {
       p_title: f.title.trim(),
-      p_sector: f.sector,
+      p_sectors: f.sectors,
       p_problem: f.problem.trim(),
       p_solution: f.solution.trim(),
       p_application: {
@@ -187,31 +192,31 @@ export function ApplicationModal({ idea, onClose, onDone }) {
     setBusy(false)
     if (e) {
       console.error(e)
-      return setError(e.message?.includes('closed') ? 'Submissions are currently closed.' : (e.message || GENERIC_ERR))
+      return setError(errMessage(e, GENERIC_ERR))
     }
     if (!editing) { try { localStorage.removeItem(draftKey) } catch { /* ignore */ } }
     onDone(editing ? idea.id : data)
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !busy && onClose()} />
-      <div className="card relative z-10 my-8 w-full max-w-2xl p-6 animate-pop-in">
-        <h2 className="text-lg font-bold">{editing ? 'Edit your application' : 'Apply to the Idea Pipeline'}</h2>
+    <ModalShell onRequestClose={() => !busy && onClose()} labelledBy="pipeline-apply-title" className="max-w-2xl">
+      <h2 id="pipeline-apply-title" className="text-lg font-bold">{editing ? 'Edit your application' : 'Apply to the Idea Pipeline'}</h2>
         <p className="mt-1 text-sm text-muted">
           Be specific. Mentors pick the ideas they can clearly understand. Your draft autosaves on this device.
         </p>
-        {error && <div className="mt-3 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+        {error && <div role="alert" className="mt-3 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
 
         <div className="mt-5 grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
           <AppField label="Startup / concept title *">
             <input className="input" maxLength={120} value={f.title} onChange={set('title')} placeholder="e.g. AgriSense Rust Disease Spotter" />
           </AppField>
-          <AppField label="Sector *">
-            <select className="input" value={f.sector} onChange={set('sector')}>
-              <option value="">Select sector...</option>
-              {SECTORS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+          <AppField label="Sectors * (pick one or more)">
+            <MultiSelect
+              value={f.sectors}
+              onChange={(v) => setF((cur) => ({ ...cur, sectors: v }))}
+              options={SECTORS}
+              placeholder="Select sectors..."
+            />
           </AppField>
 
           <div className="sm:col-span-2">
@@ -245,8 +250,7 @@ export function ApplicationModal({ idea, onClose, onDone }) {
             {busy ? 'Submitting...' : editing ? 'Save changes' : 'Submit to Gate 1'}
           </button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   )
 }
 

@@ -12,18 +12,18 @@ import Pipeline from './pages/Pipeline'
 import PipelineIdea from './pages/PipelineIdea'
 import MentorReview from './pages/MentorReview'
 import TeamAcquisition from './pages/TeamAcquisition'
+import ProblemHub from './pages/ProblemHub'
+import ProblemDetail from './pages/ProblemDetail'
 import Calendar from './pages/Calendar'
 import Directory from './pages/Directory'
+import UserProfile from './pages/UserProfile'
+import Notifications from './pages/Notifications'
 import Onboarding from './pages/Onboarding'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import OnboardingGate from './components/OnboardingGate'
 import PublicOnlyRoute from './components/PublicOnlyRoute'
-import ProblemHub from './pages/ProblemHub';
-import AutopsyLibrary from './pages/AutopsyLibrary';
-
-// Inside your main <Routes> array block:
-
+import AutopsyLibrary from './pages/AutopsyLibrary'
 
 function App() {
   return (
@@ -47,11 +47,14 @@ function App() {
         <Route path="pipeline/:id" element={<PipelineIdea />} />
         <Route path="mentor" element={<MentorReview />} />
         <Route path="team" element={<TeamAcquisition />} />
+        <Route path="problem-hub" element={<ProblemHub />} />
+        <Route path="problem-hub/:id" element={<ProblemDetail />} />
         <Route path="calendar" element={<Calendar />} />
         <Route path="directory" element={<Directory />} />
+        <Route path="u/:id" element={<UserProfile />} />
+        <Route path="notifications" element={<Notifications />} />
         <Route path="admin" element={<AdminPanel />} />
-        <Route path="/problem-hub" element={<ProblemHub />} />
-        <Route path="/autopsy-library" element={<AutopsyLibrary />} />
+        <Route path="autopsy-library" element={<AutopsyLibrary />} />
       </Route>
     </Routes>
   )

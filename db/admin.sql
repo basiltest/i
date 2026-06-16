@@ -51,10 +51,10 @@ create trigger block_banned_signup before insert on auth.users
 -- Members list (profiles RLS is read-own, so admins list members via RPC).
 drop function if exists public.admin_members();
 create function public.admin_members()
-returns table (id uuid, email text, name text, role text, startup text, banned boolean, created_at timestamptz)
+returns table (id uuid, email text, name text, role text, startup text, banned boolean, restricted boolean, created_at timestamptz)
 language sql stable security definer set search_path = public
 as $$
-  select p.id, u.email::text, p.name, p.role, p.startup, p.banned, p.created_at
+  select p.id, u.email::text, p.name, p.role, p.startup, p.banned, coalesce(p.restricted, false), p.created_at
   from public.profiles p
   join auth.users u on u.id = p.id
   where public.is_admin()
@@ -228,6 +228,7 @@ create or replace function public.admin_review_success(p_id uuid, p_approve bool
 returns void
 language plpgsql security definer set search_path = public
 as $$
+declare v_author uuid; v_title text;
 begin
   if not public.is_admin() then raise exception 'admins only'; end if;
   if p_approve then
@@ -235,10 +236,19 @@ begin
       success_request = 'approved',
       badges = case when 'Success' = any(coalesce(badges, '{}')) then badges
                     else array_append(coalesce(badges, '{}'), 'Success') end
-    where id = p_id and success_request = 'pending';
+    where id = p_id and success_request = 'pending'
+    returning author_id, title into v_author, v_title;
   else
     update public.posts set success_request = 'rejected'
-    where id = p_id and success_request = 'pending';
+    where id = p_id and success_request = 'pending'
+    returning author_id, title into v_author, v_title;
+  end if;
+  -- v_author is set ONLY when a pending row actually changed, so re-running never re-notifies.
+  if v_author is not null then
+    perform public.notify(
+      v_author,
+      case when p_approve then 'success_approved' else 'success_rejected' end,
+      null, auth.uid(), jsonb_build_object('post_id', p_id, 'title', v_title));
   end if;
 end
 $$;

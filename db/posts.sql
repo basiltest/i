@@ -4,7 +4,7 @@
 create table if not exists public.posts (
   id uuid primary key default gen_random_uuid(),
   author_id uuid not null references public.profiles(id) on delete cascade,
-  kind text not null check (kind in ('idea', 'problem', 'discussion')),
+  kind text not null check (kind in ('idea', 'problem', 'discussion', 'post', 'poll')),
   anonymous boolean not null default false,
   startup text,
   title text not null,
@@ -26,26 +26,31 @@ create index if not exists posts_feed_idx on public.posts (kind, status, created
 create index if not exists posts_author_idx on public.posts (author_id);
 create index if not exists posts_pinned_idx on public.posts (pinned) where pinned;
 
--- migration: allow the 'discussion' kind on installs created before it existed
+-- migration: the feed collapsed to one generic 'post' kind (+ admin 'poll'); legacy
+-- idea/problem/discussion rows stay valid and still render, just without a type chip.
 alter table public.posts drop constraint if exists posts_kind_check;
-alter table public.posts add constraint posts_kind_check check (kind in ('idea', 'problem', 'discussion'));
+alter table public.posts add constraint posts_kind_check check (kind in ('idea', 'problem', 'discussion', 'post', 'poll'));
 
 alter table public.posts enable row level security;
 
 -- READ: any authenticated user sees published posts; authors also see their own drafts.
+drop policy if exists "posts read published or own" on public.posts;
 create policy "posts read published or own" on public.posts
   for select to authenticated
   using (status = 'published' or author_id = auth.uid());
 
 -- CREATE: only as yourself.
+drop policy if exists "posts insert own" on public.posts;
 create policy "posts insert own" on public.posts
   for insert to authenticated
   with check (author_id = auth.uid());
 
 -- UPDATE / DELETE: author only for now (admin moderation comes in a later slice).
+drop policy if exists "posts update own" on public.posts;
 create policy "posts update own" on public.posts
   for update to authenticated using (author_id = auth.uid());
 
+drop policy if exists "posts delete own" on public.posts;
 create policy "posts delete own" on public.posts
   for delete to authenticated using (author_id = auth.uid());
 

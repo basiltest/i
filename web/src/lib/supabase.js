@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js'
 
 // Make sure your URL looks clean like this, with NO extra words like "/rest/v1" at the end!
 const url = 'https://uyepkmdpakwkpqxsofoi.supabase.co'; 

@@ -1,9 +1,15 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import Logo from '../components/Logo'
 
+const STUDENT_DOMAIN = 'ifheindia.org'
+const ROLE_LABEL = { mentor: 'Mentor', admin: 'Admin', student: 'Student' }
+
 export default function Register() {
+  const [params] = useSearchParams()
+  const token = params.get('invite')
+
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -11,14 +17,34 @@ export default function Register() {
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
 
+  // invite: null = none, false = checking, object = resolved ({ email, role, valid })
+  const [invite, setInvite] = useState(token ? false : null)
+
+  useEffect(() => {
+    if (!token) return
+    supabase.rpc('invite_lookup', { p_token: token }).then(({ data }) => {
+      const row = data?.[0]
+      if (row?.valid) {
+        setInvite(row)
+        setEmail(row.email) // bound to the invited address
+      } else {
+        setInvite({ valid: false })
+      }
+    })
+  }, [token])
+
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
 
-    // client-side validation (UX only; server does the authoritative checks)
+    // client-side validation (UX only; the server trigger does the authoritative checks)
     if (!name.trim()) return setError('Please enter your name.')
     if (name.trim().length > 80) return setError('Name must be 80 characters or fewer.')
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError('Please enter a valid email.')
+    // Without an invite, only ICFAI students may register. Invited mentors/admins are exempt.
+    if (!invite?.valid && email.trim().split('@')[1]?.toLowerCase() !== STUDENT_DOMAIN) {
+      return setError(`Registration is for @${STUDENT_DOMAIN} email users only. Other emails need an invite link from an admin.`)
+    }
     if (password.length < 8) return setError('Password must be at least 8 characters.')
 
     setLoading(true)
@@ -60,15 +86,38 @@ export default function Register() {
     )
   }
 
+  // A token that resolved to an expired/used/unknown invite: dead end, no form.
+  if (token && invite && !invite.valid) {
+    return (
+      <div className="min-h-screen grid place-items-center px-6">
+        <div className="card w-full max-w-sm p-8 text-center animate-pop-in">
+          <h2 className="text-lg font-semibold">Invite not valid</h2>
+          <p className="mt-1 text-sm text-muted">
+            This invite link has expired or already been used. Ask an admin for a fresh one.
+          </p>
+          <Link to="/login" className="mt-4 inline-block font-semibold text-accent hover:underline">Back to log in</Link>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen grid place-items-center px-6">
       <form onSubmit={handleSubmit} noValidate className="card w-full max-w-sm p-8 animate-pop-in">
         <Logo className="mb-5 h-12 w-auto" />
         <h2 className="text-lg font-semibold">Create your account</h2>
-        <p className="mb-5 text-sm text-muted">Join the ICFAI Founders Network.</p>
+        <p className="mb-5 text-sm text-muted">
+          {invite?.valid ? 'Complete your invited account.' : 'Join the ICFAI Founders Network.'}
+        </p>
+
+        {invite?.valid && (
+          <div className="mb-4 rounded-lg border border-accent/30 bg-accent-soft px-3 py-2 text-sm text-accent">
+            You were invited as <span className="font-semibold">{ROLE_LABEL[invite.role] || invite.role}</span>.
+          </div>
+        )}
 
         {error && (
-          <div className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">
+          <div role="alert" className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">
             {error}
           </div>
         )}
@@ -81,8 +130,13 @@ export default function Register() {
 
         <div className="mb-3.5 flex flex-col gap-1.5">
           <label htmlFor="email" className="text-xs font-medium text-muted">Email</label>
-          <input id="email" type="email" className="input" value={email} placeholder="you@example.com"
+          <input id="email" type="email" className="input" value={email}
+            placeholder={invite?.valid ? '' : `you@${STUDENT_DOMAIN}`}
+            readOnly={!!invite?.valid}
             autoComplete="email" onChange={(e) => setEmail(e.target.value)} />
+          {!invite?.valid && (
+            <span className="text-xs text-faint">Use your @{STUDENT_DOMAIN} email. Other emails need an invite from an admin.</span>
+          )}
         </div>
 
         <div className="mb-4 flex flex-col gap-1.5">
@@ -92,7 +146,7 @@ export default function Register() {
             onChange={(e) => setPassword(e.target.value)} />
         </div>
 
-        <button type="submit" disabled={loading} className="btn-primary w-full">
+        <button type="submit" disabled={loading || invite === false} className="btn-primary w-full">
           {loading ? 'Creating account...' : 'Register'}
         </button>
 

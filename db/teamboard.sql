@@ -43,7 +43,7 @@ drop policy if exists "team_posts insert own" on public.team_posts;
 create policy "team_posts insert own" on public.team_posts
   for insert to authenticated with check (
     author_id = auth.uid()
-    and not exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.banned)
+    and public.can_write(auth.uid())
   );
 drop policy if exists "team_posts update own" on public.team_posts;
 create policy "team_posts update own" on public.team_posts
@@ -109,7 +109,7 @@ declare
   v_closed boolean;
 begin
   if v_uid is null then raise exception 'not authenticated'; end if;
-  if exists (select 1 from public.profiles where id = v_uid and banned) then raise exception 'account is banned'; end if;
+  perform public.write_guard();
   if coalesce(trim(p_message), '') = '' then raise exception 'message required'; end if;
   if coalesce(trim(p_contact), '') = '' then raise exception 'contact required'; end if;
   select author_id, closed into v_author, v_closed from public.team_posts where id = p_post;

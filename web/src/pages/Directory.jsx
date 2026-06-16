@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Search } from 'lucide-react'
+import { Search, Pin } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { REGIONS, SECTORS, DOMAINS } from '../lib/options'
 import RoleBadge from '../components/RoleBadge'
+import AuthorLink from '../components/AuthorLink'
 import Dropdown, { MenuItem } from '../components/Dropdown'
+import ContactModal from '../components/ContactModal'
+import { useAuth } from '../lib/AuthProvider'
 
 const GENERIC_ERR = 'Something went wrong. Please try again.'
 const ROLES = [
@@ -31,6 +34,9 @@ function FilterDropdown({ label, value, options, onChange }) {
 }
 
 export default function Directory() {
+  const { isAdmin, session } = useAuth()
+  const uid = session?.user?.id
+  const [contact, setContact] = useState(null)
   const [q, setQ] = useState('')
   const [debounced, setDebounced] = useState('')
   const [role, setRole] = useState('')
@@ -55,10 +61,16 @@ export default function Directory() {
       p_domain: domain || null,
       p_role: role || null,
     })
-    if (e) { console.error(e); setError(GENERIC_ERR) } else { setError(''); setMembers(data || []) }
+    if (e) { console.error(e); setError('Could not load the directory. Check your connection and retry.') } else { setError(''); setMembers(data || []) }
     setLoading(false)
   }, [debounced, region, sector, domain, role])
   useEffect(() => { load() }, [load])
+
+  async function togglePin(m) {
+    const { error: e } = await supabase.rpc('admin_set_directory_pinned', { p_user: m.id, p_pinned: !m.pinned })
+    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    load() // reload so pinned re-sorts to the top
+  }
 
   const roleLabel = ROLES.find((r) => r.v === role).label
 
@@ -69,7 +81,7 @@ export default function Directory() {
 
       <div className="relative mt-4">
         <Search size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
-        <input className="input pl-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or startup..." />
+        <input className="input pl-9" aria-label="Search members" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or startup..." />
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -107,18 +119,33 @@ export default function Directory() {
       ) : (
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {members.map((m) => (
-            <div key={m.id} className="card flex flex-col p-4">
+            <div key={m.id} className={`card flex flex-col p-4 ${m.pinned ? 'border-accent/40' : ''}`}>
               <div className="flex items-center gap-3">
-                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent-soft text-base font-bold text-accent">
+                <AuthorLink id={m.id} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent-soft text-base font-bold text-accent">
                   {(m.name || '?').charAt(0).toUpperCase()}
-                </div>
-                <div className="min-w-0">
+                </AuthorLink>
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="truncate text-sm font-bold">{m.name || 'Unnamed'}</span>
+                    <AuthorLink id={m.id} className="truncate text-sm font-bold">{m.name || 'Unnamed'}</AuthorLink>
                     <RoleBadge role={m.role} />
+                    {m.pinned && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
+                        <Pin size={10} /> Pinned
+                      </span>
+                    )}
                   </div>
                   {m.startup && <div className="truncate text-xs font-semibold text-muted">{m.startup}</div>}
                 </div>
+                {isAdmin && (
+                  <button
+                    onClick={() => togglePin(m)}
+                    title={m.pinned ? 'Unpin from the directory' : 'Pin to the top of the directory'}
+                    aria-label={m.pinned ? `Unpin ${m.name}` : `Pin ${m.name}`}
+                    className={`shrink-0 rounded-full p-2 transition-colors ${m.pinned ? 'text-accent hover:bg-accent-soft' : 'text-faint hover:bg-black/5 hover:text-ink'}`}
+                  >
+                    <Pin size={15} fill={m.pinned ? 'currentColor' : 'none'} />
+                  </button>
+                )}
               </div>
 
               {m.bio && <p className="mt-2 line-clamp-3 break-words text-sm text-muted">{m.bio}</p>}
@@ -132,18 +159,20 @@ export default function Directory() {
               )}
 
               <div className="mt-3 flex flex-wrap gap-2">
+                {m.id !== uid && m.contactable && (
+                  <button className="btn-outline px-3 py-1.5 text-xs" onClick={() => setContact(m)}>Message</button>
+                )}
                 {m.linkedin && (
                   <a href={m.linkedin} target="_blank" rel="noreferrer" className="btn-outline px-3 py-1.5 text-xs">LinkedIn</a>
                 )}
-                {m.email && (
-                  <a href={`mailto:${m.email}`} className="btn-outline px-3 py-1.5 text-xs">Email</a>
-                )}
-                {!m.linkedin && !m.email && <span className="px-1 py-1.5 text-xs text-faint">No public contact</span>}
+                {m.id === uid && <span className="px-1 py-1.5 text-xs text-faint">This is you</span>}
               </div>
             </div>
           ))}
         </div>
       )}
+
+      <ContactModal member={contact} onClose={() => setContact(null)} />
     </div>
   )
 }
