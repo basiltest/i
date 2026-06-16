@@ -13,7 +13,6 @@ const ITEMS = [
   { to: '/calendar', label: 'Calendar', icon: Calendar },
   { to: '/directory', label: 'Directory', icon: LayoutGrid },
   { to: '/autopsy-library', label: 'Autopsy Library', icon: FolderHeart },
-  { to: '/notifications', label: 'Notifications', icon: Bell },
 ]
 
 const base = 'flex items-center gap-3.5 rounded-lg px-4 py-3 text-base font-semibold transition-colors'

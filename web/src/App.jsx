@@ -52,7 +52,6 @@ function App() {
         <Route path="calendar" element={<Calendar />} />
         <Route path="directory" element={<Directory />} />
         <Route path="u/:id" element={<UserProfile />} />
-        <Route path="notifications" element={<Notifications />} />
         <Route path="admin" element={<AdminPanel />} />
         <Route path="autopsy-library" element={<AutopsyLibrary />} />
       </Route>

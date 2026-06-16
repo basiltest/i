@@ -1,22 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Bell, Menu, User, Settings as SettingsIcon, LogOut } from 'lucide-react'
+import { Bell, Menu, User, Settings as SettingsIcon, LogOut, CheckCircle2, BellRing, Inbox } from 'lucide-react'
 import Logo from './Logo'
 import { supabase } from '../lib/supabase'
 import { typeDot } from '../lib/calendar'
 import { NOTIF_TEXT } from '../lib/pipeline'
+import { useAuth } from '../lib/AuthProvider'
 
 export default function Topbar({ onMenu }) {
   const navigate = useNavigate()
+  const { session } = useAuth()
+  const uid = session?.user?.id
   const [menuOpen, setMenuOpen] = useState(false)
   const [bellOpen, setBellOpen] = useState(false)
   const [soon, setSoon] = useState([])
   const [notifs, setNotifs] = useState([])
   const [unread, setUnread] = useState(0)
+  
+  // MERGED: Tab tracking state from your old notifications page
+  const [activeFilter, setActiveFilter] = useState('action') // 'action' | 'all' | 'mine'
+
   const profRef = useRef(null)
   const bellRef = useRef(null)
 
-  // close dropdowns on outside click
   useEffect(() => {
     function onDoc(e) {
       if (profRef.current && !profRef.current.contains(e.target)) setMenuOpen(false)
@@ -26,7 +32,6 @@ export default function Topbar({ onMenu }) {
     return () => document.removeEventListener('mousedown', onDoc)
   }, [])
 
-  // bell = real notifications (pipeline etc.) + nearby events (next 7 days)
   useEffect(() => {
     const now = new Date()
     const week = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
@@ -36,7 +41,7 @@ export default function Topbar({ onMenu }) {
       .gte('starts_at', now.toISOString())
       .lte('starts_at', week.toISOString())
       .order('starts_at')
-      .limit(8)
+      .limit(4) 
       .then(({ data }) => setSoon(data || []))
     supabase.rpc('notifications_unread_count').then(({ data }) => setUnread(Number(data) || 0))
   }, [])
@@ -45,7 +50,7 @@ export default function Topbar({ onMenu }) {
     const next = !bellOpen
     setBellOpen(next)
     if (!next) return
-    const { data } = await supabase.rpc('my_notifications', { p_limit: 20 })
+    const { data } = await supabase.rpc('my_notifications', { p_limit: 40 })
     setNotifs(data || [])
     if (unread > 0) {
       await supabase.rpc('mark_notifications_read')
@@ -57,6 +62,13 @@ export default function Topbar({ onMenu }) {
     setBellOpen(false)
     if (n.idea_id) navigate(`/pipeline/${n.idea_id}`)
   }
+
+  // MERGED: Client-side filter matching logic from your old left sidebar view page
+  const filteredNotifs = notifs.filter(n => {
+    if (activeFilter === 'action') return !n.read_at && (n.kind?.includes('action') || n.kind?.includes('review'))
+    if (activeFilter === 'mine') return n.actor_id === uid
+    return true // 'all'
+  })
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-card">
@@ -70,86 +82,105 @@ export default function Topbar({ onMenu }) {
         </Link>
 
         <div className="ml-auto flex items-center gap-1">
-          {/* notifications: pipeline activity + nearby calendar events */}
           <div className="relative" ref={bellRef}>
             <button onClick={openBell} className="relative rounded-full p-2 text-muted hover:bg-black/5 hover:text-ink" aria-label="Notifications">
               <Bell size={20} />
-              {unread > 0 ? (
+              {unread > 0 && (
                 <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-[10px] font-bold text-onaccent ring-2 ring-card">
                   {unread > 9 ? '9+' : unread}
                 </span>
-              ) : soon.length > 0 ? (
-                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent ring-2 ring-card" />
-              ) : null}
+              )}
             </button>
+
             {bellOpen && (
-              <div className="absolute right-0 mt-2 w-80 overflow-hidden rounded-xl border border-line bg-card shadow-pop">
-                <div className="border-b border-line px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-muted">Notifications</div>
-                <div className="max-h-96 overflow-y-auto">
-                  {notifs.length === 0 ? (
-                    <div className="px-4 py-3 text-sm text-muted">Nothing yet. Pipeline activity lands here.</div>
+              <div className="absolute right-0 mt-2 w-96 overflow-hidden rounded-xl border border-line bg-card shadow-pop z-50">
+                <div className="border-b border-line px-4 py-2.5 flex items-center justify-between bg-surface">
+                  <span className="text-xs font-bold uppercase tracking-wide text-ink">Notifications</span>
+                </div>
+
+                {/* MERGED: Tab Navigation Bar from old full-page view layout */}
+                <div className="flex gap-1 p-2 border-b border-line bg-surface/50">
+                  <button 
+                    onClick={() => setActiveFilter('action')}
+                    className={`flex-1 text-center py-1 text-xs font-semibold rounded-md transition-colors ${activeFilter === 'action' ? 'bg-accent-soft text-accent border border-accent/20' : 'text-muted hover:bg-black/5'}`}
+                  >
+                    Needs action
+                  </button>
+                  <button 
+                    onClick={() => setActiveFilter('all')}
+                    className={`flex-1 text-center py-1 text-xs font-semibold rounded-md transition-colors ${activeFilter === 'all' ? 'bg-accent-soft text-accent border border-accent/20' : 'text-muted hover:bg-black/5'}`}
+                  >
+                    All activity
+                  </button>
+                  <button 
+                    onClick={() => setActiveFilter('mine')}
+                    className={`flex-1 text-center py-1 text-xs font-semibold rounded-md transition-colors ${activeFilter === 'mine' ? 'bg-accent-soft text-accent border border-accent/20' : 'text-muted hover:bg-black/5'}`}
+                  >
+                    Mine
+                  </button>
+                </div>
+
+                {/* MERGED: Core list display view tracking filter hooks */}
+                <div className="max-h-80 overflow-y-auto divide-y divide-line/60">
+                  {filteredNotifs.length === 0 ? (
+                    <div className="px-4 py-8 text-center flex flex-col items-center justify-center gap-1.5">
+                      <CheckCircle2 size={24} className="text-muted/60" />
+                      <p className="text-sm font-medium text-ink">Nothing needs you.</p>
+                      <p className="text-xs text-muted max-w-[240px]">Submissions and unassigned items match this filter.</p>
+                    </div>
                   ) : (
                     <ul className="py-1">
-                      {notifs.map((n) => (
+                      {filteredNotifs.map((n) => (
                         <li key={n.id}>
-                          <button onClick={() => openNotif(n)} className="flex w-full items-start gap-2 px-4 py-2 text-left hover:bg-black/5">
+                          <button onClick={() => openNotif(n)} className="flex w-full items-start gap-2.5 px-4 py-2.5 text-left hover:bg-black/5 transition-colors">
                             <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${n.read_at ? 'bg-line' : 'bg-accent'}`} />
-                            <span className="min-w-0">
-                              <span className={`block text-sm ${n.read_at ? 'text-ink' : 'font-semibold text-ink'}`}>
+                            <div className="min-w-0 flex-1">
+                              <span className={`block text-xs leading-tight ${n.read_at ? 'text-ink/80' : 'font-semibold text-ink'}`}>
                                 {NOTIF_TEXT[n.kind] || n.kind}
                               </span>
-                              <span className="block truncate text-xs text-muted">
+                              <span className="block truncate text-[11px] text-muted mt-0.5">
                                 {n.idea_title || n.payload?.title || ''}{n.actor_name ? ` · ${n.actor_name}` : ''}
                               </span>
-                            </span>
+                            </div>
                           </button>
                         </li>
                       ))}
                     </ul>
                   )}
-                  <div className="border-t border-line px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-muted">Upcoming this week</div>
+
+                  {/* Calendar view logic subset container */}
+                  <div className="bg-surface/40 border-t border-line px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-muted">Upcoming Events</div>
                   {soon.length === 0 ? (
-                    <div className="px-4 py-3 text-sm text-muted">No events in the next 7 days.</div>
+                    <div className="px-4 py-3 text-xs text-muted italic">No events scheduled this week.</div>
                   ) : (
-                    <ul className="py-1">
+                    <ul className="py-0.5 bg-surface/20 divide-y divide-line/30">
                       {soon.map((ev) => (
                         <li key={ev.id}>
-                          <button
-                            onClick={() => { setBellOpen(false); navigate('/calendar') }}
-                            className="flex w-full items-start gap-2 px-4 py-2 text-left hover:bg-black/5"
-                          >
-                            <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${typeDot(ev.type)}`} />
-                            <span className="min-w-0">
-                              <span className="block truncate text-sm font-semibold text-ink">{ev.title}</span>
-                              <span className="block text-xs text-muted">
-                                {new Date(ev.starts_at).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
-                                {' · '}
-                                {new Date(ev.starts_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                          <button onClick={() => { setBellOpen(false); navigate('/calendar') }} className="flex w-full items-start gap-2 px-4 py-2 text-left hover:bg-black/5">
+                            <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${typeDot(ev.type)}`} />
+                            <div className="min-w-0 flex-1">
+                              <span className="block truncate text-xs font-medium text-ink">{ev.title}</span>
+                              <span className="block text-[10px] text-muted mt-0.5">
+                                {new Date(ev.starts_at).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} · {new Date(ev.starts_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                               </span>
-                            </span>
+                            </div>
                           </button>
                         </li>
                       ))}
                     </ul>
                   )}
                 </div>
-                <button
-                  onClick={() => { setBellOpen(false); navigate('/notifications') }}
-                  className="block w-full border-t border-line px-4 py-2.5 text-center text-xs font-bold text-accent hover:bg-black/5"
-                >
-                  See all notifications
-                </button>
               </div>
             )}
           </div>
 
-          {/* profile */}
+          {/* Account Profile Menu Shell */}
           <div className="relative" ref={profRef}>
             <button onClick={() => setMenuOpen((v) => !v)} className="grid h-9 w-9 place-items-center rounded-full bg-accent-soft text-accent transition hover:ring-2 hover:ring-accent/40" aria-label="Account">
               <User size={18} />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 mt-2 w-44 overflow-hidden rounded-xl border border-line bg-card py-1 shadow-pop">
+              <div className="absolute right-0 mt-2 w-44 overflow-hidden rounded-xl border border-line bg-card py-1 shadow-pop z-50">
                 <MenuItem icon={User} label="View profile" onClick={() => { setMenuOpen(false); navigate('/profile') }} />
                 <MenuItem icon={SettingsIcon} label="Settings" onClick={() => { setMenuOpen(false); navigate('/settings') }} />
                 <div className="my-1 border-t border-line" />
