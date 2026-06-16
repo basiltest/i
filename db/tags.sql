@@ -68,7 +68,7 @@ declare
   v_tag_id uuid;
 begin
   if v_uid is null then raise exception 'not authenticated'; end if;
-  if exists (select 1 from public.profiles where id = v_uid and banned) then raise exception 'account is banned'; end if;
+  perform public.write_guard();
   -- 'post' is the generic kind used by the feed now; legacy kinds still accepted for old rows.
   -- 'poll' is intentionally excluded here: polls are admin-only via create_poll().
   if p_kind not in ('idea', 'problem', 'discussion', 'post') then raise exception 'invalid kind'; end if;

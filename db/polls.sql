@@ -92,7 +92,7 @@ language plpgsql security definer set search_path = public as $$
 declare v_uid uuid := auth.uid();
 begin
   if v_uid is null then raise exception 'not authenticated'; end if;
-  if exists (select 1 from public.profiles where id = v_uid and banned) then raise exception 'account is banned'; end if;
+  perform public.write_guard();
   if not exists (select 1 from public.poll_options where id = p_option and post_id = p_post) then
     raise exception 'invalid option';
   end if;
