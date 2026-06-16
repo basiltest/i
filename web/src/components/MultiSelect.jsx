@@ -5,15 +5,19 @@ import { ChevronDown, Check, X } from 'lucide-react'
 // checklist. Matches the app's `input` styling. value/onChange are a string[].
 export default function MultiSelect({ value = [], onChange, options, placeholder = 'Select...', id }) {
   const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
   const wrapRef = useRef(null)
 
   useEffect(() => {
-    function onDoc(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
+    function onDoc(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) { setOpen(false); setQuery('') } }
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
   }, [])
 
   const toggle = (o) => onChange(value.includes(o) ? value.filter((x) => x !== o) : [...value, o])
+  // show search only when the list is long enough to need it
+  const searchable = options.length > 8
+  const shown = query ? options.filter((o) => o.toLowerCase().includes(query.toLowerCase())) : options
 
   return (
     <div ref={wrapRef} className="relative">
@@ -47,12 +51,20 @@ export default function MultiSelect({ value = [], onChange, options, placeholder
         <ChevronDown size={16} aria-hidden className={`absolute right-3 top-1/2 -translate-y-1/2 text-faint transition-transform ${open ? 'rotate-180' : ''}`} />
       </div>
       {open && (
-        <ul
-          role="listbox"
-          aria-multiselectable="true"
-          className="absolute left-0 right-0 z-30 mt-1 max-h-60 overflow-auto rounded-xl border border-line bg-card p-1 shadow-pop"
-        >
-          {options.map((o) => {
+        <div className="absolute left-0 right-0 z-30 mt-1 rounded-xl border border-line bg-card shadow-pop">
+          {searchable && (
+            <input
+              autoFocus
+              className="input m-1 w-[calc(100%-0.5rem)] py-1.5 text-sm"
+              placeholder="Search..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+          <ul role="listbox" aria-multiselectable="true" className="max-h-56 overflow-auto p-1">
+          {shown.length === 0 && <li className="px-3 py-2 text-sm text-muted">No match.</li>}
+          {shown.map((o) => {
             const on = value.includes(o)
             return (
               <li key={o} role="option" aria-selected={on}>
@@ -69,7 +81,8 @@ export default function MultiSelect({ value = [], onChange, options, placeholder
               </li>
             )
           })}
-        </ul>
+          </ul>
+        </div>
       )}
     </div>
   )

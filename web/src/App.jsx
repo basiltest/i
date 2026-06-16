@@ -16,6 +16,8 @@ import ProblemHub from './pages/ProblemHub'
 import ProblemDetail from './pages/ProblemDetail'
 import Calendar from './pages/Calendar'
 import Directory from './pages/Directory'
+import UserProfile from './pages/UserProfile'
+import Notifications from './pages/Notifications'
 import Onboarding from './pages/Onboarding'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -48,6 +50,8 @@ function App() {
         <Route path="problem-hub/:id" element={<ProblemDetail />} />
         <Route path="calendar" element={<Calendar />} />
         <Route path="directory" element={<Directory />} />
+        <Route path="u/:id" element={<UserProfile />} />
+        <Route path="notifications" element={<Notifications />} />
         <Route path="admin" element={<AdminPanel />} />
       </Route>
     </Routes>

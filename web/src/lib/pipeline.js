@@ -12,6 +12,33 @@ export const GATES = [
 
 export const gateLabel = (g) => GATES.find((x) => x.g === g)?.label || `Gate ${g}`
 
+// Gate labels name the milestone just *reached*; this names what to DO right now, so the
+// headline matches the task (G4 "Review Completed" is really "submit your beta plan").
+const GATE_TASK = {
+  3: { awaiting_submission: 'Complete the dossier', submitted: 'Dossier in review', revision_requested: 'Dossier needs revision' },
+  4: { awaiting_submission: 'Submit your beta plan', submitted: 'Beta plan in review', revision_requested: 'Beta plan needs revision' },
+  5: { awaiting_submission: 'Submit prototype evidence', submitted: 'Evidence in review', revision_requested: 'Evidence needs revision' },
+}
+export function currentTask(idea) {
+  if (idea.pipeline_state === 'rejected') return 'Rejected (final)'
+  if (idea.pipeline_state === 'refine') return 'Refine & retry'
+  if (idea.gate === 1) return 'In the mentor queue'
+  if (idea.gate === 2) return 'Awaiting mentor acceptance'
+  if (idea.gate >= 6 || idea.gate_status === 'approved') return 'In incubation'
+  return GATE_TASK[idea.gate]?.[idea.gate_status] || gateLabel(idea.gate)
+}
+
+// For the forward "you advanced" banner: the milestone that unlocked this awaiting step.
+export const JUST_UNLOCKED = { 3: 'Mentor engaged', 4: 'Dossier approved', 5: 'Beta plan approved' }
+
+// Current-step dot color, so the stepper carries state (not just position).
+export function stepDotClass(gateStatus, state) {
+  if (state === 'rejected') return 'bg-down text-white'
+  if (gateStatus === 'submitted') return 'bg-warn text-warnink ring-4 ring-warn/20'  // in review
+  if (gateStatus === 'approved') return 'bg-success text-white'
+  return 'bg-accent text-onaccent ring-4 ring-accent/20'                              // your move
+}
+
 // Whose turn is it (server-derived); label + tone for chips.
 export const WAITING = {
   student: { label: 'Your move', tone: 'bg-accent-soft text-accent' },
@@ -61,6 +88,8 @@ export const NOTIF_TEXT = {
   pipeline_stale: 'No pipeline movement in a while',
   problem_solution_received: 'New solution proposed on your problem',
   solution_reviewed: 'Your solution was reviewed',
+  success_approved: 'Your #Success badge was approved',
+  success_rejected: 'Your #Success request was declined',
 }
 
 export const ifnTag = (n) => `IFN-${n}`

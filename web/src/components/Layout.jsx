@@ -4,10 +4,12 @@ import { X } from 'lucide-react'
 import Topbar from './Topbar'
 import SideNav from './SideNav'
 import RightSidebar from './RightSidebar'
+import { useAuth } from '../lib/AuthProvider'
 
 // Authed app shell: sticky topbar + left rail (desktop) / drawer (mobile) + page Outlet.
 export default function Layout() {
   const [navOpen, setNavOpen] = useState(false)
+  const { restricted } = useAuth()
   const { pathname } = useLocation()
   const showRight = pathname === '/' // right rail only on the Feed
 
@@ -43,6 +45,11 @@ export default function Layout() {
           </div>
         </aside>
         <main className="min-w-0">
+          {restricted && (
+            <div role="status" className="mb-4 rounded-lg border border-warn/30 bg-warn/10 px-3.5 py-2.5 text-sm text-warnink">
+              <span className="font-semibold">Your account is in read-only mode.</span> You can browse, but posting, editing, voting, and messaging are turned off. Contact an admin if you think this is a mistake.
+            </div>
+          )}
           <Outlet />
         </main>
         {showRight && (

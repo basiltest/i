@@ -51,6 +51,7 @@ export function AuthProvider({ children }) {
         isAdmin: profile?.role === 'admin',
         isMentor: profile?.role === 'mentor' || profile?.role === 'admin',
         banned: !!profile?.banned,
+        restricted: !!profile?.restricted,
         onboarded: !!profile?.onboarded,
       }}
     >
