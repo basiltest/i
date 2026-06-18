@@ -81,7 +81,11 @@ const DISPLAY_FONT = `'Bricolage Grotesque',${BODY_FONT}`
 const MONO_FONT = `'SFMono-Regular',ui-monospace,Menlo,Consolas,'Liberation Mono',monospace`
 
 function credentialsEmail(siteUrl: string, role: string, email: string, password: string) {
-  const loginUrl = `${siteUrl.replace(/\/$/, '')}/login`
+  const base = siteUrl.replace(/\/$/, '')
+  const loginUrl = `${base}/login`
+  // The mark is a hosted PNG (email clients strip inline SVG). Shipped from the app's
+  // public/ at this stable path; a web deploy publishes it alongside the feature.
+  const logoUrl = `${base}/email/icfai-founders.png`
   const roleLabel = ROLE_LABEL[role] || role
   const subject = `Your ICFAI Founders Network account is ready`
   const e = escapeHtml
@@ -135,10 +139,8 @@ function credentialsEmail(siteUrl: string, role: string, email: string, password
                 <tr>
                   <td class="px" style="padding:44px 44px 40px;">
 
-                    <!-- Letterhead wordmark -->
-                    <div style="font-family:${DISPLAY_FONT};font-size:17px;font-weight:700;line-height:1;letter-spacing:0.02em;color:${BRAND.navy};">ICFAI</div>
-                    <div style="width:28px;height:2px;line-height:2px;font-size:0;background-color:${BRAND.red};margin:6px 0 7px;">&nbsp;</div>
-                    <div style="font-size:10px;font-weight:600;letter-spacing:0.22em;color:${BRAND.faint};">FOUNDERS&nbsp;NETWORK</div>
+                    <!-- Letterhead: the ICFAI Founders Network mark (hosted PNG; clients strip SVG) -->
+                    <img src="${logoUrl}" width="150" height="57" alt="ICFAI Founders Network" style="display:block;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;width:150px;height:57px;">
 
                     <h1 style="margin:30px 0 14px;font-family:${DISPLAY_FONT};font-size:29px;line-height:1.15;font-weight:700;letter-spacing:-0.02em;color:${BRAND.ink};">Your account is ready</h1>
                     <p style="margin:0 0 28px;font-size:15px;line-height:1.6;color:${BRAND.muted};">
