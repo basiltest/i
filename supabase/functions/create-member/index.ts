@@ -60,33 +60,169 @@ function randomInt(max: number) {
   return n % max
 }
 
+// Brand tokens lifted verbatim from the app's design system (web/src/index.css /
+// tailwind.config.js): navy is the primary, the red bar is the ICFAI logo motif, paper is
+// the body surface. Kept as constants so the email and the app never drift apart.
+const BRAND = {
+  navy: '#2C2A82',
+  red: '#E31E24',
+  paper: '#F7F5F2',
+  card: '#FFFFFF',
+  line: '#E4E0D6',
+  ink: '#1C1D33',
+  muted: '#5B5D75',
+  faint: '#71748C',
+  soft: '#EAEAF7',
+}
+// System-first stack; capable clients (Apple Mail, iOS) upgrade to the brand faces via the
+// <style> @import below, everyone else falls back gracefully. No web font is required to read it.
+const BODY_FONT = `'Instrument Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`
+const DISPLAY_FONT = `'Bricolage Grotesque',${BODY_FONT}`
+const MONO_FONT = `'SFMono-Regular',ui-monospace,Menlo,Consolas,'Liberation Mono',monospace`
+
 function credentialsEmail(siteUrl: string, role: string, email: string, password: string) {
   const loginUrl = `${siteUrl.replace(/\/$/, '')}/login`
   const roleLabel = ROLE_LABEL[role] || role
   const subject = `Your ICFAI Founders Network account is ready`
-  // Inline styles only — email clients ignore <style>/external CSS.
-  const html = `
-  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1a1a1a">
-    <h1 style="font-size:20px;font-weight:700;margin:0 0 8px">ICFAI Founders Network</h1>
-    <p style="font-size:15px;line-height:1.5;margin:0 0 20px;color:#444">
-      An account has been created for you as a <strong>${escapeHtml(roleLabel)}</strong>. Use the details below to sign in, then complete your profile.
-    </p>
-    <table style="border-collapse:collapse;margin:0 0 20px">
-      <tr><td style="padding:4px 16px 4px 0;font-size:13px;color:#888">Email</td><td style="font-size:14px;font-weight:600">${escapeHtml(email)}</td></tr>
-      <tr><td style="padding:4px 16px 4px 0;font-size:13px;color:#888">Password</td><td style="font-size:14px;font-weight:600;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">${escapeHtml(password)}</td></tr>
-    </table>
-    <a href="${loginUrl}"
-       style="display:inline-block;background:#1a1a1a;color:#fff;text-decoration:none;font-size:15px;font-weight:600;padding:12px 22px;border-radius:10px">
-      Sign in
-    </a>
-    <p style="font-size:13px;line-height:1.5;margin:22px 0 0;color:#888">
-      Or paste this link into your browser:<br>
-      <a href="${loginUrl}" style="color:#555;word-break:break-all">${loginUrl}</a>
-    </p>
-    <p style="font-size:12px;line-height:1.5;margin:20px 0 0;color:#aaa">
-      For your security, change this password from Settings after you sign in. If you weren't expecting this email, ignore it.
-    </p>
-  </div>`
+  const e = escapeHtml
+
+  // HTML email is its own medium: table layout for Outlook, inline styles only (embedded CSS
+  // is stripped by Gmail/Outlook), a VML button so the CTA is solid in Outlook, a hidden
+  // preheader for the inbox preview line, and color-scheme:light so clients don't auto-invert
+  // the navy/paper palette. The brand mark is rebuilt typographically (no image) so it renders
+  // even when a client blocks images by default — which most do for a first email.
+  const html = `<!doctype html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>${subject}</title>
+  <!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Instrument+Sans:wght@400;500;600;700&display=swap');
+    body{margin:0;padding:0;width:100%!important;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}
+    table{border-collapse:collapse!important}
+    a{text-decoration:none}
+    @media only screen and (max-width:600px){
+      .container{width:100%!important}
+      .px{padding-left:24px!important;padding-right:24px!important}
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:${BRAND.paper};color:${BRAND.ink};font-family:${BODY_FONT};">
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${BRAND.paper};">
+    Your account is ready — sign in and finish setting up your profile.&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;
+  </div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${BRAND.paper};">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+        <table role="presentation" class="container" width="520" cellpadding="0" cellspacing="0" border="0" style="width:520px;max-width:520px;">
+
+          <!-- Card -->
+          <tr>
+            <td style="background-color:${BRAND.card};border:1px solid ${BRAND.line};border-radius:16px;overflow:hidden;box-shadow:0 1px 2px rgba(28,29,51,0.05);">
+
+              <!-- Red brand stripe (the ICFAI bar) -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="height:4px;line-height:4px;font-size:0;background-color:${BRAND.red};">&nbsp;</td></tr>
+              </table>
+
+              <!-- Header: navy block with the typographic lockup -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${BRAND.navy};">
+                <tr>
+                  <td class="px" style="padding:26px 40px;">
+                    <div style="font-family:${DISPLAY_FONT};font-size:22px;font-weight:700;line-height:1;letter-spacing:-0.01em;color:#ffffff;">ICFAI</div>
+                    <div style="width:54px;height:3px;line-height:3px;font-size:0;background-color:${BRAND.red};margin:7px 0 8px;">&nbsp;</div>
+                    <div style="font-size:11px;font-weight:600;letter-spacing:0.2em;color:rgba(255,255,255,0.72);">FOUNDERS&nbsp;NETWORK</div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Body -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td class="px" style="padding:34px 40px 36px;">
+                    <h1 style="margin:0 0 12px;font-family:${DISPLAY_FONT};font-size:24px;line-height:1.25;font-weight:700;color:${BRAND.ink};">Welcome to the network</h1>
+                    <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:${BRAND.muted};">
+                      An administrator set up your account as a
+                      <span style="display:inline-block;background-color:${BRAND.soft};color:${BRAND.navy};font-size:13px;font-weight:600;line-height:1;padding:5px 10px;border-radius:999px;">${e(roleLabel)}</span>.
+                      Use the details below to sign in, then finish your profile.
+                    </p>
+
+                    <!-- Credentials -->
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${BRAND.paper};border:1px solid ${BRAND.line};border-radius:12px;">
+                      <tr>
+                        <td style="padding:18px 20px 16px;">
+                          <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;color:${BRAND.faint};text-transform:uppercase;">Email</div>
+                          <div style="margin-top:5px;font-size:15px;font-weight:600;color:${BRAND.ink};word-break:break-all;">${e(email)}</div>
+                        </td>
+                      </tr>
+                      <tr><td style="padding:0 20px;"><div style="height:1px;line-height:1px;font-size:0;background-color:${BRAND.line};">&nbsp;</div></td></tr>
+                      <tr>
+                        <td style="padding:16px 20px 20px;">
+                          <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;color:${BRAND.faint};text-transform:uppercase;">Temporary password</div>
+                          <div style="margin-top:8px;">
+                            <span style="display:inline-block;background-color:${BRAND.card};border:1px solid ${BRAND.line};border-radius:8px;padding:10px 14px;font-family:${MONO_FONT};font-size:16px;font-weight:700;letter-spacing:0.04em;color:${BRAND.ink};word-break:break-all;">${e(password)}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- CTA -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 8px;">
+                      <tr>
+                        <td align="left">
+                          <!--[if mso]>
+                          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${loginUrl}" style="height:46px;v-text-anchor:middle;width:170px;" arcsize="22%" strokecolor="${BRAND.navy}" fillcolor="${BRAND.navy}">
+                            <w:anchorlock/>
+                            <center style="color:#ffffff;font-family:sans-serif;font-size:15px;font-weight:bold;">Sign in</center>
+                          </v:roundrect>
+                          <![endif]-->
+                          <!--[if !mso]><!-->
+                          <a href="${loginUrl}" style="display:inline-block;background-color:${BRAND.navy};color:#ffffff;font-size:15px;font-weight:600;line-height:1;padding:14px 30px;border-radius:10px;">Sign in &rarr;</a>
+                          <!--<![endif]-->
+                        </td>
+                      </tr>
+                    </table>
+
+                    <p style="margin:18px 0 0;font-size:13px;line-height:1.55;color:${BRAND.faint};">
+                      Or paste this link into your browser:<br>
+                      <a href="${loginUrl}" style="color:${BRAND.navy};font-weight:500;word-break:break-all;">${loginUrl}</a>
+                    </p>
+
+                    <div style="margin:26px 0 0;padding-top:20px;border-top:1px solid ${BRAND.line};">
+                      <p style="margin:0;font-size:13px;line-height:1.55;color:${BRAND.muted};">
+                        For your security, change this password from <strong style="color:${BRAND.ink};font-weight:600;">Settings</strong> once you're signed in.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td class="px" style="padding:22px 40px 0;text-align:center;">
+              <p style="margin:0;font-size:12px;line-height:1.5;color:${BRAND.faint};">
+                ICFAI Founders Network
+              </p>
+              <p style="margin:6px 0 0;font-size:12px;line-height:1.5;color:${BRAND.faint};">
+                An administrator created this account for you. If you weren't expecting it, you can safely ignore this email.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
   return { subject, html }
 }
 
