@@ -79,8 +79,7 @@ export default function Topbar({ onMenu }) {
           <Menu size={22} />
         </button>
         <Link to="/" aria-label="Home" className="flex items-center gap-2.5">
-          <Logo className="h-7 w-auto" />
-          <span className="hidden font-display text-base font-bold tracking-tight sm:block">ICFAI Founders Network</span>
+          <Logo className="h-8 w-auto" />
         </Link>
 
         <div className="ml-auto flex items-center gap-1">
