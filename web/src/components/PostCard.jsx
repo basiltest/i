@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowBigUp, ArrowBigDown, MessageCircle, Pin } from 'lucide-react'
-import RoleBadge from './RoleBadge'
 import PollBlock from './PollBlock'
 import AuthorLink from './AuthorLink'
 import { timeAgo } from '../lib/format'
@@ -62,7 +61,6 @@ export default function PostCard({ post }) {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <AuthorLink id={post.author_id} className="truncate text-sm font-bold">{anon ? 'Anonymous Founder' : post.author_name}</AuthorLink>
-            {!anon && post.author_role && <RoleBadge role={post.author_role} />}
           </div>
           <div className="flex items-center gap-1 text-xs text-muted">
             {post.pinned && (

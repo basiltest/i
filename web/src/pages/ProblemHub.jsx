@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, CalendarClock, MessageCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import RoleBadge from '../components/RoleBadge'
 import AuthorLink from '../components/AuthorLink'
 import ProblemModal from '../components/ProblemModal'
 import { timeAgo } from '../lib/format'
@@ -96,7 +95,6 @@ export default function ProblemHub() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <AuthorLink id={p.author_id} className="truncate text-sm font-bold">{p.author_name}</AuthorLink>
-                    {p.author_role && <RoleBadge role={p.author_role} />}
                   </div>
                   <div className="text-xs text-muted">{timeAgo(p.created_at)}</div>
                 </div>

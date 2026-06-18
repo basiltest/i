@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { ArrowLeft, MessageSquare, Pencil } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import RoleBadge from '../components/RoleBadge'
+import MemberTypeBadge from '../components/MemberTypeBadge'
 import PostCard from '../components/PostCard'
 import PostCardSkeleton from '../components/PostCardSkeleton'
 import ContactModal from '../components/ContactModal'
@@ -70,7 +70,7 @@ export default function UserProfile() {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-extrabold">{profile.name || 'Unnamed'}</h1>
-              <RoleBadge role={profile.role} />
+              <MemberTypeBadge type={profile.member_type} />
               {profile.incubation_interest && (
                 <span className="rounded-md bg-accent-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">Open to incubation</span>
               )}

@@ -1,20 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Search, Pin } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { REGIONS, SECTORS, DOMAINS } from '../lib/options'
-import RoleBadge from '../components/RoleBadge'
+import { REGIONS, SECTORS, DOMAINS, MEMBER_TYPES } from '../lib/options'
+import MemberTypeBadge from '../components/MemberTypeBadge'
 import AuthorLink from '../components/AuthorLink'
 import Dropdown, { MenuItem } from '../components/Dropdown'
 import ContactModal from '../components/ContactModal'
 import { useAuth } from '../lib/AuthProvider'
 
 const GENERIC_ERR = 'Something went wrong. Please try again.'
-const ROLES = [
-  { v: '', label: 'All roles' },
-  { v: 'student', label: 'Students' },
-  { v: 'mentor', label: 'Mentors' },
-  { v: 'admin', label: 'Admins' },
-]
 
 // dropdown that takes a list of plain string options plus an "all" entry
 function FilterDropdown({ label, value, options, onChange }) {
@@ -39,7 +33,7 @@ export default function Directory() {
   const [contact, setContact] = useState(null)
   const [q, setQ] = useState('')
   const [debounced, setDebounced] = useState('')
-  const [role, setRole] = useState('')
+  const [memberType, setMemberType] = useState('')
   const [region, setRegion] = useState('')
   const [sector, setSector] = useState('')
   const [domain, setDomain] = useState('')
@@ -59,11 +53,11 @@ export default function Directory() {
       p_region: region || null,
       p_sector: sector || null,
       p_domain: domain || null,
-      p_role: role || null,
+      p_member_type: memberType || null,
     })
     if (e) { console.error(e); setError('Could not load the directory. Check your connection and retry.') } else { setError(''); setMembers(data || []) }
     setLoading(false)
-  }, [debounced, region, sector, domain, role])
+  }, [debounced, region, sector, domain, memberType])
   useEffect(() => { load() }, [load])
 
   async function togglePin(m) {
@@ -71,8 +65,6 @@ export default function Directory() {
     if (e) { console.error(e); return setError(GENERIC_ERR) }
     load() // reload so pinned re-sorts to the top
   }
-
-  const roleLabel = ROLES.find((r) => r.v === role).label
 
   return (
     <div className="max-w-4xl">
@@ -85,18 +77,14 @@ export default function Directory() {
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Dropdown label={roleLabel} width="w-52">
-          {(close) => ROLES.map((r) => (
-            <MenuItem key={r.v} active={role === r.v} onClick={() => { setRole(r.v); close() }}>{r.label}</MenuItem>
-          ))}
-        </Dropdown>
+        <FilterDropdown label="All types" value={memberType} options={MEMBER_TYPES} onChange={setMemberType} />
         <FilterDropdown label="All regions" value={region} options={REGIONS} onChange={setRegion} />
         <FilterDropdown label="All sectors" value={sector} options={SECTORS} onChange={setSector} />
         <FilterDropdown label="All domains" value={domain} options={DOMAINS} onChange={setDomain} />
-        {(role || region || sector || domain || debounced) && (
+        {(memberType || region || sector || domain || debounced) && (
           <button
             className="text-sm font-semibold text-muted hover:text-ink"
-            onClick={() => { setRole(''); setRegion(''); setSector(''); setDomain(''); setQ('') }}
+            onClick={() => { setMemberType(''); setRegion(''); setSector(''); setDomain(''); setQ('') }}
           >
             Clear
           </button>
@@ -127,7 +115,7 @@ export default function Directory() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <AuthorLink id={m.id} className="truncate text-sm font-bold">{m.name || 'Unnamed'}</AuthorLink>
-                    <RoleBadge role={m.role} />
+                    <MemberTypeBadge type={m.member_type} />
                     {m.pinned && (
                       <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
                         <Pin size={10} /> Pinned

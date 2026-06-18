@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowBigUp, ArrowBigDown, MessageCircle, MoreHorizontal, Pin } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
-import RoleBadge from '../components/RoleBadge'
 import AuthorLink from '../components/AuthorLink'
 import Dropdown, { MenuItem } from '../components/Dropdown'
 import PostDetailSkeleton from '../components/PostDetailSkeleton'
@@ -230,7 +229,6 @@ export default function PostDetail() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <AuthorLink id={post.author_id} className="truncate text-sm font-bold">{anon ? 'Anonymous Founder' : post.author_name}</AuthorLink>
-                {!anon && post.author_role && <RoleBadge role={post.author_role} />}
               </div>
               <div className="flex items-center gap-1 text-xs text-muted">
                 {post.pinned && (

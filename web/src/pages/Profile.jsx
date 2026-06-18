@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import { REGIONS, SECTORS, DOMAINS } from '../lib/options'
 import { errMessage } from '../lib/errors'
-import RoleBadge from '../components/RoleBadge'
+import MemberTypeBadge from '../components/MemberTypeBadge'
 import ProfileSkeleton from '../components/ProfileSkeleton'
 import Combobox from '../components/Combobox'
 
@@ -116,7 +116,7 @@ export default function Profile() {
                 {(profile.name || '?').charAt(0).toUpperCase()}
               </div>
               <h2 className="mt-3 w-full break-words text-lg font-bold">{profile.name || 'Unnamed'}</h2>
-              <div className="mt-1"><RoleBadge role={profile.role} /></div>
+              <div className="mt-1"><MemberTypeBadge type={profile.member_type} /></div>
               {profile.startup && <p className="mt-1 w-full break-words text-sm font-semibold text-muted">{profile.startup}</p>}
               {profile.linkedin ? (
                 <a href={profile.linkedin} target="_blank" rel="noreferrer" className="btn-outline mt-4 w-full">

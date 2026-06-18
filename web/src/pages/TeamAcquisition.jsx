@@ -3,7 +3,6 @@ import { Plus, Search, X, Trash2, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import ModalShell from '../components/ModalShell'
 import { useAuth } from '../lib/AuthProvider'
-import RoleBadge from '../components/RoleBadge'
 import AuthorLink from '../components/AuthorLink'
 import Spinner from '../components/Spinner'
 import { timeAgo } from '../lib/format'
@@ -126,7 +125,6 @@ export default function TeamAcquisition() {
                   {(t.author_name || '?').charAt(0).toUpperCase()}
                 </AuthorLink>
                 <AuthorLink id={t.author_id} className="truncate text-sm font-bold">{t.author_name}</AuthorLink>
-                {t.author_role && <RoleBadge role={t.author_role} />}
                 {t.closed && <span className="rounded-md bg-down/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-down">Closed</span>}
                 <span className="ml-auto shrink-0 text-xs text-faint">{timeAgo(t.created_at)}</span>
               </div>
@@ -214,7 +212,6 @@ function DetailModal({ post, isAdmin, onClose, onApply, onWithdraw, onEdit, onAp
           {(post.author_name || '?').charAt(0).toUpperCase()}
         </AuthorLink>
         <AuthorLink id={post.author_id} className="truncate text-sm font-bold">{post.author_name}</AuthorLink>
-        {post.author_role && <RoleBadge role={post.author_role} />}
         {post.closed && <span className="rounded-md bg-down/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-down">Closed</span>}
         <span className="ml-auto shrink-0 text-xs text-faint">{timeAgo(post.created_at)}</span>
       </div>
@@ -500,7 +497,6 @@ function ApplicantsModal({ post, onClose }) {
                   {(r.applicant_name || '?').charAt(0).toUpperCase()}
                 </AuthorLink>
                 <AuthorLink id={r.applicant_id} className="text-sm font-bold">{r.applicant_name}</AuthorLink>
-                {r.applicant_role && <RoleBadge role={r.applicant_role} />}
                 <span className="ml-auto text-xs text-faint">{timeAgo(r.created_at)}</span>
               </div>
               {r.applicant_startup && <div className="mt-1 text-xs font-semibold text-muted">{r.applicant_startup}</div>}

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
-import RoleBadge from '../components/RoleBadge'
+import MemberTypeBadge from '../components/MemberTypeBadge'
 
 const NOTIF_ROWS = [
   { key: 'pipeline', label: 'Idea Pipeline', desc: 'Gate decisions, reviews, action items, and messages on your ideas.' },
@@ -128,7 +128,7 @@ export default function Settings() {
               <>
                 <div className="flex items-center gap-2">
                   <span className="font-bold">{profile?.name || 'Unnamed'}</span>
-                  {profile?.role && <RoleBadge role={profile.role} />}
+                  <MemberTypeBadge type={profile?.member_type} />
                 </div>
                 <div className="truncate text-sm text-muted">{email}</div>
               </>
