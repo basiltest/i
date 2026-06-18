@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { Users, SlidersHorizontal, Search, Workflow, Trash2, Mail, Copy, Check, Send } from 'lucide-react'
+import { Users, SlidersHorizontal, Search, Workflow, UserPlus, Copy, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import ModalShell from '../components/ModalShell'
 import Combobox from '../components/Combobox'
@@ -8,7 +8,6 @@ import { useAuth } from '../lib/AuthProvider'
 import { REGIONS, SECTORS, DOMAINS } from '../lib/options'
 import RoleBadge from '../components/RoleBadge'
 import Spinner from '../components/Spinner'
-import { timeAgo } from '../lib/format'
 import { GATES, waitingChip, STATES, ifnTag } from '../lib/pipeline'
 
 const ROLES = [
@@ -22,7 +21,7 @@ export default function AdminPanel() {
   const { session, profile, isAdmin } = useAuth()
   const uid = session?.user?.id
 
-  const [tab, setTab] = useState('members') // 'members' | 'pipeline' | 'invites' | 'settings' | 'autopsies'
+  const [tab, setTab] = useState('members') // 'members' | 'pipeline' | 'add' | 'settings' | 'autopsies'
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -162,15 +161,15 @@ export default function AdminPanel() {
       <div className="mt-4 flex flex-wrap gap-2">
         <button onClick={() => setTab('members')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'members' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}><Users size={15} /> Members ({members.length})</button>
         <button onClick={() => setTab('pipeline')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'pipeline' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}><Workflow size={15} /> Pipeline</button>
-        <button onClick={() => setTab('invites')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'invites' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}><Mail size={15} /> Invites</button>
+        <button onClick={() => setTab('add')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'add' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}><UserPlus size={15} /> Add member</button>
         <button onClick={() => setTab('settings')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'settings' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}><SlidersHorizontal size={15} /> Settings</button>
         <button onClick={() => setTab('autopsies')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'autopsies' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}>📁 Autopsies ({autopsies.length})</button>
       </div>
 
       {error && <div role="alert" className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
 
-      {tab === 'invites' ? (
-        <InvitesTab />
+      {tab === 'add' ? (
+        <CreateMemberTab />
       ) : loading ? (
         <ListSkeleton />
       ) : tab === 'pipeline' ? (
@@ -419,134 +418,81 @@ export default function AdminPanel() {
     </div>
   )
 }
-const SITE_URL = import.meta.env.VITE_PUBLIC_URL || window.location.origin
-const inviteLink = (token) => `${SITE_URL.replace(/\/$/, '')}/register?invite=${token}`
-const parseEmails = (raw) => [...new Set(raw.split(/[\s,;]+/).map((s) => s.trim().toLowerCase()).filter(Boolean))]
-
-function InvitesTab() {
-  const [emails, setEmails] = useState('')
+// Admin creates a member account directly: the create-member Edge Function (service role)
+// makes a confirmed auth user with an auto-generated password, sets the role, and emails
+// the credentials via Resend. The member logs in and completes onboarding themselves.
+function CreateMemberTab() {
+  const [email, setEmail] = useState('')
   const [role, setRole] = useState('mentor')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [created, setCreated] = useState([])
-  const [list, setList] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [copied, setCopied] = useState('')
+  const [result, setResult] = useState(null) // { email, password, emailed }
+  const [copied, setCopied] = useState(false)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    const { data, error: e } = await supabase.rpc('admin_list_invites')
-    if (e) { console.error(e); setError(GENERIC_ERR) }
-    setList(data || [])
-    setLoading(false)
-  }, [])
-
-  useEffect(() => { load() }, [load])
-
-  async function copy(text, key) {
+  async function copy(text) {
     try {
       await navigator.clipboard.writeText(text)
-      setCopied(key)
-      setTimeout(() => setCopied((c) => (c === key ? '' : c)), 1500)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
     } catch { }
   }
 
-  async function generate() {
+  async function createMember() {
     setError('')
-    const parsed = parseEmails(emails)
-    if (parsed.length === 0) return setError('Paste at least one email address.')
+    setResult(null)
+    const addr = email.trim().toLowerCase()
+    if (!/^\S+@\S+\.\S+$/.test(addr)) return setError('Enter a valid email address.')
     setBusy(true)
-    const { data, error: e } = await supabase.rpc('admin_create_invites', { p_emails: parsed, p_role: role })
-    setBusy(false)
-    if (e) { console.error(e); return setError(e.message || GENERIC_ERR) }
-    const rows = data || []
-    setCreated(rows)
-    setEmails('')
-    const skipped = parsed.length - rows.length
-    if (rows.length === 0) setError('No valid new invites were created (check the addresses).')
-    else if (skipped > 0) setError(`${rows.length} invite${rows.length > 1 ? 's' : ''} created. ${skipped} skipped (invalid or duplicate).`)
-    load()
-  }
-
-  async function sendInvites(emailsArg, roleArg) {
-    setError('')
-    const parsed = parseEmails(emailsArg ?? emails)
-    if (parsed.length === 0) return setError('Paste at least one email address.')
-    setBusy(true)
-    const { data, error: e } = await supabase.functions.invoke('send-invites', { body: { emails: parsed, role: roleArg ?? role } })
+    const { data, error: e } = await supabase.functions.invoke('create-member', { body: { email: addr, role } })
     setBusy(false)
     if (e) {
       console.error(e)
       let msg = e.message
       try { msg = (await e.context?.json())?.error || msg } catch { }
-      return setError(msg === 'Failed to send a request to the Edge Function' ? 'Could not reach the email service. Is the send-invites function deployed?' : msg || GENERIC_ERR)
+      return setError(msg === 'Failed to send a request to the Edge Function' ? 'Could not reach the account service. Is the create-member function deployed?' : msg || GENERIC_ERR)
     }
     if (data?.error) return setError(data.error)
-    if (!emailsArg) setEmails('')
-    const failed = data?.failed?.length || 0
-    setError(`Emailed ${data?.sent || 0} invite${data?.sent === 1 ? '' : 's'}.${failed ? ` ${failed} failed to send.` : ''}`)
-    load()
+    setResult({ email: addr, password: data.password, emailed: !!data.emailed })
+    setEmail('')
   }
-
-  const STATUS_TONE = { pending: 'bg-accent-soft text-accent', accepted: 'bg-success/15 text-success', expired: 'bg-line text-muted' }
 
   return (
     <div className="mt-4 space-y-4">
       <div className="card p-4">
-        <div className="text-sm font-bold">Invite mentors &amp; admins</div>
-        <p className="mt-0.5 text-xs text-muted">One email per line (or comma-separated). Everyone in the batch gets the same role and their own link.</p>
-        <textarea className="input mt-3 min-h-[88px] resize-y font-mono text-sm" placeholder={'jane@acme.com\nbob@partner.org'} value={emails} onChange={(e) => setEmails(e.target.value)} />
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <select className="input w-auto py-2 text-sm" value={role} onChange={(e) => setRole(e.target.value)}>
-            {ROLES.filter((r) => r.v !== 'student').map((r) => <option key={r.v} value={r.v}>{r.label}</option>)}
-          </select>
-          <button className="btn-primary inline-flex items-center gap-1.5 px-4 py-2 text-sm" onClick={() => sendInvites()} disabled={busy || !emails.trim()}><Send size={15} /> {busy ? 'Working...' : 'Send invites'}</button>
-          <button className="btn-outline px-4 py-2 text-sm" onClick={generate} disabled={busy || !emails.trim()}>Generate links only</button>
+        <div className="text-sm font-bold">Add a member</div>
+        <p className="mt-0.5 text-xs text-muted">Creates the account with a strong auto-generated password and emails the sign-in details. They finish their profile during onboarding on first login.</p>
+        <div className="mt-3 flex flex-wrap items-end gap-2">
+          <div className="min-w-[220px] flex-1">
+            <label className="mb-1 block text-xs font-medium text-muted">Email</label>
+            <input className="input" type="email" autoComplete="off" placeholder="jane@acme.com" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !busy && email.trim()) createMember() }} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted">Role</label>
+            <select className="input w-auto py-2 text-sm" value={role} onChange={(e) => setRole(e.target.value)}>
+              {ROLES.map((r) => <option key={r.v} value={r.v}>{r.label}</option>)}
+            </select>
+          </div>
+          <button className="btn-primary inline-flex items-center gap-1.5 px-4 py-2 text-sm" onClick={createMember} disabled={busy || !email.trim()}><UserPlus size={15} /> {busy ? 'Creating...' : 'Create & email'}</button>
         </div>
-        <p className="mt-2 text-xs text-faint"><strong>Send invites</strong> emails each link directly. <strong>Generate links only</strong> creates them to copy and share yourself.</p>
+        <p className="mt-2 text-xs text-faint">The password is shown once here for your reference. Ask the member to change it from Settings after they sign in.</p>
       </div>
 
-      {created.length > 0 && (
+      {result && (
         <div className="card p-4">
-          <div className="flex items-center justify-between">
-            <div className="text-sm font-bold">{created.length} link{created.length > 1 ? 's' : ''} ready</div>
-            <button className="btn-outline px-3 py-1.5 text-xs" onClick={() => copy(created.map((r) => `${r.email}: ${inviteLink(r.token)}`).join('\n'), 'all')}>{copied === 'all' ? 'Copied!' : 'Copy all'}</button>
+          <div className="flex items-center gap-2">
+            <Check size={16} className="text-success" />
+            <div className="text-sm font-bold">Account created for {result.email}</div>
           </div>
-          <div className="mt-3 divide-y divide-line">
-            {created.map((r) => (
-              <div key={r.token} className="flex items-center gap-3 py-2">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold">{r.email}</div>
-                  <div className="truncate text-xs text-muted">{inviteLink(r.token)}</div>
-                </div>
-                <button className="shrink-0 rounded-lg border border-line p-2 text-muted hover:bg-black/5" onClick={() => copy(inviteLink(r.token), r.token)} aria-label={`Copy link for ${r.email}`}>{copied === r.token ? <Check size={15} className="text-success" /> : <Copy size={15} />}</button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {!loading && list.length === 0 ? ( <div className="card p-8 text-center text-sm text-muted">No invites yet.</div> ) : (
-        <div className="card divide-y divide-line">
-          {list.map((iv) => (
-            <div key={iv.id} className="flex flex-wrap items-center gap-3 p-4">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate text-sm font-semibold">{iv.email}</span>
-                  <RoleBadge role={iv.role} />
-                  <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${STATUS_TONE[iv.status]}`}>{iv.status}</span>
-                </div>
-                <div className="truncate text-xs text-muted">{iv.status === 'accepted' ? `Joined ${timeAgo(iv.accepted_at)}` : iv.status === 'expired' ? `Expired ${timeAgo(iv.expires_at)}` : `Expires ${timeAgo(iv.expires_at)} · ${iv.sent_at ? `emailed ${timeAgo(iv.sent_at)}` : 'not emailed'}`}{iv.invited_by_name ? ` · by ${iv.invited_by_name}` : ''}</div>
-              </div>
-              {iv.status === 'pending' && (
-                <div className="flex shrink-0 items-center gap-2">
-                  <button className="btn-outline inline-flex items-center gap-1.5 px-3 py-1.5 text-xs" disabled={busy} onClick={() => sendInvites(iv.email, iv.role)}><Send size={13} /> {iv.sent_at ? 'Resend' : 'Email'}</button>
-                  <button className="btn-outline px-3 py-1.5 text-xs" onClick={() => copy(inviteLink(iv.token), iv.id)}>{copied === iv.id ? 'Copied!' : 'Copy link'}</button>
-                  <button className="btn px-3 py-1.5 text-xs border border-down/40 text-down hover:bg-down/10" onClick={async () => { if (!window.confirm(`Revoke the invite for ${iv.email}? The link will stop working.`)) return; const { error: e } = await supabase.rpc('admin_revoke_invite', { p_id: iv.id }); if (e) { console.error(e); return setError(GENERIC_ERR) }; load() }}>Revoke</button>
-                </div>
-              )}
+          <p className="mt-1 text-xs text-muted">{result.emailed ? 'The sign-in details were emailed to them.' : 'The account was created, but the email could not be sent — share these credentials manually.'}</p>
+          <div className="mt-3 flex items-center gap-2 rounded-lg border border-line bg-black/5 p-3">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-xs text-muted">Email</div>
+              <div className="truncate text-sm font-semibold">{result.email}</div>
+              <div className="mt-1.5 truncate text-xs text-muted">Temporary password</div>
+              <div className="truncate font-mono text-sm font-semibold">{result.password}</div>
             </div>
-          ))}
+            <button className="shrink-0 rounded-lg border border-line p-2 text-muted hover:bg-black/5" onClick={() => copy(`Email: ${result.email}\nPassword: ${result.password}`)} aria-label="Copy credentials">{copied ? <Check size={15} className="text-success" /> : <Copy size={15} />}</button>
+          </div>
         </div>
       )}
     </div>
