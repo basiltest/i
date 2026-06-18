@@ -75,7 +75,7 @@ export default function TeamAcquisition() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-extrabold">Team Acquisition</h1>
-          <p className="mt-0.5 text-sm text-muted">Post role and talent needs. Co-founders, technical hires, designers, growth.</p>
+          <p className="mt-0.5 text-sm text-muted">Hiring for your startup? Post a role. Want to join one? Apply.</p>
         </div>
         <button className="btn-primary shrink-0" onClick={() => setPostOpen(true)}>
           <Plus size={16} /> Post a need
