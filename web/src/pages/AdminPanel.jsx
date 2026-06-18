@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
-import { Users, SlidersHorizontal, Search, Workflow, UserPlus, Copy, Check } from 'lucide-react'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
+import { Users, SlidersHorizontal, Search, Workflow, UserPlus, Copy, Check, Inbox, ExternalLink } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import ModalShell from '../components/ModalShell'
 import Combobox from '../components/Combobox'
@@ -8,6 +8,7 @@ import { useAuth } from '../lib/AuthProvider'
 import { REGIONS, SECTORS, DOMAINS } from '../lib/options'
 import RoleBadge from '../components/RoleBadge'
 import Spinner from '../components/Spinner'
+import { timeAgo } from '../lib/format'
 import { GATES, waitingChip, STATES, ifnTag } from '../lib/pipeline'
 
 const ROLES = [
@@ -20,8 +21,9 @@ const GENERIC_ERR = 'Something went wrong. Please try again.'
 export default function AdminPanel() {
   const { session, profile, isAdmin } = useAuth()
   const uid = session?.user?.id
+  const [searchParams] = useSearchParams()
 
-  const [tab, setTab] = useState('members') // 'members' | 'pipeline' | 'add' | 'settings' | 'autopsies'
+  const [tab, setTab] = useState(searchParams.get('tab') === 'requests' ? 'requests' : 'members') // 'members' | 'pipeline' | 'add' | 'requests' | 'settings' | 'autopsies'
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -35,6 +37,18 @@ export default function AdminPanel() {
   // Idea Autopsy specific states
   const [autopsies, setAutopsies] = useState([])
   const [loadingAutopsies, setLoadingAutopsies] = useState(false)
+
+  // Registration requests
+  const [requests, setRequests] = useState([])
+  const [loadingRequests, setLoadingRequests] = useState(false)
+  const loadRequests = useCallback(async () => {
+    setLoadingRequests(true)
+    const { data, error: e } = await supabase.rpc('admin_list_registration_requests')
+    if (e) console.error('requests load:', e)
+    setRequests(data || [])
+    setLoadingRequests(false)
+  }, [])
+  const pendingRequests = requests.filter((r) => r.status === 'pending').length
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -77,6 +91,7 @@ export default function AdminPanel() {
   }
 
   useEffect(() => { if (isAdmin) load() }, [isAdmin, load])
+  useEffect(() => { if (isAdmin) loadRequests() }, [isAdmin, loadRequests])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -162,6 +177,7 @@ export default function AdminPanel() {
         <button onClick={() => setTab('members')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'members' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}><Users size={15} /> Members ({members.length})</button>
         <button onClick={() => setTab('pipeline')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'pipeline' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}><Workflow size={15} /> Pipeline</button>
         <button onClick={() => setTab('add')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'add' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}><UserPlus size={15} /> Add member</button>
+        <button onClick={() => setTab('requests')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'requests' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}><Inbox size={15} /> Requests{pendingRequests > 0 && <span className="h-1.5 w-1.5 rounded-full bg-down" role="status" aria-label={`${pendingRequests} pending requests`} />}</button>
         <button onClick={() => setTab('settings')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'settings' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}><SlidersHorizontal size={15} /> Settings</button>
         <button onClick={() => setTab('autopsies')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'autopsies' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}>📁 Autopsies ({autopsies.length})</button>
       </div>
@@ -170,6 +186,8 @@ export default function AdminPanel() {
 
       {tab === 'add' ? (
         <CreateMemberTab />
+      ) : tab === 'requests' ? (
+        <RequestsTab requests={requests} loading={loadingRequests} reload={loadRequests} />
       ) : loading ? (
         <ListSkeleton />
       ) : tab === 'pipeline' ? (
@@ -496,6 +514,128 @@ function CreateMemberTab() {
         </div>
       )}
     </div>
+  )
+}
+
+// Admin reviews pending registration requests: view the certificate (signed URL), approve
+// (create the account via review-registration + pick the permission role) or disapprove.
+function RequestsTab({ requests, loading, reload }) {
+  const [busyId, setBusyId] = useState(null)
+  const [error, setError] = useState('')
+  const [approveFor, setApproveFor] = useState(null)
+  const [result, setResult] = useState(null) // { email, password, emailed } shown once
+  const [copied, setCopied] = useState(false)
+
+  async function fnError(e) {
+    let msg = e.message
+    try { msg = (await e.context?.json())?.error || msg } catch { /* ignore */ }
+    return msg || GENERIC_ERR
+  }
+
+  async function viewCert(path) {
+    setError('')
+    const { data, error: e } = await supabase.storage.from('registration-certs').createSignedUrl(path, 3600)
+    if (e || !data?.signedUrl) { console.error(e); return setError('Could not open the certificate.') }
+    window.open(data.signedUrl, '_blank', 'noopener')
+  }
+
+  async function disapprove(r) {
+    const reason = window.prompt(`Disapprove ${r.name} (${r.email})?\n\nReason (internal/audited, optional):`)
+    if (reason === null) return
+    setBusyId(r.id); setError('')
+    const { data, error: e } = await supabase.functions.invoke('review-registration', { body: { id: r.id, action: 'reject', reason } })
+    setBusyId(null)
+    if (e) { console.error(e); return setError(await fnError(e)) }
+    if (data?.error) return setError(data.error)
+    reload()
+  }
+
+  async function approve(r, role) {
+    setBusyId(r.id); setError('')
+    const { data, error: e } = await supabase.functions.invoke('review-registration', { body: { id: r.id, action: 'approve', role } })
+    setBusyId(null)
+    if (e) { console.error(e); return setError(await fnError(e)) }
+    if (data?.error) return setError(data.error)
+    setApproveFor(null)
+    setResult({ email: r.email, password: data.password, emailed: !!data.emailed })
+    reload()
+  }
+
+  async function copy(text) {
+    try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500) } catch { /* ignore */ }
+  }
+
+  const pending = requests.filter((r) => r.status === 'pending')
+
+  return (
+    <div className="mt-4 space-y-4">
+      {error && <div role="alert" className="rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+
+      {result && (
+        <div className="card p-4">
+          <div className="flex items-center gap-2"><Check size={16} className="text-success" /><div className="text-sm font-bold">Account created for {result.email}</div></div>
+          <p className="mt-1 text-xs text-muted">{result.emailed ? 'Login details were emailed to them.' : 'Account created, but the email could not be sent — share these manually.'}</p>
+          <div className="mt-3 flex items-center gap-2 rounded-lg border border-line bg-black/5 p-3">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-xs text-muted">Email</div>
+              <div className="truncate text-sm font-semibold">{result.email}</div>
+              <div className="mt-1.5 truncate text-xs text-muted">Temporary password</div>
+              <div className="truncate font-mono text-sm font-semibold">{result.password}</div>
+            </div>
+            <button className="shrink-0 rounded-lg border border-line p-2 text-muted hover:bg-black/5" onClick={() => copy(`Email: ${result.email}\nPassword: ${result.password}`)} aria-label="Copy credentials">{copied ? <Check size={15} className="text-success" /> : <Copy size={15} />}</button>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <ListSkeleton avatar={false} rows={3} className="mt-0" />
+      ) : pending.length === 0 ? (
+        <div className="card p-8 text-center text-sm text-muted">No pending requests.</div>
+      ) : (
+        <div className="card divide-y divide-line">
+          {pending.map((r) => (
+            <div key={r.id} className="flex flex-col gap-2 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <span className="min-w-0 flex-1 break-words text-sm font-bold">{r.name}</span>
+                <span className="shrink-0 text-xs text-faint">{timeAgo(r.created_at)}</span>
+              </div>
+              <div><span className="chip">{r.member_type}{r.other_text ? `: ${r.other_text}` : ''}</span></div>
+              <div className="break-words text-xs text-muted">{r.email}{r.phone ? ` · ${r.phone}` : ''}</div>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                {r.cert_path
+                  ? <button className="btn-outline inline-flex items-center gap-1.5 px-3 py-1.5 text-xs" onClick={() => viewCert(r.cert_path)}><ExternalLink size={13} /> View certificate</button>
+                  : <span className="text-xs text-faint">No certificate</span>}
+                <div className="ml-auto flex items-center gap-2">
+                  <button className="btn px-3 py-1.5 text-xs border border-down/40 text-down hover:bg-down/10" disabled={busyId === r.id} onClick={() => disapprove(r)}>Disapprove</button>
+                  <button className="btn-primary px-3 py-1.5 text-xs" disabled={busyId === r.id} onClick={() => setApproveFor(r)}>Approve</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {approveFor && <ApproveModal request={approveFor} busy={busyId === approveFor.id} onClose={() => setApproveFor(null)} onApprove={(role) => approve(approveFor, role)} />}
+    </div>
+  )
+}
+
+function ApproveModal({ request, busy, onClose, onApprove }) {
+  const [role, setRole] = useState('student')
+  return (
+    <ModalShell onRequestClose={() => !busy && onClose()} labelledBy="approve-title">
+      <h2 id="approve-title" className="text-lg font-bold">Approve {request.name}</h2>
+      <p className="mt-0.5 text-xs text-muted">{request.email} · registering as {request.member_type}</p>
+      <p className="mt-3 text-sm text-muted">Creates the account and emails a generated password plus the user guide. Choose the permission role:</p>
+      <select className="input mt-3" value={role} onChange={(e) => setRole(e.target.value)}>
+        {ROLES.map((r) => <option key={r.v} value={r.v}>{r.label}</option>)}
+      </select>
+      <p className="mt-1.5 text-xs text-faint">Their "{request.member_type}" label is kept separately. Most approvals are Student-level access.</p>
+      <div className="mt-5 flex justify-end gap-2">
+        <button className="btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
+        <button className="btn-primary" onClick={() => onApprove(role)} disabled={busy}>{busy ? 'Approving...' : 'Approve & create'}</button>
+      </div>
+    </ModalShell>
   )
 }
 

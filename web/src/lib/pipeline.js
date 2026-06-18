@@ -90,6 +90,7 @@ export const NOTIF_TEXT = {
   solution_reviewed: 'Your solution was reviewed',
   success_approved: 'Your #Success badge was approved',
   success_rejected: 'Your #Success request was declined',
+  registration_request: 'New registration request to review',
 }
 
 export const ifnTag = (n) => `IFN-${n}`

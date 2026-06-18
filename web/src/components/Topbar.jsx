@@ -60,13 +60,14 @@ export default function Topbar({ onMenu }) {
 
   function openNotif(n) {
     setBellOpen(false)
-    if (n.idea_id) navigate(`/pipeline/${n.idea_id}`)
+    if (n.kind === 'registration_request') navigate('/admin?tab=requests')
+    else if (n.idea_id) navigate(`/pipeline/${n.idea_id}`)
   }
 
   // The action/all/mine tabs are a mentor+ tool; regular members just see their full list.
   const effectiveFilter = isMentor ? activeFilter : 'all'
   const filteredNotifs = notifs.filter(n => {
-    if (effectiveFilter === 'action') return !n.read_at && (n.kind?.includes('action') || n.kind?.includes('review'))
+    if (effectiveFilter === 'action') return !n.read_at && (n.kind?.includes('action') || n.kind?.includes('review') || n.kind === 'registration_request')
     if (effectiveFilter === 'mine') return n.actor_id === uid
     return true // 'all'
   })
