@@ -5,7 +5,8 @@ export async function sendEmail(opts: {
   from: string
   to: string
   subject: string
-  html: string
+  html?: string
+  text?: string
   replyTo?: string
 }) {
   const res = await fetch('https://api.resend.com/emails', {
@@ -15,7 +16,8 @@ export async function sendEmail(opts: {
       from: opts.from,
       to: opts.to,
       subject: opts.subject,
-      html: opts.html,
+      ...(opts.html ? { html: opts.html } : {}),
+      ...(opts.text ? { text: opts.text } : {}),
       ...(opts.replyTo ? { reply_to: opts.replyTo } : {}),
     }),
   })
