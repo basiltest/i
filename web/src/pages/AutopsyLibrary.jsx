@@ -9,7 +9,7 @@ export default function AutopsyLibrary() {
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [reading, setReading] = useState(null); // autopsy shown in the detail modal
+  const [reading, setReading] = useState(null);
 
   // Form State
   const [projectName, setProjectName] = useState('');
@@ -157,7 +157,6 @@ export default function AutopsyLibrary() {
                   <span className="chip shrink-0">{autopsy.category}</span>
                 </div>
 
-                {/* Why it failed — the one place red is semantic, not decorative */}
                 <div className="mb-4 rounded-lg border border-down/20 bg-down/10 p-4">
                   <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-down">
                     Why it failed
@@ -195,7 +194,7 @@ export default function AutopsyLibrary() {
         </div>
       )}
 
-      {/* Detail modal — surfaces the full story + every field */}
+      {/* Detail modal */}
       {reading && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in"
@@ -224,7 +223,6 @@ export default function AutopsyLibrary() {
               </button>
             </div>
 
-            {/* Stat strip */}
             <dl className="mb-6 grid grid-cols-3 gap-3 rounded-lg border border-line bg-page/60 p-4 text-center">
               {[
                 ['Investment', reading.total_investment || 'N/A'],

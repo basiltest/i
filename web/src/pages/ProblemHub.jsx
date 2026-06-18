@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, CalendarClock, MessageCircle } from 'lucide-react'
+import { Plus, Search, CalendarClock, MessageCircle, Users } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import AuthorLink from '../components/AuthorLink'
 import ProblemModal from '../components/ProblemModal'
@@ -18,6 +18,7 @@ export default function ProblemHub() {
   const [error, setError] = useState('')
   const [postOpen, setPostOpen] = useState(false)
   const [notice, setNotice] = useState('')
+  const [upvoting, setUpvoting] = useState(null)
 
   useEffect(() => {
     const id = setTimeout(() => setDebounced(q.trim()), 300)
@@ -33,6 +34,32 @@ export default function ProblemHub() {
   useEffect(() => { load() }, [load])
 
   function flash(msg) { setNotice(msg); setTimeout(() => setNotice(''), 3000) }
+
+  async function toggleUpvote(e, problemId) {
+    e.stopPropagation()
+    if (upvoting === problemId) return
+    setUpvoting(problemId)
+    // optimistic update
+    setProblems((prev) => prev.map((p) =>
+      p.id !== problemId ? p : {
+        ...p,
+        i_upvoted: !p.i_upvoted,
+        upvote_count: Number(p.upvote_count) + (p.i_upvoted ? -1 : 1),
+      }
+    ))
+    const { error: e2 } = await supabase.rpc('toggle_problem_upvote', { p_problem: problemId })
+    if (e2) {
+      // revert on failure
+      setProblems((prev) => prev.map((p) =>
+        p.id !== problemId ? p : {
+          ...p,
+          i_upvoted: !p.i_upvoted,
+          upvote_count: Number(p.upvote_count) + (p.i_upvoted ? -1 : 1),
+        }
+      ))
+    }
+    setUpvoting(null)
+  }
 
   return (
     <div className="max-w-2xl">
@@ -123,8 +150,20 @@ export default function ProblemHub() {
               )}
 
               <footer className="mt-3 flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-lg bg-page px-3 py-2 text-sm font-semibold text-muted">
-                  <MessageCircle size={18} /> {Number(p.solution_count)} {Number(p.solution_count) === 1 ? 'solution' : 'solutions'}
+                <button
+                  onClick={(e) => toggleUpvote(e, p.id)}
+                  disabled={upvoting === p.id}
+                  className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                    p.i_upvoted
+                      ? 'border-accent/30 bg-accent-soft text-accent'
+                      : 'border-line bg-page text-muted hover:border-accent/30 hover:text-ink'
+                  }`}
+                >
+                  <Users size={15} />
+                  {Number(p.upvote_count) > 0 ? Number(p.upvote_count) : ''} facing this
+                </button>
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-page px-3 py-1.5 text-sm font-semibold text-muted">
+                  <MessageCircle size={15} /> {Number(p.solution_count)} {Number(p.solution_count) === 1 ? 'solution' : 'solutions'}
                 </span>
                 {p.i_solved && <span className="text-xs font-semibold text-accent">You replied</span>}
               </footer>

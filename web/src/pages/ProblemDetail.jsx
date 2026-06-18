@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, CalendarClock, MessageCircle, MoreHorizontal } from 'lucide-react'
+import { ArrowLeft, CalendarClock, MessageCircle, MoreHorizontal, Users } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import AuthorLink from '../components/AuthorLink'
@@ -65,6 +65,7 @@ export default function ProblemDetail() {
   const [ssort, setSsort] = useState('top')
   const [editingId, setEditingId] = useState(null)
   const [editBody, setEditBody] = useState('')
+  const [upvoting, setUpvoting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -85,6 +86,25 @@ export default function ProblemDetail() {
   }, [id])
 
   useEffect(() => { load() }, [load])
+
+  async function toggleUpvote() {
+    if (upvoting || !problem) return
+    setUpvoting(true)
+    setProblem((p) => ({
+      ...p,
+      i_upvoted: !p.i_upvoted,
+      upvote_count: Number(p.upvote_count) + (p.i_upvoted ? -1 : 1),
+    }))
+    const { error } = await supabase.rpc('toggle_problem_upvote', { p_problem: id })
+    if (error) {
+      setProblem((p) => ({
+        ...p,
+        i_upvoted: !p.i_upvoted,
+        upvote_count: Number(p.upvote_count) + (p.i_upvoted ? -1 : 1),
+      }))
+    }
+    setUpvoting(false)
+  }
 
   async function refreshSolutions() {
     const { data } = await supabase.rpc('problem_solutions_list', { p_problem: id })
@@ -231,6 +251,22 @@ export default function ProblemDetail() {
               ))}
             </div>
           )}
+
+          <div className="mt-4">
+            <button
+              onClick={toggleUpvote}
+              disabled={upvoting}
+              className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
+                problem.i_upvoted
+                  ? 'border-accent/30 bg-accent-soft text-accent'
+                  : 'border-line bg-page text-muted hover:border-accent/30 hover:text-ink'
+              }`}
+            >
+              <Users size={15} />
+              {Number(problem.upvote_count) > 0 ? `${Number(problem.upvote_count)} ` : ''}
+              {problem.i_upvoted ? 'You face this' : 'I face this'}
+            </button>
+          </div>
 
           {/* solutions header + sort */}
           <div className="mb-3 mt-6 flex items-center justify-between gap-2">
