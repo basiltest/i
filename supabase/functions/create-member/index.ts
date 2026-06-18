@@ -119,81 +119,74 @@ function credentialsEmail(siteUrl: string, role: string, email: string, password
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${BRAND.paper};">
     <tr>
       <td align="center" style="padding:40px 16px;">
-        <table role="presentation" class="container" width="520" cellpadding="0" cellspacing="0" border="0" style="width:520px;max-width:520px;">
+        <table role="presentation" class="container" width="480" cellpadding="0" cellspacing="0" border="0" style="width:480px;max-width:480px;">
 
           <!-- Card -->
           <tr>
-            <td style="background-color:${BRAND.card};border:1px solid ${BRAND.line};border-radius:16px;overflow:hidden;box-shadow:0 1px 2px rgba(28,29,51,0.05);">
+            <td style="background-color:${BRAND.card};border:1px solid ${BRAND.line};border-radius:14px;overflow:hidden;box-shadow:0 8px 28px rgba(28,29,51,0.08);">
 
-              <!-- Red brand stripe (the ICFAI bar) -->
+              <!-- Full-bleed red signature rule (the ICFAI bar) -->
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr><td style="height:4px;line-height:4px;font-size:0;background-color:${BRAND.red};">&nbsp;</td></tr>
+                <tr><td style="height:3px;line-height:3px;font-size:0;background-color:${BRAND.red};">&nbsp;</td></tr>
               </table>
 
-              <!-- Header: navy block with the typographic lockup -->
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${BRAND.navy};">
-                <tr>
-                  <td class="px" style="padding:26px 40px;">
-                    <div style="font-family:${DISPLAY_FONT};font-size:22px;font-weight:700;line-height:1;letter-spacing:-0.01em;color:#ffffff;">ICFAI</div>
-                    <div style="width:54px;height:3px;line-height:3px;font-size:0;background-color:${BRAND.red};margin:7px 0 8px;">&nbsp;</div>
-                    <div style="font-size:11px;font-weight:600;letter-spacing:0.2em;color:rgba(255,255,255,0.72);">FOUNDERS&nbsp;NETWORK</div>
-                  </td>
-                </tr>
-              </table>
-
-              <!-- Body -->
+              <!-- Letter -->
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td class="px" style="padding:34px 40px 36px;">
-                    <h1 style="margin:0 0 12px;font-family:${DISPLAY_FONT};font-size:24px;line-height:1.25;font-weight:700;color:${BRAND.ink};">Welcome to the network</h1>
-                    <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:${BRAND.muted};">
-                      An administrator set up your account as a
-                      <span style="display:inline-block;background-color:${BRAND.soft};color:${BRAND.navy};font-size:13px;font-weight:600;line-height:1;padding:5px 10px;border-radius:999px;">${e(roleLabel)}</span>.
-                      Use the details below to sign in, then finish your profile.
+                  <td class="px" style="padding:44px 44px 40px;">
+
+                    <!-- Letterhead wordmark -->
+                    <div style="font-family:${DISPLAY_FONT};font-size:17px;font-weight:700;line-height:1;letter-spacing:0.02em;color:${BRAND.navy};">ICFAI</div>
+                    <div style="width:28px;height:2px;line-height:2px;font-size:0;background-color:${BRAND.red};margin:6px 0 7px;">&nbsp;</div>
+                    <div style="font-size:10px;font-weight:600;letter-spacing:0.22em;color:${BRAND.faint};">FOUNDERS&nbsp;NETWORK</div>
+
+                    <h1 style="margin:30px 0 14px;font-family:${DISPLAY_FONT};font-size:29px;line-height:1.15;font-weight:700;letter-spacing:-0.02em;color:${BRAND.ink};">Your account is ready</h1>
+                    <p style="margin:0 0 28px;font-size:15px;line-height:1.6;color:${BRAND.muted};">
+                      An administrator created your <strong style="color:${BRAND.ink};font-weight:600;">${e(roleLabel)}</strong> account on the ICFAI Founders Network. Sign in with the details below, then take a minute to finish your profile.
                     </p>
 
                     <!-- Credentials -->
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${BRAND.paper};border:1px solid ${BRAND.line};border-radius:12px;">
                       <tr>
-                        <td style="padding:18px 20px 16px;">
-                          <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;color:${BRAND.faint};text-transform:uppercase;">Email</div>
-                          <div style="margin-top:5px;font-size:15px;font-weight:600;color:${BRAND.ink};word-break:break-all;">${e(email)}</div>
+                        <td style="padding:20px 22px 16px;">
+                          <div style="font-size:11px;font-weight:600;letter-spacing:0.1em;color:${BRAND.faint};text-transform:uppercase;">Email address</div>
+                          <div style="margin-top:6px;font-size:16px;font-weight:600;color:${BRAND.ink};word-break:break-all;">${e(email)}</div>
                         </td>
                       </tr>
-                      <tr><td style="padding:0 20px;"><div style="height:1px;line-height:1px;font-size:0;background-color:${BRAND.line};">&nbsp;</div></td></tr>
+                      <tr><td style="padding:0 22px;"><div style="height:1px;line-height:1px;font-size:0;background-color:${BRAND.line};">&nbsp;</div></td></tr>
                       <tr>
-                        <td style="padding:16px 20px 20px;">
-                          <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;color:${BRAND.faint};text-transform:uppercase;">Temporary password</div>
-                          <div style="margin-top:8px;">
-                            <span style="display:inline-block;background-color:${BRAND.card};border:1px solid ${BRAND.line};border-radius:8px;padding:10px 14px;font-family:${MONO_FONT};font-size:16px;font-weight:700;letter-spacing:0.04em;color:${BRAND.ink};word-break:break-all;">${e(password)}</span>
+                        <td style="padding:16px 22px 20px;">
+                          <div style="font-size:11px;font-weight:600;letter-spacing:0.1em;color:${BRAND.faint};text-transform:uppercase;">Temporary password</div>
+                          <div style="margin-top:9px;">
+                            <span style="display:inline-block;background-color:${BRAND.card};border:1px solid ${BRAND.line};border-radius:8px;padding:11px 15px;font-family:${MONO_FONT};font-size:17px;font-weight:700;letter-spacing:0.06em;color:${BRAND.ink};word-break:break-all;">${e(password)}</span>
                           </div>
                         </td>
                       </tr>
                     </table>
 
-                    <!-- CTA -->
-                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 8px;">
+                    <!-- CTA: full-width navy button -->
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 0;">
                       <tr>
-                        <td align="left">
+                        <td align="center" bgcolor="${BRAND.navy}" style="background-color:${BRAND.navy};border-radius:10px;">
                           <!--[if mso]>
-                          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${loginUrl}" style="height:46px;v-text-anchor:middle;width:170px;" arcsize="22%" strokecolor="${BRAND.navy}" fillcolor="${BRAND.navy}">
+                          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${loginUrl}" style="height:50px;v-text-anchor:middle;width:392px;" arcsize="20%" strokecolor="${BRAND.navy}" fillcolor="${BRAND.navy}">
                             <w:anchorlock/>
-                            <center style="color:#ffffff;font-family:sans-serif;font-size:15px;font-weight:bold;">Sign in</center>
+                            <center style="color:#ffffff;font-family:sans-serif;font-size:15px;font-weight:bold;">Sign in to your account</center>
                           </v:roundrect>
                           <![endif]-->
                           <!--[if !mso]><!-->
-                          <a href="${loginUrl}" style="display:inline-block;background-color:${BRAND.navy};color:#ffffff;font-size:15px;font-weight:600;line-height:1;padding:14px 30px;border-radius:10px;">Sign in &rarr;</a>
+                          <a href="${loginUrl}" style="display:block;color:#ffffff;font-size:15px;font-weight:600;line-height:1;padding:16px 24px;text-align:center;">Sign in to your account</a>
                           <!--<![endif]-->
                         </td>
                       </tr>
                     </table>
 
-                    <p style="margin:18px 0 0;font-size:13px;line-height:1.55;color:${BRAND.faint};">
-                      Or paste this link into your browser:<br>
+                    <p style="margin:16px 0 0;font-size:13px;line-height:1.55;color:${BRAND.faint};text-align:center;">
+                      Button not working? Paste this link into your browser:<br>
                       <a href="${loginUrl}" style="color:${BRAND.navy};font-weight:500;word-break:break-all;">${loginUrl}</a>
                     </p>
 
-                    <div style="margin:26px 0 0;padding-top:20px;border-top:1px solid ${BRAND.line};">
+                    <div style="margin:30px 0 0;padding-top:22px;border-top:1px solid ${BRAND.line};">
                       <p style="margin:0;font-size:13px;line-height:1.55;color:${BRAND.muted};">
                         For your security, change this password from <strong style="color:${BRAND.ink};font-weight:600;">Settings</strong> once you're signed in.
                       </p>
