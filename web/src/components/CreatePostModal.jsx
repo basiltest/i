@@ -108,8 +108,15 @@ export default function CreatePostModal({ open, onClose, onCreated, onUpdated, e
 
   async function save(status) {
     setError('')
-    if (!title.trim()) return setError('Title is required.')
-    if (!body.trim()) return setError('Body is required.')
+    // Publishing needs both; a draft is partial work — save with whatever's there,
+    // requiring only that it isn't completely empty.
+    const isDraft = status === 'draft'
+    if (isDraft) {
+      if (!title.trim() && !body.trim()) return setError('Add a title or some text to save a draft.')
+    } else {
+      if (!title.trim()) return setError('Title is required.')
+      if (!body.trim()) return setError('Body is required.')
+    }
 
     setBusy(true)
     try {
