@@ -174,6 +174,12 @@ export default function Topbar({ onMenu }) {
                     </ul>
                   )}
                 </div>
+                <button
+                  onClick={() => { setBellOpen(false); navigate('/notifications') }}
+                  className="block w-full border-t border-line px-4 py-2.5 text-center text-xs font-bold text-accent hover:bg-black/5"
+                >
+                  Expand notifications
+                </button>
               </div>
             )}
           </div>
