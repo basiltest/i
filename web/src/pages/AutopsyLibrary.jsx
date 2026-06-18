@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { SECTORS } from '../lib/options';
+import Combobox from '../components/Combobox';
 
 export default function AutopsyLibrary() {
   const [autopsies, setAutopsies] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [reading, setReading] = useState(null); // autopsy shown in the detail modal
 
   // Form State
   const [projectName, setProjectName] = useState('');
-  const [category, setCategory] = useState('SaaS');
+  const [category, setCategory] = useState('');
   const [domain, setDomain] = useState('');
   const [duration, setDuration] = useState('');
   const [investment, setInvestment] = useState('');
@@ -56,7 +58,7 @@ export default function AutopsyLibrary() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!projectName || !rootCause || !keyLessons || !domain) {
+    if (!projectName || !rootCause || !keyLessons || !domain || !category) {
       alert('Please fill out all mandatory fields.');
       return;
     }
@@ -95,7 +97,7 @@ export default function AutopsyLibrary() {
 
   function resetForm() {
     setProjectName('');
-    setCategory('SaaS');
+    setCategory('');
     setDomain('');
     setDuration('');
     setInvestment('');
@@ -105,10 +107,9 @@ export default function AutopsyLibrary() {
     setIsAnonymous(false);
   }
 
-  const categories = ['All', 'SaaS', 'EdTech', 'HealthTech', 'FinTech', 'FoodTech', 'Logistics'];
 
   const filteredAutopsies = autopsies.filter(
-    (item) => selectedCategory === 'All' || item.category === selectedCategory
+    (item) => !selectedCategory || item.category === selectedCategory
   );
 
   const lessonsOf = (a) =>
@@ -130,24 +131,11 @@ export default function AutopsyLibrary() {
         </button>
       </div>
 
-      {/* Category filters */}
-      <div className="mb-8 flex flex-wrap gap-2 border-b border-line pb-5">
-        {categories.map((cat) => {
-          const active = selectedCategory === cat;
-          return (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`rounded-full border px-4 py-1.5 text-sm font-medium transition-colors ${
-                active
-                  ? 'border-accent bg-accent text-onaccent'
-                  : 'border-line bg-card text-muted hover:bg-black/5 hover:text-ink'
-              }`}
-            >
-              {cat}
-            </button>
-          );
-        })}
+      {/* Category filter — searchable sector picker (empty = all sectors) */}
+      <div className="mb-8 border-b border-line pb-5">
+        <div className="max-w-xs">
+          <Combobox value={selectedCategory} onChange={setSelectedCategory} options={SECTORS} placeholder="All sectors" id="autopsy-sector" />
+        </div>
       </div>
 
       {/* List */}
@@ -304,11 +292,7 @@ export default function AutopsyLibrary() {
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-medium text-muted">Category *</label>
-                  <select
-                    value={category} onChange={(e) => setCategory(e.target.value)} className="input"
-                  >
-                    {categories.filter((c) => c !== 'All').map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  <Combobox value={category} onChange={setCategory} options={SECTORS} placeholder="Select sector..." id="autopsy-cat" />
                 </div>
               </div>
 
