@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Bell, Menu, User, Settings as SettingsIcon, LogOut, CheckCircle2, BellRing, Inbox } from 'lucide-react'
+import { Bell, Calendar, Menu, User, Settings as SettingsIcon, LogOut, CheckCircle2, BellRing, Inbox } from 'lucide-react'
 import Logo from './Logo'
 import { supabase } from '../lib/supabase'
 import { typeDot } from '../lib/calendar'
@@ -82,6 +82,10 @@ export default function Topbar({ onMenu }) {
         </Link>
 
         <div className="ml-auto flex items-center gap-1">
+          {/* calendar */}
+          <Link to="/calendar" className="rounded-full p-2 text-muted hover:bg-black/5 hover:text-ink" aria-label="Calendar">
+            <Calendar size={20} />
+          </Link>
           <div className="relative" ref={bellRef}>
             <button onClick={openBell} className="relative rounded-full p-2 text-muted hover:bg-black/5 hover:text-ink" aria-label="Notifications">
               <Bell size={20} />

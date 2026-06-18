@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { authErrorMessage, EXISTING_EMAIL_MESSAGE } from '../lib/authErrors'
 import Logo from '../components/Logo'
+import PasswordInput from '../components/PasswordInput'
 
 const STUDENT_DOMAIN = 'ifheindia.org'
 const ROLE_LABEL = { mentor: 'Mentor', admin: 'Admin', student: 'Student' }
@@ -10,9 +12,9 @@ export default function Register() {
   const [params] = useSearchParams()
   const token = params.get('invite')
 
-  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
@@ -37,28 +39,38 @@ export default function Register() {
     e.preventDefault()
     setError('')
 
-    // client-side validation (UX only; the server trigger does the authoritative checks)
-    if (!name.trim()) return setError('Please enter your name.')
-    if (name.trim().length > 80) return setError('Name must be 80 characters or fewer.')
+    // client-side validation (UX only; the server trigger does the authoritative checks).
+    // Name is collected later in onboarding (mandatory there), not at registration.
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError('Please enter a valid email.')
     // Without an invite, only ICFAI students may register. Invited mentors/admins are exempt.
     if (!invite?.valid && email.trim().split('@')[1]?.toLowerCase() !== STUDENT_DOMAIN) {
       return setError(`Registration is for @${STUDENT_DOMAIN} email users only. Other emails need an invite link from an admin.`)
     }
     if (password.length < 8) return setError('Password must be at least 8 characters.')
+    // confirm-password guards against a typo in a password the user can't fully see,
+    // which would otherwise create an account with an unknown password (silent lockout).
+    if (password !== confirm) return setError('Passwords do not match.')
 
     setLoading(true)
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
-          data: { name: name.trim() }, // -> raw_user_meta_data -> trigger -> profiles.name
-          emailRedirectTo: 'http://localhost:5173',
+          // Name is captured in onboarding (profiles.name), so none is sent here.
+          emailRedirectTo: `${window.location.origin}/login`,
         },
       })
       if (signUpError) {
-        setError(signUpError.message)
+        setError(authErrorMessage(signUpError))
+        return
+      }
+      // Existing-email detection: with email confirmations on, GoTrue returns a 200 with an
+      // empty `identities` array for an already-registered address (anti-enumeration
+      // obfuscation). By product decision we surface it explicitly rather than show the
+      // "check your email" screen — see the enumeration note in lib/authErrors.js.
+      if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        setError(EXISTING_EMAIL_MESSAGE)
         return
       }
       setDone(true)
@@ -73,13 +85,17 @@ export default function Register() {
     return (
       <div className="min-h-screen grid place-items-center px-6">
         <div className="card w-full max-w-sm p-8 text-center animate-pop-in">
-          <div className="mx-auto mb-4 grid h-11 w-11 place-items-center rounded-full bg-success/15 text-success text-xl font-bold">
+          <div aria-hidden="true" className="mx-auto mb-4 grid h-11 w-11 place-items-center rounded-full bg-success/15 text-success text-xl font-bold">
             ✓
           </div>
           <h2 className="text-lg font-semibold">Check your email</h2>
           <p className="mt-1 text-sm text-muted">
             We sent a confirmation link to <span className="font-semibold text-ink">{email}</span>.
             Open it to verify your account, then log in.
+          </p>
+          <p className="mt-3 text-sm text-muted">
+            Already have an account?{' '}
+            <Link to="/login" className="font-semibold text-accent hover:underline">Log in</Link>
           </p>
         </div>
       </div>
@@ -123,12 +139,6 @@ export default function Register() {
         )}
 
         <div className="mb-3.5 flex flex-col gap-1.5">
-          <label htmlFor="name" className="text-xs font-medium text-muted">Full name</label>
-          <input id="name" type="text" className="input" maxLength={80} value={name} placeholder="Alex Chen"
-            autoComplete="name" onChange={(e) => setName(e.target.value)} />
-        </div>
-
-        <div className="mb-3.5 flex flex-col gap-1.5">
           <label htmlFor="email" className="text-xs font-medium text-muted">Email</label>
           <input id="email" type="email" className="input" value={email}
             placeholder={invite?.valid ? '' : `you@${STUDENT_DOMAIN}`}
@@ -139,11 +149,16 @@ export default function Register() {
           )}
         </div>
 
-        <div className="mb-4 flex flex-col gap-1.5">
+        <div className="mb-3.5 flex flex-col gap-1.5">
           <label htmlFor="password" className="text-xs font-medium text-muted">Password</label>
-          <input id="password" type="password" className="input" value={password}
-            placeholder="At least 8 characters" autoComplete="new-password"
-            onChange={(e) => setPassword(e.target.value)} />
+          <PasswordInput id="password" value={password} placeholder="At least 8 characters"
+            autoComplete="new-password" onChange={(e) => setPassword(e.target.value)} />
+        </div>
+
+        <div className="mb-4 flex flex-col gap-1.5">
+          <label htmlFor="confirm" className="text-xs font-medium text-muted">Confirm password</label>
+          <PasswordInput id="confirm" value={confirm} placeholder="Re-enter your password"
+            autoComplete="new-password" onChange={(e) => setConfirm(e.target.value)} />
         </div>
 
         <button type="submit" disabled={loading || invite === false} className="btn-primary w-full">
