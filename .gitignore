@@ -7,3 +7,4 @@
 
 # supabase CLI local link/state
 supabase/.temp/
+.gstack/

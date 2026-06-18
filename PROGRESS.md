@@ -74,6 +74,10 @@ Built:
 - Re-run any changed db/*.sql in Supabase after each pull (a `PGRST202`/"function not found" error
   means a changed RPC has not been re-run; `Status code: (null)`/CORS means an ad blocker is killing
   *.supabase.co, not a code bug).
+- TODO: set the `SUPPORT_EMAIL` Supabase secret for the registration disapprove email
+  (`supabase secrets set SUPPORT_EMAIL=...`). Until then the "couldn't validate, registration
+  canceled — reach out to ..." email falls back to "the IFN team". Used by the
+  `review-registration` edge function.
 - git push the latest commits.
 
 ## Next (not built)
