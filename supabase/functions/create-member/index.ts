@@ -73,14 +73,16 @@ Deno.serve(async (req) => {
     return json({ error: 'Email is not configured (RESEND_API_KEY / PUBLIC_SITE_URL / MEMBER_FROM_EMAIL).' }, 500)
   }
 
-  let email: unknown, role: unknown
+  let email: unknown, role: unknown, memberTypeRaw: unknown
   try {
     const body = await req.json()
     email = body.email
     role = body.role
+    memberTypeRaw = body.member_type
   } catch {
     return json({ error: 'Invalid JSON body' }, 400)
   }
+  const memberType = typeof memberTypeRaw === 'string' && memberTypeRaw.trim() ? memberTypeRaw.trim() : null
   if (typeof email !== 'string' || !/^\S+@\S+\.\S+$/.test(email)) {
     return json({ error: 'A valid email is required.' }, 400)
   }
@@ -122,7 +124,7 @@ Deno.serve(async (req) => {
   // 3. Set the role on the profile row created by the new-user trigger.
   const { error: roleErr } = await admin
     .from('profiles')
-    .update({ role })
+    .update({ role, member_type: memberType })
     .eq('id', created.user.id)
   if (roleErr) {
     // The account exists but the role didn't stick. Surface it so the admin can fix it

@@ -1,20 +1,20 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
-import { Users, SlidersHorizontal, Search, Workflow, UserPlus, Copy, Check, Inbox, ExternalLink } from 'lucide-react'
+import { Users, SlidersHorizontal, Search, Workflow, UserPlus, Copy, Check, Inbox, ExternalLink, FolderHeart } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import ModalShell from '../components/ModalShell'
 import Combobox from '../components/Combobox'
 import { useAuth } from '../lib/AuthProvider'
-import { REGIONS, SECTORS, DOMAINS } from '../lib/options'
+import { REGIONS, SECTORS, DOMAINS, MEMBER_TYPES, typeToRole } from '../lib/options'
 import RoleBadge from '../components/RoleBadge'
 import Spinner from '../components/Spinner'
 import { timeAgo } from '../lib/format'
 import { GATES, waitingChip, STATES, ifnTag } from '../lib/pipeline'
 
 const ROLES = [
-  { v: 'student', label: 'Student' },
-  { v: 'mentor', label: 'Mentor' },
-  { v: 'admin', label: 'Admin' },
+  { v: 'student', label: 'User level' },
+  { v: 'mentor', label: 'Mentor level' },
+  { v: 'admin', label: 'Admin level' },
 ]
 const GENERIC_ERR = 'Something went wrong. Please try again.'
 
@@ -179,7 +179,7 @@ export default function AdminPanel() {
         <button onClick={() => setTab('add')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'add' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}><UserPlus size={15} /> Add member</button>
         <button onClick={() => setTab('requests')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'requests' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}><Inbox size={15} /> Requests{pendingRequests > 0 && <span className="h-1.5 w-1.5 rounded-full bg-down" role="status" aria-label={`${pendingRequests} pending requests`} />}</button>
         <button onClick={() => setTab('settings')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'settings' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}><SlidersHorizontal size={15} /> Settings</button>
-        <button onClick={() => setTab('autopsies')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'autopsies' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}>📁 Autopsies ({autopsies.length})</button>
+        <button onClick={() => setTab('autopsies')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'autopsies' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}><FolderHeart size={15} /> Autopsies ({autopsies.length})</button>
       </div>
 
       {error && <div role="alert" className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
@@ -441,7 +441,8 @@ export default function AdminPanel() {
 // the credentials via Resend. The member logs in and completes onboarding themselves.
 function CreateMemberTab() {
   const [email, setEmail] = useState('')
-  const [role, setRole] = useState('mentor')
+  const [role, setRole] = useState('student')
+  const [memberType, setMemberType] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null) // { email, password, emailed }
@@ -461,7 +462,7 @@ function CreateMemberTab() {
     const addr = email.trim().toLowerCase()
     if (!/^\S+@\S+\.\S+$/.test(addr)) return setError('Enter a valid email address.')
     setBusy(true)
-    const { data, error: e } = await supabase.functions.invoke('create-member', { body: { email: addr, role } })
+    const { data, error: e } = await supabase.functions.invoke('create-member', { body: { email: addr, role, member_type: memberType || null } })
     setBusy(false)
     if (e) {
       console.error(e)
@@ -488,6 +489,13 @@ function CreateMemberTab() {
             <label className="mb-1 block text-xs font-medium text-muted">Role</label>
             <select className="input w-auto py-2 text-sm" value={role} onChange={(e) => setRole(e.target.value)}>
               {ROLES.map((r) => <option key={r.v} value={r.v}>{r.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted">Member type</label>
+            <select className="input w-auto py-2 text-sm" value={memberType} onChange={(e) => { const mt = e.target.value; setMemberType(mt); if (mt) setRole(typeToRole(mt)) }}>
+              <option value="">None</option>
+              {MEMBER_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           <button className="btn-primary inline-flex items-center gap-1.5 px-4 py-2 text-sm" onClick={createMember} disabled={busy || !email.trim()}><UserPlus size={15} /> {busy ? 'Creating...' : 'Create & email'}</button>
@@ -621,7 +629,7 @@ function RequestsTab({ requests, loading, reload }) {
 }
 
 function ApproveModal({ request, busy, onClose, onApprove }) {
-  const [role, setRole] = useState('student')
+  const [role, setRole] = useState(typeToRole(request.member_type))
   return (
     <ModalShell onRequestClose={() => !busy && onClose()} labelledBy="approve-title">
       <h2 id="approve-title" className="text-lg font-bold">Approve {request.name}</h2>
@@ -640,6 +648,8 @@ function ApproveModal({ request, busy, onClose, onApprove }) {
 }
 
 function AdminEditProfileModal({ member, onClose, onSaved }) {
+  const { session } = useAuth()
+  const isSelf = member.id === session?.user?.id
   const [form, setForm] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -648,7 +658,7 @@ function AdminEditProfileModal({ member, onClose, onSaved }) {
     supabase.rpc('admin_get_profile', { p_user: member.id }).then(({ data, error: e }) => {
       if (e || !data?.[0]) { setError(GENERIC_ERR); setForm({}); return }
       const p = data[0]
-      setForm({ name: p.name || '', phone: p.phone || '', bio: p.bio || '', startup: p.startup || '', region: p.region || '', sector: p.sector || '', domain: p.domain || '', linkedin: p.linkedin || '', incubation_interest: !!p.incubation_interest })
+      setForm({ name: p.name || '', phone: p.phone || '', bio: p.bio || '', startup: p.startup || '', region: p.region || '', sector: p.sector || '', domain: p.domain || '', linkedin: p.linkedin || '', incubation_interest: !!p.incubation_interest, member_type: p.member_type || '', role: member.role })
     })
   }, [member.id])
 
@@ -657,10 +667,16 @@ function AdminEditProfileModal({ member, onClose, onSaved }) {
   async function save() {
     if (!form.name.trim()) return setError('Name is required.')
     setBusy(true)
-    const { error: e } = await supabase.rpc('admin_update_profile', { p_user: member.id, p_name: form.name.trim(), p_phone: form.phone.trim() || null, p_bio: form.bio.trim() || null, p_startup: form.startup.trim() || null, p_region: form.region || null, p_sector: form.sector || null, p_domain: form.domain || null, p_linkedin: form.linkedin.trim() || null, p_incubation: form.incubation_interest })
-    setBusy(true)
-    if (e) { console.error(e); return setError('Could not save the profile.') }
-    onSaved({ name: form.name.trim(), startup: form.startup.trim() })
+    const { error: e } = await supabase.rpc('admin_update_profile', { p_user: member.id, p_name: form.name.trim(), p_phone: form.phone.trim() || null, p_bio: form.bio.trim() || null, p_startup: form.startup.trim() || null, p_region: form.region || null, p_sector: form.sector || null, p_domain: form.domain || null, p_linkedin: form.linkedin.trim() || null, p_incubation: form.incubation_interest, p_member_type: form.member_type || null })
+    if (e) { console.error(e); setBusy(false); return setError('Could not save the profile.') }
+    // Permission level is a separate, admin-only grant (never your own); apply it if changed.
+    let savedRole = member.role
+    if (!isSelf && form.role && form.role !== member.role) {
+      const { error: re } = await supabase.rpc('admin_set_role', { p_user: member.id, p_role: form.role })
+      if (re) { console.error(re); setBusy(false); return setError('Profile saved, but the permission level could not be changed.') }
+      savedRole = form.role
+    }
+    onSaved({ name: form.name.trim(), startup: form.startup.trim(), role: savedRole, member_type: form.member_type || null })
   }
 
   return (
@@ -678,6 +694,8 @@ function AdminEditProfileModal({ member, onClose, onSaved }) {
             <Field label="Region"><Combobox value={form.region} onChange={(v) => setForm({ ...form, region: v })} options={REGIONS} placeholder="Select or type a state" /></Field>
             <Field label="Sector"><Combobox value={form.sector} onChange={(v) => setForm({ ...form, sector: v })} options={SECTORS} placeholder="Search or type a sector" /></Field>
             <Field label="Domain"><Combobox value={form.domain} onChange={(v) => setForm({ ...form, domain: v })} options={DOMAINS} placeholder="Search or type a domain" /></Field>
+            <Field label="Member type"><select className="input" value={form.member_type} onChange={(e) => { const mt = e.target.value; setForm({ ...form, member_type: mt, role: mt ? typeToRole(mt) : form.role }) }}><option value="">None</option>{MEMBER_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</select></Field>
+            <Field label="Permission level"><select className="input" value={form.role} onChange={set('role')} disabled={isSelf}>{ROLES.map((r) => <option key={r.v} value={r.v}>{r.label}</option>)}</select>{isSelf && <span className="mt-1 block text-[11px] text-faint">You can't change your own access.</span>}</Field>
             <div className="sm:col-span-2"><Field label="About"><textarea className="input min-h-[70px] resize-y" maxLength={160} value={form.bio} onChange={set('bio')} /></Field></div>
             <label className="flex items-center gap-2 text-sm text-ink sm:col-span-2"><input type="checkbox" checked={form.incubation_interest} onChange={(e) => setForm({ ...form, incubation_interest: e.target.checked })} />Interested in incubation</label>
           </div>
