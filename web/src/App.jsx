@@ -51,6 +51,7 @@ function App() {
         <Route path="problem-hub/:id" element={<ProblemDetail />} />
         <Route path="calendar" element={<Calendar />} />
         <Route path="directory" element={<Directory />} />
+        <Route path="notifications" element={<Notifications />} />
         <Route path="u/:id" element={<UserProfile />} />
         <Route path="admin" element={<AdminPanel />} />
         <Route path="autopsy-library" element={<AutopsyLibrary />} />

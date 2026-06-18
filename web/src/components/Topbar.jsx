@@ -9,7 +9,7 @@ import { useAuth } from '../lib/AuthProvider'
 
 export default function Topbar({ onMenu }) {
   const navigate = useNavigate()
-  const { session } = useAuth()
+  const { session, isMentor } = useAuth()
   const uid = session?.user?.id
   const [menuOpen, setMenuOpen] = useState(false)
   const [bellOpen, setBellOpen] = useState(false)
@@ -63,10 +63,11 @@ export default function Topbar({ onMenu }) {
     if (n.idea_id) navigate(`/pipeline/${n.idea_id}`)
   }
 
-  // MERGED: Client-side filter matching logic from your old left sidebar view page
+  // The action/all/mine tabs are a mentor+ tool; regular members just see their full list.
+  const effectiveFilter = isMentor ? activeFilter : 'all'
   const filteredNotifs = notifs.filter(n => {
-    if (activeFilter === 'action') return !n.read_at && (n.kind?.includes('action') || n.kind?.includes('review'))
-    if (activeFilter === 'mine') return n.actor_id === uid
+    if (effectiveFilter === 'action') return !n.read_at && (n.kind?.includes('action') || n.kind?.includes('review'))
+    if (effectiveFilter === 'mine') return n.actor_id === uid
     return true // 'all'
   })
 
@@ -102,7 +103,8 @@ export default function Topbar({ onMenu }) {
                   <span className="text-xs font-bold uppercase tracking-wide text-ink">Notifications</span>
                 </div>
 
-                {/* MERGED: Tab Navigation Bar from old full-page view layout */}
+                {/* Tab bar: mentor+ only; members just see their own list */}
+                {isMentor && (
                 <div className="flex gap-1 p-2 border-b border-line bg-surface/50">
                   <button 
                     onClick={() => setActiveFilter('action')}
@@ -123,6 +125,7 @@ export default function Topbar({ onMenu }) {
                     Mine
                   </button>
                 </div>
+                )}
 
                 {/* MERGED: Core list display view tracking filter hooks */}
                 <div className="max-h-80 overflow-y-auto divide-y divide-line/60">
