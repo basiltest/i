@@ -28,3 +28,8 @@ export const DOMAINS = [
   'Physical Product', 'Services/Consulting', 'Content/Media', 'Platform',
   'Blockchain/Web3', 'Other',
 ]
+// MEMBER_TYPES = the "registering as" label picked on the registration form and shown as a
+// badge. Descriptive label only, NOT a permission role (those stay student/mentor/admin).
+export const MEMBER_TYPES = [
+  'Founder', 'Student', 'Mentor', 'Investor', 'Network Enabler', 'Service Provider', 'Incubator', 'Other',
+]
