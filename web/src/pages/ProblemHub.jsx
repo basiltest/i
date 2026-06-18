@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, CalendarClock, MessageCircle, Users } from 'lucide-react'
+import { Plus, Search, CalendarClock, MessageCircle, ArrowBigUp, ArrowBigDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/AuthProvider'
 import AuthorLink from '../components/AuthorLink'
 import ProblemModal from '../components/ProblemModal'
 import { timeAgo } from '../lib/format'
@@ -10,6 +11,7 @@ const GENERIC_ERR = 'Something went wrong. Please try again.'
 
 export default function ProblemHub() {
   const navigate = useNavigate()
+  const { session } = useAuth()
 
   const [problems, setProblems] = useState([])
   const [q, setQ] = useState('')
@@ -18,7 +20,7 @@ export default function ProblemHub() {
   const [error, setError] = useState('')
   const [postOpen, setPostOpen] = useState(false)
   const [notice, setNotice] = useState('')
-  const [upvoting, setUpvoting] = useState(null)
+  const [voting, setVoting] = useState(null)
 
   useEffect(() => {
     const id = setTimeout(() => setDebounced(q.trim()), 300)
@@ -35,30 +37,31 @@ export default function ProblemHub() {
 
   function flash(msg) { setNotice(msg); setTimeout(() => setNotice(''), 3000) }
 
-  async function toggleUpvote(e, problemId) {
+  async function vote(e, problemId, v) {
     e.stopPropagation()
-    if (upvoting === problemId) return
-    setUpvoting(problemId)
-    // optimistic update
+    if (voting === problemId) return
+    const prob = problems.find((p) => p.id === problemId)
+    if (!prob) return
+    const prevScore = Number(prob.score)
+    const prevVote = prob.my_vote ?? 0
+    const nextVote = prevVote === v ? 0 : v
     setProblems((prev) => prev.map((p) =>
-      p.id !== problemId ? p : {
-        ...p,
-        i_upvoted: !p.i_upvoted,
-        upvote_count: Number(p.upvote_count) + (p.i_upvoted ? -1 : 1),
-      }
+      p.id !== problemId ? p : { ...p, score: prevScore + (nextVote - prevVote), my_vote: nextVote || null }
     ))
-    const { error: e2 } = await supabase.rpc('toggle_problem_upvote', { p_problem: problemId })
-    if (e2) {
-      // revert on failure
+    setVoting(problemId)
+    try {
+      if (nextVote === 0) {
+        await supabase.from('problem_votes').delete().eq('problem_id', problemId).eq('user_id', session?.user?.id)
+      } else {
+        await supabase.from('problem_votes').upsert({ problem_id: problemId, user_id: session?.user?.id, value: nextVote })
+      }
+    } catch {
       setProblems((prev) => prev.map((p) =>
-        p.id !== problemId ? p : {
-          ...p,
-          i_upvoted: !p.i_upvoted,
-          upvote_count: Number(p.upvote_count) + (p.i_upvoted ? -1 : 1),
-        }
+        p.id !== problemId ? p : { ...p, score: prevScore, my_vote: prevVote || null }
       ))
+    } finally {
+      setVoting(null)
     }
-    setUpvoting(null)
   }
 
   return (
@@ -150,20 +153,27 @@ export default function ProblemHub() {
               )}
 
               <footer className="mt-3 flex items-center gap-2">
-                <button
-                  onClick={(e) => toggleUpvote(e, p.id)}
-                  disabled={upvoting === p.id}
-                  className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors ${
-                    p.i_upvoted
-                      ? 'border-accent/30 bg-accent-soft text-accent'
-                      : 'border-line bg-page text-muted hover:border-accent/30 hover:text-ink'
-                  }`}
-                >
-                  <Users size={15} />
-                  {Number(p.upvote_count) > 0 ? Number(p.upvote_count) : ''} facing this
-                </button>
-                <span className="inline-flex items-center gap-1.5 rounded-lg bg-page px-3 py-1.5 text-sm font-semibold text-muted">
-                  <MessageCircle size={15} /> {Number(p.solution_count)} {Number(p.solution_count) === 1 ? 'solution' : 'solutions'}
+                <div onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-0.5 rounded-lg bg-page px-1 py-0.5">
+                  <button
+                    onClick={(e) => vote(e, p.id, 1)}
+                    aria-label="Upvote"
+                    className={`rounded-full p-1.5 transition-colors hover:bg-black/5 ${p.my_vote === 1 ? 'text-accent' : 'text-muted'}`}
+                  >
+                    <ArrowBigUp size={20} fill={p.my_vote === 1 ? 'currentColor' : 'none'} />
+                  </button>
+                  <span className={`min-w-[2ch] text-center text-sm font-bold ${p.my_vote > 0 ? 'text-accent' : p.my_vote < 0 ? 'text-down' : 'text-ink'}`}>
+                    {Number(p.score) || 0}
+                  </span>
+                  <button
+                    onClick={(e) => vote(e, p.id, -1)}
+                    aria-label="Downvote"
+                    className={`rounded-full p-1.5 transition-colors hover:bg-black/5 ${p.my_vote === -1 ? 'text-down' : 'text-muted'}`}
+                  >
+                    <ArrowBigDown size={20} fill={p.my_vote === -1 ? 'currentColor' : 'none'} />
+                  </button>
+                </div>
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-page px-3 py-2 text-sm font-semibold text-muted">
+                  <MessageCircle size={18} /> {Number(p.solution_count)} {Number(p.solution_count) === 1 ? 'solution' : 'solutions'}
                 </span>
                 {p.i_solved && <span className="text-xs font-semibold text-accent">You replied</span>}
               </footer>

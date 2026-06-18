@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, CalendarClock, MessageCircle, MoreHorizontal, Users } from 'lucide-react'
+import { ArrowLeft, ArrowBigUp, ArrowBigDown, CalendarClock, MessageCircle, MoreHorizontal } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import AuthorLink from '../components/AuthorLink'
@@ -65,7 +65,9 @@ export default function ProblemDetail() {
   const [ssort, setSsort] = useState('top')
   const [editingId, setEditingId] = useState(null)
   const [editBody, setEditBody] = useState('')
-  const [upvoting, setUpvoting] = useState(false)
+  const [voteScore, setVoteScore] = useState(0)
+  const [myVote, setMyVote] = useState(0)
+  const [voting, setVoting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -76,7 +78,9 @@ export default function ProblemDetail() {
         supabase.rpc('problem_solutions_list', { p_problem: id }),
       ])
       if (d.error) throw d.error
-      setProblem(d.data?.[0] || null)
+      const p = d.data?.[0] || null
+      setProblem(p)
+      if (p) { setVoteScore(Number(p.score) || 0); setMyVote(Number(p.my_vote) || 0) }
       setSolutions(s.data || [])
     } catch {
       setLoadError(true)
@@ -87,23 +91,26 @@ export default function ProblemDetail() {
 
   useEffect(() => { load() }, [load])
 
-  async function toggleUpvote() {
-    if (upvoting || !problem) return
-    setUpvoting(true)
-    setProblem((p) => ({
-      ...p,
-      i_upvoted: !p.i_upvoted,
-      upvote_count: Number(p.upvote_count) + (p.i_upvoted ? -1 : 1),
-    }))
-    const { error } = await supabase.rpc('toggle_problem_upvote', { p_problem: id })
-    if (error) {
-      setProblem((p) => ({
-        ...p,
-        i_upvoted: !p.i_upvoted,
-        upvote_count: Number(p.upvote_count) + (p.i_upvoted ? -1 : 1),
-      }))
+  async function vote(v) {
+    if (voting) return
+    const prevScore = voteScore
+    const prevVote = myVote
+    const nextVote = myVote === v ? 0 : v
+    setMyVote(nextVote)
+    setVoteScore(prevScore + (nextVote - prevVote))
+    setVoting(true)
+    try {
+      if (nextVote === 0) {
+        await supabase.from('problem_votes').delete().eq('problem_id', id).eq('user_id', uid)
+      } else {
+        await supabase.from('problem_votes').upsert({ problem_id: id, user_id: uid, value: nextVote })
+      }
+    } catch {
+      setMyVote(prevVote)
+      setVoteScore(prevScore)
+    } finally {
+      setVoting(false)
     }
-    setUpvoting(false)
   }
 
   async function refreshSolutions() {
@@ -252,19 +259,23 @@ export default function ProblemDetail() {
             </div>
           )}
 
-          <div className="mt-4">
+          <div className="mt-4 inline-flex items-center gap-0.5 rounded-lg bg-page px-1 py-0.5">
             <button
-              onClick={toggleUpvote}
-              disabled={upvoting}
-              className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
-                problem.i_upvoted
-                  ? 'border-accent/30 bg-accent-soft text-accent'
-                  : 'border-line bg-page text-muted hover:border-accent/30 hover:text-ink'
-              }`}
+              onClick={() => vote(1)}
+              aria-label="Upvote"
+              className={`rounded-full p-1.5 transition-colors hover:bg-black/5 ${myVote === 1 ? 'text-accent' : 'text-muted'}`}
             >
-              <Users size={15} />
-              {Number(problem.upvote_count) > 0 ? `${Number(problem.upvote_count)} ` : ''}
-              {problem.i_upvoted ? 'You face this' : 'I face this'}
+              <ArrowBigUp size={20} fill={myVote === 1 ? 'currentColor' : 'none'} />
+            </button>
+            <span className={`min-w-[2ch] text-center text-sm font-bold ${myVote > 0 ? 'text-accent' : myVote < 0 ? 'text-down' : 'text-ink'}`}>
+              {voteScore}
+            </span>
+            <button
+              onClick={() => vote(-1)}
+              aria-label="Downvote"
+              className={`rounded-full p-1.5 transition-colors hover:bg-black/5 ${myVote === -1 ? 'text-down' : 'text-muted'}`}
+            >
+              <ArrowBigDown size={20} fill={myVote === -1 ? 'currentColor' : 'none'} />
             </button>
           </div>
 
