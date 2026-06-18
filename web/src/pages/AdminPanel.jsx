@@ -433,6 +433,49 @@ export default function AdminPanel() {
           <button className="btn-primary px-3 py-1.5 text-xs" onClick={bulkAssign} disabled={busy || !bulkMentor || !bulkReason.trim()}>{busy ? 'Assigning...' : 'Assign'}</button>
         </div>
       )}
+
+      {error && <div role="alert" className="mt-3 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
+
+      {loading ? (
+        <ListSkeleton rows={4} avatar={false} className="mt-3" />
+      ) : rows.length === 0 ? (
+        <div className="card mt-3 p-8 text-center text-sm text-muted">
+          {view === 'inbox' ? 'Nothing needs your attention right now.' : 'No ideas match the current filters.'}
+        </div>
+      ) : (
+        <div className="card mt-3 divide-y divide-line">
+          {rows.map((r) => {
+            const chip = waitingChip(r.waiting)
+            return (
+              <div key={r.id} className="flex items-center gap-3 p-3">
+                <input
+                  type="checkbox"
+                  checked={sel.has(r.id)}
+                  onChange={() => toggle(r.id)}
+                  className="h-4 w-4 shrink-0 accent-accent"
+                  aria-label={`Select ${r.title}`}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-muted">{ifnTag(r.ifn)}</span>
+                    <span className="text-[11px] text-muted">G{r.gate}</span>
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${chip.tone}`}>{chip.label}</span>
+                    {r.days_in_gate >= 14 && <span className="text-[10px] font-bold text-down">{r.days_in_gate}d stale</span>}
+                  </div>
+                  <div className="mt-0.5 truncate text-sm font-semibold text-ink">{r.title}</div>
+                  {r.author_name && <div className="text-xs text-muted">{r.author_name}</div>}
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Link to={`/pipeline/${r.id}`} className="btn-outline px-2.5 py-1 text-xs" target="_blank" rel="noopener">
+                    Open
+                  </Link>
+                  <button onClick={() => deleteIdea(r)} className="px-2 py-1 text-xs text-faint hover:text-down">Delete</button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
