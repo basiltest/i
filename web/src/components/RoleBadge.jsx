@@ -3,7 +3,7 @@ const STYLES = {
   mentor: 'bg-success/15 text-success',
   admin: 'bg-warn/25 text-warnink',
 }
-const LABELS = { student: 'Student', mentor: 'Mentor', admin: 'Admin' }
+const LABELS = { student: 'User level', mentor: 'Mentor level', admin: 'Admin level' }
 
 export default function RoleBadge({ role }) {
   return (

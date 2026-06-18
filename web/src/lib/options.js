@@ -19,7 +19,7 @@ export const SECTORS = [
   'Media & Gaming', 'Real Estate & PropTech', 'Construction & Architecture',
   'LegalTech & Compliance', 'GovTech & Policy', 'Manufacturing',
   'Hospitality & Travel', 'Professional Services', 'Social Impact',
-  'DeepTech & Robotics', 'Other',
+  'DeepTech & Robotics', 'CyberSecurity', 'Other',
 ]
 // Domain = what you build / business model (not industry). Includes non-software
 // build types (Physical Product, Services) for law/architecture/business founders.
@@ -33,3 +33,9 @@ export const DOMAINS = [
 export const MEMBER_TYPES = [
   'Founder', 'Student', 'Mentor', 'Investor', 'Network Enabler', 'Service Provider', 'Incubator', 'Other',
 ]
+// Suggested permission level for a member_type. Only "Mentor" implies elevated access; every
+// other label is a regular member. Admin access is never derived from a label. Used to
+// auto-fill (with override) the permission control when an admin assigns a member_type.
+export function typeToRole(memberType) {
+  return memberType === 'Mentor' ? 'mentor' : 'student'
+}
