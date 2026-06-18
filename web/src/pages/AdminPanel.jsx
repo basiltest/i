@@ -162,6 +162,15 @@ export default function AdminPanel() {
     else setAutopsies((prev) => prev.filter(item => item.id !== id))
   }
 
+  async function handleDeleteAutopsy(id, name) {
+    if (!window.confirm(`Delete "${name}" permanently?`)) return
+    setBusyId(id)
+    const { error: e } = await supabase.from('idea_autopsies').delete().eq('id', id)
+    setBusyId(null)
+    if (e) { console.error(e); alert('Failed to delete autopsy.') }
+    else setAutopsies((prev) => prev.filter(item => item.id !== id))
+  }
+
   const shownMembers = members.filter((m) => {
     const t = memberQuery.trim().toLowerCase()
     if (!t) return true
@@ -277,6 +286,7 @@ export default function AdminPanel() {
                     <div className="flex gap-2 shrink-0">
                       <button className="btn bg-success/15 hover:bg-success/20 text-success text-xs font-bold px-3 py-1.5 rounded-md border border-success/30" disabled={busyId === item.id} onClick={() => handleApproveAutopsy(item.id)}>Approve</button>
                       <button className="btn border border-down/40 text-down hover:bg-down/10 text-xs font-bold px-3 py-1.5 rounded-md" disabled={busyId === item.id} onClick={() => handleRejectAutopsy(item.id)}>Reject</button>
+                      <button className="btn border border-line text-faint hover:text-down hover:border-down/40 text-xs font-bold px-3 py-1.5 rounded-md" disabled={busyId === item.id} onClick={() => handleDeleteAutopsy(item.id, item.project_name)}>Delete</button>
                     </div>
                   </div>
                   <div className="text-xs text-ink bg-black/5 border p-2.5 rounded-md mt-1"><strong>Why it failed:</strong> {item.root_cause}</div>

@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../lib/AuthProvider';
 import { SECTORS } from '../lib/options';
 import Combobox from '../components/Combobox';
 
 export default function AutopsyLibrary() {
+  const { session, isAdmin } = useAuth();
+  const uid = session?.user?.id;
   const [autopsies, setAutopsies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -95,6 +98,14 @@ export default function AutopsyLibrary() {
     }
   }
 
+  async function deleteAutopsy(autopsy) {
+    if (!window.confirm(`Delete "${autopsy.project_name}"? This cannot be undone.`)) return
+    const { error } = await supabase.from('idea_autopsies').delete().eq('id', autopsy.id)
+    if (error) { console.error(error); alert('Could not delete. Try again.'); return }
+    setAutopsies((prev) => prev.filter((a) => a.id !== autopsy.id))
+    if (reading?.id === autopsy.id) setReading(null)
+  }
+
   function resetForm() {
     setProjectName('');
     setCategory('');
@@ -181,12 +192,23 @@ export default function AutopsyLibrary() {
                     <span>Duration: <strong className="font-semibold text-ink">{autopsy.duration || 'N/A'}</strong></span>
                     <span>By: <strong className="font-semibold text-ink">{autopsy.is_anonymous ? 'Anonymous' : 'Contributor'}</strong></span>
                   </div>
-                  <button
-                    onClick={() => setReading(autopsy)}
-                    className="font-semibold text-accent hover:underline"
-                  >
-                    Read full autopsy →
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {(autopsy.user_id === uid || isAdmin) && (
+                      <button
+                        onClick={() => deleteAutopsy(autopsy)}
+                        className="flex items-center gap-1 text-faint hover:text-down"
+                        aria-label="Delete autopsy"
+                      >
+                        <Trash2 size={13} /> Delete
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setReading(autopsy)}
+                      className="font-semibold text-accent hover:underline"
+                    >
+                      Read full autopsy →
+                    </button>
+                  </div>
                 </div>
               </article>
             );
