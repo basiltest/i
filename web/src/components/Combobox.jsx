@@ -4,7 +4,7 @@ import { ChevronDown } from 'lucide-react'
 // Editable combobox: type to filter AND pick from the dropdown at the same time. The typed
 // text IS the value (free entry allowed), so it works for free-text fields like region/state.
 // Matches the app's `input` styling.
-export default function Combobox({ value, onChange, options, placeholder = '', id, maxLength = 80 }) {
+export default function Combobox({ value, onChange, options, placeholder = '', id, maxLength = 80, required = false }) {
   const [open, setOpen] = useState(false)
   const [hi, setHi] = useState(-1) // highlighted index
   const wrapRef = useRef(null)
@@ -46,9 +46,12 @@ export default function Combobox({ value, onChange, options, placeholder = '', i
         placeholder={placeholder}
         maxLength={maxLength}
         autoComplete="off"
+        required={required}
+        aria-required={required ? 'true' : undefined}
         role="combobox"
         aria-expanded={open}
         aria-controls={id ? `${id}-listbox` : undefined}
+        aria-activedescendant={open && hi >= 0 && list[hi] && id ? `${id}-opt-${hi}` : undefined}
         onChange={(e) => { onChange(e.target.value); setOpen(true); setHi(-1) }}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
@@ -66,7 +69,7 @@ export default function Combobox({ value, onChange, options, placeholder = '', i
           className="absolute left-0 right-0 z-30 mt-1 max-h-56 overflow-auto rounded-xl border border-line bg-card p-1 shadow-pop"
         >
           {list.map((o, i) => (
-            <li key={o} role="option" aria-selected={o === value}>
+            <li key={o} id={id ? `${id}-opt-${i}` : undefined} role="option" aria-selected={o === value}>
               <button
                 type="button"
                 onMouseDown={(e) => { e.preventDefault(); pick(o) }}

@@ -53,8 +53,8 @@ export default function PollBlock({ postId }) {
             {iVoted && (
               <span
                 aria-hidden
-                className={`absolute inset-y-0 left-0 transition-[width] duration-500 ${o.my_choice ? 'bg-accent-soft' : 'bg-page'}`}
-                style={{ width: `${pct}%` }}
+                className={`absolute inset-y-0 left-0 w-full origin-left transition-transform duration-500 ease-out motion-reduce:transition-none ${o.my_choice ? 'bg-accent-soft' : 'bg-page'}`}
+                style={{ transform: `scaleX(${pct / 100})` }}
               />
             )}
             <span className="relative flex items-center justify-between gap-2 text-sm">

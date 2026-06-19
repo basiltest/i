@@ -4,7 +4,7 @@
 export default function MemberTypeBadge({ type }) {
   if (!type) return null
   return (
-    <span className="inline-flex rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
+    <span className="inline-flex rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-accent">
       {type}
     </span>
   )

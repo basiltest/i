@@ -43,9 +43,9 @@ export function stepDotClass(gateStatus, state) {
 export const WAITING = {
   student: { label: 'Your move', tone: 'bg-accent-soft text-accent' },
   mentor: { label: 'With mentor', tone: 'bg-success/15 text-success' },
-  'mentor-pool': { label: 'In mentor queue', tone: 'bg-line text-muted' },
+  'mentor-pool': { label: 'In mentor queue', tone: 'bg-black/5 text-muted' },
   admin: { label: 'Needs admin', tone: 'bg-down/15 text-down' },
-  none: { label: 'Done', tone: 'bg-line text-muted' },
+  none: { label: 'Done', tone: 'bg-black/5 text-muted' },
 }
 export const waitingChip = (w) => WAITING[w] || WAITING.none
 

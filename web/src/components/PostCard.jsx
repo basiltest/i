@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ArrowBigUp, ArrowBigDown, MessageCircle, Pin } from 'lucide-react'
 import PollBlock from './PollBlock'
 import AuthorLink from './AuthorLink'
@@ -19,7 +19,6 @@ export default function PostCard({ post }) {
 
   const open = () => navigate(`/post/${post.id}`)
   const stop = (e) => e.stopPropagation()
-  const keyOpen = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open() } }
 
   async function vote(e, v) {
     e.stopPropagation()
@@ -49,10 +48,7 @@ export default function PostCard({ post }) {
   return (
     <article
       onClick={open}
-      onKeyDown={keyOpen}
-      role="link"
-      tabIndex={0}
-      className="card cursor-pointer p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-pop"
+      className="card cursor-pointer p-5 transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-pop"
     >
       <header className="flex items-center gap-2">
         <AuthorLink id={post.author_id} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent">
@@ -81,7 +77,15 @@ export default function PostCard({ post }) {
         </span>
       </header>
 
-      <h3 className="mt-3 break-words text-base font-bold">{post.title}</h3>
+      <h3 className="mt-3 break-words text-base font-bold">
+        <Link
+          to={`/post/${post.id}`}
+          onClick={stop}
+          className="rounded-sm hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+        >
+          {post.title}
+        </Link>
+      </h3>
 
       {/* compact: clamp to 4 lines; full text lives on the detail page */}
       {post.problem && (

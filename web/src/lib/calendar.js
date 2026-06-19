@@ -11,7 +11,7 @@ export function typeClass(type) {
     case 'Workshop': return 'bg-accent-soft text-accent'
     case 'Mentorship': return 'bg-success/15 text-success'
     case 'Deadline': return 'bg-down/15 text-down'
-    case 'Hackathon': return 'bg-warn/20 text-[#8a6d00]'
+    case 'Hackathon': return 'bg-warn/20 text-warnink'
     default: return 'bg-line text-ink'
   }
 }

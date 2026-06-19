@@ -113,8 +113,13 @@
 /* reduced motion: state changes become instant, nothing is gated on animation */
 @media (prefers-reduced-motion: reduce) {
   .animate-pop-in,
-  .animate-fade-in {
+  .animate-fade-in,
+  .animate-pulse {
     animation: none;
+  }
+  /* neutralize sliding/scaling transitions (e.g. toggle knobs) — settle instantly */
+  .transition-transform {
+    transition-duration: 0.01ms;
   }
 }
 

@@ -18,6 +18,8 @@ export default function Dropdown({ label, children, align = 'left', width = 'min
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
         className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
           open ? 'border-accent text-accent' : 'border-line text-ink hover:bg-black/5'
         }`}
@@ -27,6 +29,7 @@ export default function Dropdown({ label, children, align = 'left', width = 'min
       </button>
       {open && (
         <div
+          role="menu"
           className={`absolute z-30 mt-1 max-h-72 overflow-y-auto rounded-xl border border-line bg-card p-1 shadow-pop ${width} ${
             align === 'right' ? 'right-0' : 'left-0'
           }`}
@@ -38,10 +41,11 @@ export default function Dropdown({ label, children, align = 'left', width = 'min
   )
 }
 
-export function MenuItem({ active, onClick, children }) {
+export function MenuItem({ active, onClick, children, role = 'menuitem' }) {
   return (
     <button
       onClick={onClick}
+      role={role}
       className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold transition-colors ${
         active ? 'bg-accent-soft text-accent' : 'text-ink hover:bg-black/5'
       }`}

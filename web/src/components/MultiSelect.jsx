@@ -41,7 +41,7 @@ export default function MultiSelect({ value = [], onChange, options, placeholder
                 type="button"
                 aria-label={`Remove ${v}`}
                 onClick={(e) => { e.stopPropagation(); toggle(v) }}
-                className="hover:text-ink"
+                className="-m-1.5 grid h-6 w-6 place-items-center rounded hover:text-ink"
               >
                 <X size={12} />
               </button>
