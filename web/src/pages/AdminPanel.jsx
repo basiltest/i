@@ -3,13 +3,14 @@ import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { Users, SlidersHorizontal, Search, Workflow, UserPlus, Copy, Check, Inbox, ExternalLink, FolderHeart } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import ModalShell from '../components/ModalShell'
+import ConfirmModal from '../components/ConfirmModal'
 import Combobox from '../components/Combobox'
 import { useAuth } from '../lib/AuthProvider'
 import { REGIONS, SECTORS, DOMAINS, MEMBER_TYPES, typeToRole } from '../lib/options'
 import RoleBadge from '../components/RoleBadge'
 import Spinner from '../components/Spinner'
 import { timeAgo } from '../lib/format'
-import { GATES, waitingChip, STATES, ifnTag } from '../lib/pipeline'
+import { GATES, waitingChip, ifnTag } from '../lib/pipeline'
 
 const ROLES = [
   { v: 'student', label: 'User level' },
@@ -17,6 +18,7 @@ const ROLES = [
   { v: 'admin', label: 'Admin level' },
 ]
 const GENERIC_ERR = 'Something went wrong. Please try again.'
+const TAB_KEYS = ['members', 'pipeline', 'add', 'requests', 'settings', 'autopsies']
 
 export default function AdminPanel() {
   const { session, profile, isAdmin } = useAuth()
@@ -33,6 +35,7 @@ export default function AdminPanel() {
   const [iiecEnabled, setIiecEnabled] = useState(false)
   const [editMember, setEditMember] = useState(null)
   const [memberQuery, setMemberQuery] = useState('')
+  const [confirm, setConfirm] = useState(null)
 
   // Idea Autopsy specific states
   const [autopsies, setAutopsies] = useState([])
@@ -108,7 +111,7 @@ export default function AdminPanel() {
       setLoadingAutopsies(false)
     }
     fetchPendingAutopsies()
-  }, [isAdmin, tab])
+  }, [isAdmin])
 
   if (profile && !isAdmin) return <Navigate to="/" replace />
   if (!profile) return <div className="flex items-center gap-2 text-sm text-muted"><Spinner /> Checking access...</div>
@@ -120,55 +123,94 @@ export default function AdminPanel() {
     setMembers((prev) => prev.map((m) => (m.id === userId ? { ...m, role } : m)))
   }
 
-  async function toggleBan(m) {
-    const ban = !m.banned
-    if (ban && !window.confirm(`Ban ${m.name || m.email}? They will be logged out and the email cannot re-register.`)) return
+  async function doBan(m, ban) {
     setBusyId(m.id)
     const { error: e } = ban
       ? await supabase.rpc('admin_ban_user', { p_user: m.id, p_reason: null })
       : await supabase.rpc('admin_unban_user', { p_user: m.id })
     setBusyId(null)
-    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    if (e) { console.error(e); setError(GENERIC_ERR); return }
     setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, banned: ban } : x)))
   }
+  function toggleBan(m) {
+    if (m.banned) return doBan(m, false)
+    setError('')
+    setConfirm({
+      title: `Ban ${m.name || m.email}?`,
+      message: 'They will be logged out and the email cannot re-register.',
+      confirmLabel: 'Ban',
+      tone: 'danger',
+      onConfirm: async () => { await doBan(m, true); setConfirm(null) },
+    })
+  }
 
-  async function toggleRestrict(m) {
-    const restrict = !m.restricted
-    if (restrict && !window.confirm(`Put ${m.name || m.email} in read-only mode? They stay logged in but cannot post, edit, vote, or message until you lift it.`)) return
+  async function doRestrict(m, restrict) {
     setBusyId(m.id)
     const { error: e } = restrict
       ? await supabase.rpc('admin_restrict_user', { p_user: m.id, p_reason: null })
       : await supabase.rpc('admin_unrestrict_user', { p_user: m.id })
     setBusyId(null)
-    if (e) { console.error(e); return setError(GENERIC_ERR) }
+    if (e) { console.error(e); setError(GENERIC_ERR); return }
     setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, restricted: restrict } : x)))
+  }
+  function toggleRestrict(m) {
+    if (m.restricted) return doRestrict(m, false)
+    setError('')
+    setConfirm({
+      title: `Put ${m.name || m.email} in read-only mode?`,
+      message: 'They stay logged in but cannot post, edit, vote, or message until you lift it.',
+      confirmLabel: 'Set read-only',
+      tone: 'danger',
+      onConfirm: async () => { await doRestrict(m, true); setConfirm(null) },
+    })
   }
 
   async function handleApproveAutopsy(id) {
     setBusyId(id)
+    setError('')
     const { error: e } = await supabase.from('idea_autopsies').update({ status: 'approved' }).eq('id', id)
     setBusyId(null)
-    if (e) { console.error(e); alert('Failed to approve autopsy.') }
-    else setAutopsies((prev) => prev.filter(item => item.id !== id))
+    if (e) { console.error(e); return setError('Could not approve the autopsy. Try again.') }
+    setAutopsies((prev) => prev.filter(item => item.id !== id))
   }
 
-  async function handleRejectAutopsy(id) {
-    const reason = window.prompt('Enter rejection reason (optional):')
-    if (reason === null) return
-    setBusyId(id)
-    const { error: e } = await supabase.from('idea_autopsies').update({ status: 'rejected', rejection_reason: reason.trim() || null }).eq('id', id)
-    setBusyId(null)
-    if (e) { console.error(e); alert('Failed to reject autopsy.') }
-    else setAutopsies((prev) => prev.filter(item => item.id !== id))
+  function handleRejectAutopsy(item) {
+    setError('')
+    setConfirm({
+      title: `Reject "${item.project_name}"?`,
+      message: 'The author can revise and resubmit. A reason helps them fix it.',
+      confirmLabel: 'Reject',
+      tone: 'danger',
+      withReason: true,
+      reasonLabel: 'Rejection reason',
+      reasonPlaceholder: 'What needs to change before this can be published',
+      onConfirm: async (reason) => {
+        setBusyId(item.id)
+        const { error: e } = await supabase.from('idea_autopsies').update({ status: 'rejected', rejection_reason: reason || null }).eq('id', item.id)
+        setBusyId(null)
+        if (e) { console.error(e); setError('Could not reject the autopsy. Try again.') }
+        else setAutopsies((prev) => prev.filter(x => x.id !== item.id))
+        setConfirm(null)
+      },
+    })
   }
 
-  async function handleDeleteAutopsy(id, name) {
-    if (!window.confirm(`Delete "${name}" permanently?`)) return
-    setBusyId(id)
-    const { error: e } = await supabase.from('idea_autopsies').delete().eq('id', id)
-    setBusyId(null)
-    if (e) { console.error(e); alert('Failed to delete autopsy.') }
-    else setAutopsies((prev) => prev.filter(item => item.id !== id))
+  function handleDeleteAutopsy(id, name) {
+    setError('')
+    setConfirm({
+      title: `Delete "${name}" permanently?`,
+      message: 'This removes the case study for everyone. This cannot be undone.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+      onConfirm: async () => {
+        setBusyId(id)
+        const { error: e } = await supabase.from('idea_autopsies').delete().eq('id', id)
+        setBusyId(null)
+        if (e) { console.error(e); setError('Could not delete the autopsy. Try again.') }
+        else setAutopsies((prev) => prev.filter(item => item.id !== id))
+        setConfirm(null)
+      },
+    })
   }
 
   const shownMembers = members.filter((m) => {
@@ -177,22 +219,45 @@ export default function AdminPanel() {
     return (m.name || '').toLowerCase().includes(t) || (m.email || '').toLowerCase().includes(t) || (m.startup || '').toLowerCase().includes(t)
   })
 
+  const tabCls = (key) => `inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors min-h-9 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-page ${tab === key ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`
+  const tabProps = (key) => ({
+    role: 'tab',
+    id: `admin-tab-${key}`,
+    'aria-selected': tab === key,
+    'aria-controls': 'admin-tabpanel',
+    tabIndex: tab === key ? 0 : -1,
+    className: tabCls(key),
+    onClick: () => setTab(key),
+  })
+  function onTabsKey(e) {
+    if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(e.key)) return
+    e.preventDefault()
+    const i = TAB_KEYS.indexOf(tab)
+    let next
+    if (e.key === 'Home') next = TAB_KEYS[0]
+    else if (e.key === 'End') next = TAB_KEYS[TAB_KEYS.length - 1]
+    else { const d = e.key === 'ArrowRight' ? 1 : -1; next = TAB_KEYS[(i + d + TAB_KEYS.length) % TAB_KEYS.length] }
+    setTab(next)
+    requestAnimationFrame(() => document.getElementById(`admin-tab-${next}`)?.focus())
+  }
+
   return (
     <div className="max-w-3xl">
       <h1 className="text-xl font-extrabold">Admin Panel</h1>
       <p className="mt-0.5 text-sm text-muted">Member roles, moderation, and badge approvals.</p>
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button onClick={() => setTab('members')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'members' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}><Users size={15} /> Members ({members.length})</button>
-        <button onClick={() => setTab('pipeline')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'pipeline' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}><Workflow size={15} /> Pipeline</button>
-        <button onClick={() => setTab('add')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'add' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}><UserPlus size={15} /> Add member</button>
-        <button onClick={() => setTab('requests')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'requests' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}><Inbox size={15} /> Requests{pendingRequests > 0 && <span className="h-1.5 w-1.5 rounded-full bg-down" role="status" aria-label={`${pendingRequests} pending requests`} />}</button>
-        <button onClick={() => setTab('settings')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'settings' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}><SlidersHorizontal size={15} /> Settings</button>
-        <button onClick={() => setTab('autopsies')} className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${tab === 'autopsies' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}><FolderHeart size={15} /> Autopsies ({autopsies.length})</button>
+      <div role="tablist" aria-label="Admin sections" onKeyDown={onTabsKey} className="mt-4 flex flex-wrap gap-2">
+        <button {...tabProps('members')}><Users size={15} /> Members ({members.length})</button>
+        <button {...tabProps('pipeline')}><Workflow size={15} /> Pipeline</button>
+        <button {...tabProps('add')}><UserPlus size={15} /> Add member</button>
+        <button {...tabProps('requests')}><Inbox size={15} /> Requests{pendingRequests > 0 && <span className="grid min-w-[1.25rem] place-items-center rounded-full bg-down px-1.5 text-[11px] font-bold leading-none text-white" role="status" aria-label={`${pendingRequests} pending requests`}>{pendingRequests}</span>}</button>
+        <button {...tabProps('settings')}><SlidersHorizontal size={15} /> Settings</button>
+        <button {...tabProps('autopsies')}><FolderHeart size={15} /> Autopsies ({autopsies.length})</button>
       </div>
 
       {error && <div role="alert" className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
 
+      <div role="tabpanel" id="admin-tabpanel" aria-labelledby={`admin-tab-${tab}`} tabIndex={0} className="outline-none">
       {tab === 'add' ? (
         <CreateMemberTab />
       ) : tab === 'requests' ? (
@@ -203,6 +268,7 @@ export default function AdminPanel() {
         <PipelineTab />
       ) : tab === 'members' ? (
         <>
+        <h2 className="sr-only">Members</h2>
         <div className="relative mt-4">
           <Search size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
           <input className="input pl-9" value={memberQuery} onChange={(e) => setMemberQuery(e.target.value)} aria-label="Search members" placeholder="Search members by name, email or startup..." />
@@ -216,8 +282,8 @@ export default function AdminPanel() {
                 <div className="flex items-center gap-2">
                   <span className="truncate text-sm font-bold">{m.name || 'Unnamed'}</span>
                   <RoleBadge role={m.role} />
-                  {m.banned && <span className="rounded-md bg-down/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-down">Banned</span>}
-                  {!m.banned && m.restricted && <span className="rounded-md bg-warn/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warnink">Read-only</span>}
+                  {m.banned && <span className="rounded-md bg-down/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-down">Banned</span>}
+                  {!m.banned && m.restricted && <span className="rounded-md bg-warn/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-warnink">Read-only</span>}
                   {m.id === uid && <span className="text-xs text-faint">(you)</span>}
                 </div>
                 <div className="truncate text-xs text-muted">{m.email}{m.startup ? ` · ${m.startup}` : ''}</div>
@@ -225,14 +291,14 @@ export default function AdminPanel() {
               <div className="flex shrink-0 items-center gap-2">
                 {m.id === uid ? ( <span className="text-xs text-faint">Cannot change own role</span> ) : (
                   <>
-                    <select className="input w-auto py-1.5 text-sm" value={m.role} disabled={busyId === m.id} onChange={(e) => setRole(m.id, e.target.value)}>
+                    <select aria-label={`Permission level for ${m.name || m.email}`} className="input w-auto min-h-9 py-1.5 text-sm" value={m.role} disabled={busyId === m.id} onChange={(e) => setRole(m.id, e.target.value)}>
                       {ROLES.map((r) => <option key={r.v} value={r.v}>{r.label}</option>)}
                     </select>
-                    <button className="btn-outline px-3 py-1.5 text-xs" onClick={() => setEditMember(m)}>Edit</button>
+                    <button className="btn-outline min-h-9 px-3 py-1.5 text-xs" onClick={() => setEditMember(m)}>Edit</button>
                     {!m.banned && (
-                      <button className={`btn px-3 py-1.5 text-xs ${m.restricted ? 'btn-outline' : 'border border-warn/40 text-warnink hover:bg-warn/10'}`} disabled={busyId === m.id} onClick={() => toggleRestrict(m)}>{m.restricted ? 'Lift read-only' : 'Read-only'}</button>
+                      <button className={`btn min-h-9 px-3 py-1.5 text-xs ${m.restricted ? 'btn-outline' : 'border border-warn/40 text-warnink hover:bg-warn/10'}`} disabled={busyId === m.id} onClick={() => toggleRestrict(m)}>{m.restricted ? 'Lift read-only' : 'Read-only'}</button>
                     )}
-                    <button className={`btn px-3 py-1.5 text-xs ${m.banned ? 'btn-outline' : 'border border-down/40 text-down hover:bg-down/10'}`} disabled={busyId === m.id} onClick={() => toggleBan(m)}>{m.banned ? 'Unban' : 'Ban'}</button>
+                    <button className={`btn min-h-9 px-3 py-1.5 text-xs ${m.banned ? 'btn-outline' : 'border border-down/40 text-down hover:bg-down/10'}`} disabled={busyId === m.id} onClick={() => toggleBan(m)}>{m.banned ? 'Unban' : 'Ban'}</button>
                   </>
                 )}
               </div>
@@ -241,6 +307,8 @@ export default function AdminPanel() {
         </div>
         </>
       ) : tab === 'settings' ? (
+        <>
+        <h2 className="sr-only">Settings</h2>
         <div className="card mt-4 divide-y divide-line">
           <div className="flex flex-wrap items-center gap-3 p-4">
             <div className="min-w-0 flex-1">
@@ -264,6 +332,7 @@ export default function AdminPanel() {
             <button onClick={toggleIiec} className={`inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${iiecEnabled ? 'border-success/40 bg-success/10 text-success' : 'border-line bg-black/5 text-muted'}`}>{iiecEnabled ? 'Option ON' : 'Option OFF'}</button>
           </div>
         </div>
+        </>
       ) : tab === 'autopsies' ? (
         <div className="mt-4 space-y-4">
           <div className="card p-4">
@@ -284,12 +353,12 @@ export default function AdminPanel() {
                       <div className="text-xs text-muted mt-0.5">Sector: {item.category} · Domain: {item.domain} · Duration: {item.duration || 'N/A'}</div>
                     </div>
                     <div className="flex gap-2 shrink-0">
-                      <button className="btn bg-success/15 hover:bg-success/20 text-success text-xs font-bold px-3 py-1.5 rounded-md border border-success/30" disabled={busyId === item.id} onClick={() => handleApproveAutopsy(item.id)}>Approve</button>
-                      <button className="btn border border-down/40 text-down hover:bg-down/10 text-xs font-bold px-3 py-1.5 rounded-md" disabled={busyId === item.id} onClick={() => handleRejectAutopsy(item.id)}>Reject</button>
-                      <button className="btn border border-line text-faint hover:text-down hover:border-down/40 text-xs font-bold px-3 py-1.5 rounded-md" disabled={busyId === item.id} onClick={() => handleDeleteAutopsy(item.id, item.project_name)}>Delete</button>
+                      <button className="btn min-h-9 border border-success/40 text-success hover:bg-success/10 text-xs font-bold px-3 py-1.5 rounded-md" disabled={busyId === item.id} onClick={() => handleApproveAutopsy(item.id)}>Approve</button>
+                      <button className="btn min-h-9 border border-down/40 text-down hover:bg-down/10 text-xs font-bold px-3 py-1.5 rounded-md" disabled={busyId === item.id} onClick={() => handleRejectAutopsy(item)}>Reject</button>
+                      <button className="btn min-h-9 border border-line text-faint hover:text-down hover:border-down/40 text-xs font-bold px-3 py-1.5 rounded-md" disabled={busyId === item.id} onClick={() => handleDeleteAutopsy(item.id, item.project_name)}>Delete</button>
                     </div>
                   </div>
-                  <div className="text-xs text-ink bg-black/5 border p-2.5 rounded-md mt-1"><strong>Why it failed:</strong> {item.root_cause}</div>
+                  <div className="text-xs text-ink bg-black/5 p-2.5 rounded-md mt-1"><strong>Why it failed:</strong> {item.root_cause}</div>
                   {item.story && <div className="text-xs text-muted italic pl-1"><strong>The Story:</strong> {item.story}</div>}
                 </div>
               ))}
@@ -297,10 +366,12 @@ export default function AdminPanel() {
           )}
         </div>
       ) : null}
+      </div>
 
       {editMember && (
         <AdminEditProfileModal member={editMember} onClose={() => setEditMember(null)} onSaved={(patch) => { setMembers((prev) => prev.map((m) => (m.id === editMember.id ? { ...m, ...patch } : m))); setEditMember(null) }} />
       )}
+      {confirm && <ConfirmModal {...confirm} onClose={() => setConfirm(null)} />}
     </div>
   )
 }function PipelineTab() {
@@ -319,6 +390,7 @@ export default function AdminPanel() {
   const [bulkMentor, setBulkMentor] = useState('')
   const [bulkReason, setBulkReason] = useState('')
   const [busy, setBusy] = useState(false)
+  const [confirm, setConfirm] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -375,22 +447,32 @@ export default function AdminPanel() {
     return next
   })
 
-  async function deleteIdea(r) {
-    const reason = window.prompt(`Delete ${ifnTag(r.ifn)} "${r.title}" permanently?\n\nThis removes the application, its submissions, reviews, files and thread for everyone. This cannot be undone.\n\nReason (required, audited):`)
-    if (reason === null) return
-    if (!reason.trim()) return setError('A reason is required for every admin action (it is audited).')
-    setBusy(true)
+  function deleteIdea(r) {
     setError('')
-    const { error: e } = await supabase.rpc('admin_delete_pipeline_idea', { p_idea: r.id, p_reason: reason.trim() })
-    setBusy(false)
-    if (e) { console.error(e); return setError(e.message || GENERIC_ERR) }
-    load()
+    setConfirm({
+      title: `Delete ${ifnTag(r.ifn)} "${r.title}" permanently?`,
+      message: 'This removes the application, its submissions, reviews, files and thread for everyone. This cannot be undone.',
+      confirmLabel: 'Delete idea',
+      tone: 'danger',
+      withReason: true,
+      reasonRequired: true,
+      reasonLabel: 'Reason (audited)',
+      reasonPlaceholder: 'Why this idea is being removed',
+      onConfirm: async (reason) => {
+        setBusy(true)
+        const { error: e } = await supabase.rpc('admin_delete_pipeline_idea', { p_idea: r.id, p_reason: reason })
+        setBusy(false)
+        if (e) { console.error(e); setError(e.message || GENERIC_ERR) } else load()
+        setConfirm(null)
+      },
+    })
   }
 
   const byGate = counts?.by_gate || {}
 
   return (
     <div className="mt-4">
+      <h2 className="sr-only">Pipeline</h2>
       {counts && (
         <div className="card flex flex-wrap items-center gap-x-5 gap-y-1.5 p-3 text-xs">
           {GATES.map((g) => ( <span key={g.g} title={g.label} className="text-muted">G{g.g} <span className="font-bold text-ink">{byGate[g.g] || 0}</span></span> ))}
@@ -401,41 +483,54 @@ export default function AdminPanel() {
         </div>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <button onClick={() => setView('inbox')} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${view === 'inbox' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}>Inbox (needs you)</button>
-        <button onClick={() => setView('all')} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${view === 'all' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}>All ideas</button>
-        {view === 'all' && (
-          <>
-            <select className="input w-auto py-1.5 text-xs" value={gate} onChange={(e) => setGate(e.target.value)}>
-              <option value="">Any gate</option>
-              {GATES.map((g) => <option key={g.g} value={g.g}>G{g.g}</option>)}
-            </select>
-            <select className="input w-auto py-1.5 text-xs" value={state} onChange={(e) => setState(e.target.value)}>
-              <option value="">Any state</option>
-              <option value="active">Active</option>
-              <option value="refine">Refine</option>
-              <option value="rejected">Rejected</option>
-            </select>
-            <select className="input w-auto py-1.5 text-xs" value={waiting} onChange={(e) => setWaiting(e.target.value)}>
-              <option value="">Waiting on anyone</option>
-              <option value="student">Founder</option>
-              <option value="mentor">Mentor</option>
-              <option value="mentor-pool">Mentor queue</option>
-              <option value="admin">Admin</option>
-            </select>
-            <select className="input w-auto py-1.5 text-xs" value={sector} onChange={(e) => setSector(e.target.value)}>
-              <option value="">All sectors</option>
-              {SECTORS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <input className="input w-44 py-1.5 text-xs" aria-label="Search ideas" placeholder="Search title / author / IFN" value={query} onChange={(e) => setQuery(e.target.value)} />
-          </>
-        )}
+      <div
+        role="tablist"
+        aria-label="Pipeline view"
+        className="mt-3 flex flex-wrap items-center gap-2"
+        onKeyDown={(e) => {
+          let next
+          if (e.key === 'ArrowRight' || e.key === 'End') next = 'all'
+          else if (e.key === 'ArrowLeft' || e.key === 'Home') next = 'inbox'
+          else return
+          e.preventDefault()
+          setView(next)
+          requestAnimationFrame(() => document.getElementById(`pipe-view-${next}`)?.focus())
+        }}
+      >
+        <button role="tab" id="pipe-view-inbox" aria-selected={view === 'inbox'} aria-controls="pipe-results" tabIndex={view === 'inbox' ? 0 : -1} onClick={() => setView('inbox')} className={`min-h-9 rounded-lg border px-3 py-1.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${view === 'inbox' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}>Inbox (needs you)</button>
+        <button role="tab" id="pipe-view-all" aria-selected={view === 'all'} aria-controls="pipe-results" tabIndex={view === 'all' ? 0 : -1} onClick={() => setView('all')} className={`min-h-9 rounded-lg border px-3 py-1.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${view === 'all' ? 'border-accent bg-accent-soft text-accent' : 'border-line text-ink hover:bg-black/5'}`}>All ideas</button>
       </div>
+      {view === 'all' && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <select aria-label="Filter by gate" className="input w-auto min-h-9 py-1.5 text-xs" value={gate} onChange={(e) => setGate(e.target.value)}>
+            <option value="">Any gate</option>
+            {GATES.map((g) => <option key={g.g} value={g.g}>G{g.g}</option>)}
+          </select>
+          <select aria-label="Filter by state" className="input w-auto min-h-9 py-1.5 text-xs" value={state} onChange={(e) => setState(e.target.value)}>
+            <option value="">Any state</option>
+            <option value="active">Active</option>
+            <option value="refine">Refine</option>
+            <option value="rejected">Rejected</option>
+          </select>
+          <select aria-label="Filter by who it is waiting on" className="input w-auto min-h-9 py-1.5 text-xs" value={waiting} onChange={(e) => setWaiting(e.target.value)}>
+            <option value="">Waiting on anyone</option>
+            <option value="student">Founder</option>
+            <option value="mentor">Mentor</option>
+            <option value="mentor-pool">Mentor queue</option>
+            <option value="admin">Admin</option>
+          </select>
+          <select aria-label="Filter by sector" className="input w-auto min-h-9 py-1.5 text-xs" value={sector} onChange={(e) => setSector(e.target.value)}>
+            <option value="">All sectors</option>
+            {SECTORS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <input className="input w-44 min-h-9 py-1.5 text-xs" aria-label="Search ideas" placeholder="Search title / author / IFN" value={query} onChange={(e) => setQuery(e.target.value)} />
+        </div>
+      )}
 
       {sel.size > 0 && (
         <div className="card mt-3 flex flex-wrap items-center gap-2 border-accent/30 p-3">
           <span className="text-xs font-bold">{sel.size} selected</span>
-          <select className="input w-auto py-1.5 text-xs" value={bulkMentor} onChange={(e) => setBulkMentor(e.target.value)}>
+          <select aria-label="Assign mentor to selected ideas" className="input w-auto min-h-9 py-1.5 text-xs" value={bulkMentor} onChange={(e) => setBulkMentor(e.target.value)}>
             <option value="">Assign mentor...</option>
             {mentors.map((m) => <option key={m.mentor_id} value={m.mentor_id}>{m.mentor_name} ({m.active_count} active)</option>)}
           </select>
@@ -446,6 +541,7 @@ export default function AdminPanel() {
 
       {error && <div role="alert" className="mt-3 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
 
+      <div id="pipe-results" role="tabpanel" aria-labelledby={`pipe-view-${view}`}>
       {loading ? (
         <ListSkeleton rows={4} avatar={false} className="mt-3" />
       ) : rows.length === 0 ? (
@@ -458,34 +554,38 @@ export default function AdminPanel() {
             const chip = waitingChip(r.waiting)
             return (
               <div key={r.id} className="flex items-center gap-3 p-3">
-                <input
-                  type="checkbox"
-                  checked={sel.has(r.id)}
-                  onChange={() => toggle(r.id)}
-                  className="h-4 w-4 shrink-0 accent-accent"
-                  aria-label={`Select ${r.title}`}
-                />
+                <label className="grid min-h-9 min-w-9 shrink-0 cursor-pointer place-items-center">
+                  <input
+                    type="checkbox"
+                    checked={sel.has(r.id)}
+                    onChange={() => toggle(r.id)}
+                    className="h-4 w-4 accent-accent"
+                    aria-label={`Select ${r.title}`}
+                  />
+                </label>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-[11px] font-bold text-muted">{ifnTag(r.ifn)}</span>
                     <span className="text-[11px] text-muted">G{r.gate}</span>
-                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${chip.tone}`}>{chip.label}</span>
+                    <span className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${chip.tone}`}>{chip.label}</span>
                     {r.days_in_gate >= 14 && <span className="text-[10px] font-bold text-down">{r.days_in_gate}d stale</span>}
                   </div>
                   <div className="mt-0.5 truncate text-sm font-semibold text-ink">{r.title}</div>
                   {r.author_name && <div className="text-xs text-muted">{r.author_name}</div>}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <Link to={`/pipeline/${r.id}`} className="btn-outline px-2.5 py-1 text-xs" target="_blank" rel="noopener">
+                  <Link to={`/pipeline/${r.id}`} className="btn-outline min-h-9 px-2.5 py-1 text-xs" target="_blank" rel="noopener">
                     Open
                   </Link>
-                  <button onClick={() => deleteIdea(r)} className="px-2 py-1 text-xs text-faint hover:text-down">Delete</button>
+                  <button onClick={() => deleteIdea(r)} className="btn min-h-9 border border-down/40 px-2.5 py-1 text-xs text-down hover:bg-down/10">Delete</button>
                 </div>
               </div>
             )
           })}
         </div>
       )}
+      </div>
+      {confirm && <ConfirmModal {...confirm} onClose={() => setConfirm(null)} />}
     </div>
   )
 }
@@ -500,13 +600,17 @@ function CreateMemberTab() {
   const [error, setError] = useState('')
   const [result, setResult] = useState(null) // { email, password, emailed }
   const [copied, setCopied] = useState(false)
+  const [copyFailed, setCopyFailed] = useState(false)
 
   async function copy(text) {
     try {
       await navigator.clipboard.writeText(text)
+      setCopyFailed(false)
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
-    } catch { }
+    } catch {
+      setCopyFailed(true)
+    }
   }
 
   async function createMember() {
@@ -531,7 +635,7 @@ function CreateMemberTab() {
   return (
     <div className="mt-4 space-y-4">
       <div className="card p-4">
-        <div className="text-sm font-bold">Add a member</div>
+        <h2 className="text-sm font-bold">Add a member</h2>
         <p className="mt-0.5 text-xs text-muted">Creates the account with a strong auto-generated password and emails the sign-in details. They finish their profile during onboarding on first login.</p>
         <div className="mt-3 flex flex-wrap items-end gap-2">
           <div className="min-w-[220px] flex-1">
@@ -568,10 +672,11 @@ function CreateMemberTab() {
               <div className="truncate text-xs text-muted">Email</div>
               <div className="truncate text-sm font-semibold">{result.email}</div>
               <div className="mt-1.5 truncate text-xs text-muted">Temporary password</div>
-              <div className="truncate font-mono text-sm font-semibold">{result.password}</div>
+              <div className="select-all truncate font-mono text-sm font-semibold">{result.password}</div>
             </div>
-            <button className="shrink-0 rounded-lg border border-line p-2 text-muted hover:bg-black/5" onClick={() => copy(`Email: ${result.email}\nPassword: ${result.password}`)} aria-label="Copy credentials">{copied ? <Check size={15} className="text-success" /> : <Copy size={15} />}</button>
+            <button className="shrink-0 rounded-lg border border-line p-2 text-muted hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50" onClick={() => copy(`Email: ${result.email}\nPassword: ${result.password}`)} aria-label="Copy credentials">{copied ? <Check size={15} className="text-success" /> : <Copy size={15} />}</button>
           </div>
+          {copyFailed && <p role="alert" className="mt-1.5 text-xs text-down">Copy failed — select the password above and copy it manually.</p>}
         </div>
       )}
     </div>
@@ -586,6 +691,8 @@ function RequestsTab({ requests, loading, reload }) {
   const [approveFor, setApproveFor] = useState(null)
   const [result, setResult] = useState(null) // { email, password, emailed } shown once
   const [copied, setCopied] = useState(false)
+  const [copyFailed, setCopyFailed] = useState(false)
+  const [confirm, setConfirm] = useState(null)
 
   async function fnError(e) {
     let msg = e.message
@@ -600,15 +707,26 @@ function RequestsTab({ requests, loading, reload }) {
     window.open(data.signedUrl, '_blank', 'noopener')
   }
 
-  async function disapprove(r) {
-    const reason = window.prompt(`Disapprove ${r.name} (${r.email})?\n\nReason (internal/audited, optional):`)
-    if (reason === null) return
-    setBusyId(r.id); setError('')
-    const { data, error: e } = await supabase.functions.invoke('review-registration', { body: { id: r.id, action: 'reject', reason } })
-    setBusyId(null)
-    if (e) { console.error(e); return setError(await fnError(e)) }
-    if (data?.error) return setError(data.error)
-    reload()
+  function disapprove(r) {
+    setError('')
+    setConfirm({
+      title: `Disapprove ${r.name}?`,
+      message: `${r.email} will not get an account. They can be invited to re-apply later.`,
+      confirmLabel: 'Disapprove',
+      tone: 'danger',
+      withReason: true,
+      reasonLabel: 'Reason (internal, audited)',
+      reasonPlaceholder: 'Why this request is being declined',
+      onConfirm: async (reason) => {
+        setBusyId(r.id)
+        const { data, error: e } = await supabase.functions.invoke('review-registration', { body: { id: r.id, action: 'reject', reason } })
+        setBusyId(null)
+        if (e) { console.error(e); setError(await fnError(e)) }
+        else if (data?.error) setError(data.error)
+        else reload()
+        setConfirm(null)
+      },
+    })
   }
 
   async function approve(r, role) {
@@ -623,13 +741,14 @@ function RequestsTab({ requests, loading, reload }) {
   }
 
   async function copy(text) {
-    try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500) } catch { /* ignore */ }
+    try { await navigator.clipboard.writeText(text); setCopyFailed(false); setCopied(true); setTimeout(() => setCopied(false), 1500) } catch { setCopyFailed(true) }
   }
 
   const pending = requests.filter((r) => r.status === 'pending')
 
   return (
     <div className="mt-4 space-y-4">
+      <h2 className="sr-only">Registration requests</h2>
       {error && <div role="alert" className="rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
 
       {result && (
@@ -641,10 +760,11 @@ function RequestsTab({ requests, loading, reload }) {
               <div className="truncate text-xs text-muted">Email</div>
               <div className="truncate text-sm font-semibold">{result.email}</div>
               <div className="mt-1.5 truncate text-xs text-muted">Temporary password</div>
-              <div className="truncate font-mono text-sm font-semibold">{result.password}</div>
+              <div className="select-all truncate font-mono text-sm font-semibold">{result.password}</div>
             </div>
-            <button className="shrink-0 rounded-lg border border-line p-2 text-muted hover:bg-black/5" onClick={() => copy(`Email: ${result.email}\nPassword: ${result.password}`)} aria-label="Copy credentials">{copied ? <Check size={15} className="text-success" /> : <Copy size={15} />}</button>
+            <button className="shrink-0 rounded-lg border border-line p-2 text-muted hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50" onClick={() => copy(`Email: ${result.email}\nPassword: ${result.password}`)} aria-label="Copy credentials">{copied ? <Check size={15} className="text-success" /> : <Copy size={15} />}</button>
           </div>
+          {copyFailed && <p role="alert" className="mt-1.5 text-xs text-down">Copy failed — select the password above and copy it manually.</p>}
         </div>
       )}
 
@@ -664,11 +784,11 @@ function RequestsTab({ requests, loading, reload }) {
               <div className="break-words text-xs text-muted">{r.email}{r.phone ? ` · ${r.phone}` : ''}</div>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 {r.cert_path
-                  ? <button className="btn-outline inline-flex items-center gap-1.5 px-3 py-1.5 text-xs" onClick={() => viewCert(r.cert_path)}><ExternalLink size={13} /> View certificate</button>
+                  ? <button className="btn-outline min-h-9 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs" onClick={() => viewCert(r.cert_path)}><ExternalLink size={13} /> View certificate</button>
                   : <span className="text-xs text-faint">No certificate</span>}
                 <div className="ml-auto flex items-center gap-2">
-                  <button className="btn px-3 py-1.5 text-xs border border-down/40 text-down hover:bg-down/10" disabled={busyId === r.id} onClick={() => disapprove(r)}>Disapprove</button>
-                  <button className="btn-primary px-3 py-1.5 text-xs" disabled={busyId === r.id} onClick={() => setApproveFor(r)}>Approve</button>
+                  <button className="btn min-h-9 px-3 py-1.5 text-xs border border-down/40 text-down hover:bg-down/10" disabled={busyId === r.id} onClick={() => disapprove(r)}>Disapprove</button>
+                  <button className="btn-primary min-h-9 px-3 py-1.5 text-xs" disabled={busyId === r.id} onClick={() => setApproveFor(r)}>Approve</button>
                 </div>
               </div>
             </div>
@@ -677,6 +797,7 @@ function RequestsTab({ requests, loading, reload }) {
       )}
 
       {approveFor && <ApproveModal request={approveFor} busy={busyId === approveFor.id} onClose={() => setApproveFor(null)} onApprove={(role) => approve(approveFor, role)} />}
+      {confirm && <ConfirmModal {...confirm} onClose={() => setConfirm(null)} />}
     </div>
   )
 }
