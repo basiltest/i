@@ -23,6 +23,7 @@ Architecture + design docs for the planned **PERN** backend (PostgreSQL · Expre
 - [[IFN Backend — Runbook]] — deploy, rollback, migrate, secret rotation, incident response
 - [[IFN Backend — Backup & Restore]] — backup schedule + tested restore
 - [[IFN Backend — Security & Threats]] — consolidated security posture + residual risks
+- [[IFN Backend - Self-Host Migration Runbook]] : migrate the LIVE Supabase backend onto a college-owned VM (self-host the same stack)
 
 ## Quick reference — locked decisions
 

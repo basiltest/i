@@ -5,7 +5,7 @@ status: Approved
 owner: IFN Team
 updated: 2026-06-09
 ---
-
+G
 # IFN Backend — Architecture
 
 The **ICFAI Founders Network** backend is a **modular monolith** on the PERN stack
