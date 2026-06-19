@@ -6,11 +6,33 @@
 //
 // Deploy WITHOUT JWT verification (it's public):
 //   supabase functions deploy register-request --no-verify-jwt
-// Secrets: RESEND_API_KEY, MEMBER_FROM_EMAIL (or INVITE_FROM_EMAIL). SUPABASE_URL and
+// Secrets: RESEND_API_KEY, MEMBER_FROM_EMAIL (or INVITE_FROM_EMAIL). Optional: TURNSTILE_SECRET
+// (Cloudflare Turnstile) — when set, every request must carry a valid captchaToken or it's
+// rejected (fail-closed). When unset, the captcha check is skipped entirely. SUPABASE_URL and
 // SUPABASE_SERVICE_ROLE_KEY are injected by the platform.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { sendEmail } from '../_shared/resend.ts'
+
+// Verify a Cloudflare Turnstile token against the siteverify API. Returns false on any failure
+// — including a network error reaching Cloudflare — so register stays fail-closed (the honeypot
+// and per-IP limit are the backstops if the captcha service itself is down).
+async function verifyTurnstile(token: string, secret: string, remoteip: string | null): Promise<boolean> {
+  const form = new URLSearchParams({ secret, response: token })
+  if (remoteip) form.set('remoteip', remoteip)
+  try {
+    const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form,
+    })
+    const data = await res.json()
+    return data?.success === true
+  } catch (e) {
+    console.error('turnstile verify error:', e)
+    return false
+  }
+}
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -41,7 +63,19 @@ Deno.serve(async (req) => {
   try { body = await req.json() } catch { return json({ error: 'Invalid JSON body' }, 400) }
 
   // Honeypot: a hidden field real users never fill. If set, pretend success and do nothing.
+  // Checked before the captcha so trivial bots never cost us a siteverify round-trip.
   if (typeof body.website === 'string' && body.website.trim() !== '') return json({ ok: true })
+
+  // Captcha (Cloudflare Turnstile). Only enforced when a secret is configured, so local/dev and
+  // captcha-off deployments pass straight through. Fail-closed: missing or invalid token -> 400.
+  const TURNSTILE_SECRET = Deno.env.get('TURNSTILE_SECRET')
+  if (TURNSTILE_SECRET) {
+    const token = typeof body.captchaToken === 'string' ? body.captchaToken : ''
+    if (!token) return json({ error: 'Captcha verification required.' }, 400)
+    const remoteip = (req.headers.get('x-forwarded-for') || '').split(',')[0].trim() || null
+    const ok = await verifyTurnstile(token, TURNSTILE_SECRET, remoteip)
+    if (!ok) return json({ error: 'Captcha verification failed. Please try again.' }, 400)
+  }
 
   const name = String(body.name ?? '').trim()
   const email = String(body.email ?? '').trim().toLowerCase()

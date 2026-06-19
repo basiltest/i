@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Upload, FileText, X } from 'lucide-react'
+import { Turnstile } from '@marsidev/react-turnstile'
 import { supabase } from '../lib/supabase'
+import { CAPTCHA_SITEKEY, captchaEnabled } from '../lib/captcha'
 import Logo from '../components/Logo'
 import { MEMBER_TYPES } from '../lib/options'
 
@@ -34,11 +36,20 @@ export default function Register() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState('')
   const fileRef = useRef(null)
+  const turnstileRef = useRef(null)
 
   function clearFile() {
     setCert(null)
     if (fileRef.current) fileRef.current.value = ''
+  }
+
+  // Single-use token: re-mint a fresh one after any failed submit so a retry isn't rejected.
+  function resetCaptcha() {
+    if (!captchaEnabled) return
+    turnstileRef.current?.reset()
+    setCaptchaToken('')
   }
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -62,6 +73,7 @@ export default function Register() {
     if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) return setError('Enter a valid email.')
     if (!form.member_type) return setError('Pick what you are registering as.')
     if (certRequired && !cert) return setError('A graduate certificate is required for your email.')
+    if (captchaEnabled && !captchaToken) return setError('Please complete the verification below.')
 
     setLoading(true)
     try {
@@ -76,17 +88,20 @@ export default function Register() {
           member_type: form.member_type,
           other_text: form.other_text.trim(),
           website: form.website, // honeypot
+          captchaToken, // verified server-side in the edge fn (fail-closed when a secret is set)
           cert: certPayload,
         },
       })
       if (fnErr) {
+        resetCaptcha()
         let msg = fnErr.message
         try { msg = (await fnErr.context?.json())?.error || msg } catch { /* ignore */ }
         return setError(msg === 'Failed to send a request to the Edge Function' ? 'Could not reach the registration service. Try again shortly.' : msg || GENERIC_ERR)
       }
-      if (data?.error) return setError(data.error)
+      if (data?.error) { resetCaptcha(); return setError(data.error) }
       setDone(true)
     } catch {
+      resetCaptcha()
       setError(GENERIC_ERR)
     } finally {
       setLoading(false)
@@ -129,17 +144,17 @@ export default function Register() {
 
         <div className="mb-3.5 flex flex-col gap-1.5">
           <label htmlFor="name" className="text-xs font-medium text-muted">Full name</label>
-          <input id="name" className="input" maxLength={50} value={form.name} onChange={set('name')} placeholder="Jane Doe" />
+          <input id="name" className="input" maxLength={50} value={form.name} onChange={set('name')} />
         </div>
 
         <div className="mb-3.5 flex flex-col gap-1.5">
           <label htmlFor="email" className="text-xs font-medium text-muted">Email</label>
-          <input id="email" type="email" className="input" maxLength={254} value={form.email} autoComplete="email" onChange={set('email')} placeholder="you@example.com" />
+          <input id="email" type="email" className="input" maxLength={254} value={form.email} autoComplete="email" onChange={set('email')} />
         </div>
 
         <div className="mb-3.5 flex flex-col gap-1.5">
           <label htmlFor="phone" className="text-xs font-medium text-muted">Phone <span className="text-faint">(optional)</span></label>
-          <input id="phone" type="tel" className="input" maxLength={20} value={form.phone} autoComplete="tel" onChange={set('phone')} placeholder="+91 ..." />
+          <input id="phone" type="tel" className="input" maxLength={20} value={form.phone} autoComplete="tel" onChange={set('phone')} />
         </div>
 
         <div className="mb-3.5 flex flex-col gap-1.5">
@@ -184,6 +199,19 @@ export default function Register() {
             {isStudentDomain ? `Optional for @${STUDENT_DOMAIN} emails.` : 'PDF, JPG, or PNG, up to 5 MB.'}
           </span>
         </div>
+
+        {captchaEnabled && (
+          <div className="mb-4 flex justify-center">
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={CAPTCHA_SITEKEY}
+              onSuccess={setCaptchaToken}
+              onExpire={() => setCaptchaToken('')}
+              onError={() => setCaptchaToken('')}
+              options={{ theme: 'auto', size: 'flexible' }}
+            />
+          </div>
+        )}
 
         <button type="submit" disabled={loading} className="btn-primary w-full">
           {loading ? 'Submitting...' : 'Submit request'}
