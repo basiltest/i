@@ -25,6 +25,11 @@ export default function UserProfile() {
   }, [id])
   useEffect(() => { load() }, [load])
 
+  const goBack = () => {
+    if (window.history.length > 1) navigate(-1)
+    else navigate('/directory')
+  }
+
   if (profile === undefined) {
     return (
       <div className="max-w-2xl">
@@ -44,7 +49,7 @@ export default function UserProfile() {
   if (!profile) {
     return (
       <div className="max-w-2xl">
-        <button onClick={() => navigate(-1)} className="mb-4 inline-flex items-center gap-1 text-sm font-semibold text-muted hover:text-ink">
+        <button onClick={goBack} className="mb-4 -ml-2 inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm font-semibold text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50">
           <ArrowLeft size={16} /> Back
         </button>
         <div className="card p-8 text-center">
@@ -58,13 +63,13 @@ export default function UserProfile() {
   const chips = [profile.region, profile.sector, profile.domain].filter(Boolean)
   return (
     <div className="max-w-2xl">
-      <button onClick={() => navigate(-1)} className="mb-4 inline-flex items-center gap-1 text-sm font-semibold text-muted hover:text-ink">
+      <button onClick={goBack} className="mb-4 -ml-2 inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm font-semibold text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50">
         <ArrowLeft size={16} /> Back
       </button>
 
       <div className="card p-6">
         <div className="flex flex-wrap items-start gap-4">
-          <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-accent-soft text-2xl font-bold text-accent">
+          <div aria-hidden="true" className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-accent-soft text-2xl font-bold text-accent">
             {(profile.name || '?').charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
@@ -72,7 +77,7 @@ export default function UserProfile() {
               <h1 className="text-xl font-extrabold">{profile.name || 'Unnamed'}</h1>
               <MemberTypeBadge type={profile.member_type} />
               {profile.incubation_interest && (
-                <span className="rounded-md bg-accent-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">Open to incubation</span>
+                <span className="rounded-md bg-accent-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-accent">Open to incubation</span>
               )}
             </div>
             {profile.startup && <p className="mt-0.5 text-sm font-semibold text-muted">{profile.startup}</p>}
@@ -87,16 +92,16 @@ export default function UserProfile() {
 
         <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
           {profile.is_self ? (
-            <Link to="/profile" className="btn-outline inline-flex items-center gap-1.5 px-3 py-1.5 text-sm"><Pencil size={14} /> Edit profile</Link>
+            <Link to="/profile" className="btn-outline inline-flex items-center gap-1.5 px-3 py-2 text-sm"><Pencil size={14} /> Edit profile</Link>
           ) : (
             profile.contactable && (
-              <button className="btn-primary inline-flex items-center gap-1.5 px-3 py-1.5 text-sm" onClick={() => setContact(profile)}>
+              <button className="btn-primary inline-flex items-center gap-1.5 px-3 py-2 text-sm" onClick={() => setContact(profile)}>
                 <MessageSquare size={14} /> Message
               </button>
             )
           )}
           {profile.linkedin && (
-            <a href={profile.linkedin} target="_blank" rel="noreferrer" className="btn-outline px-3 py-1.5 text-sm">LinkedIn</a>
+            <a href={profile.linkedin} target="_blank" rel="noreferrer" className="btn-outline px-3 py-2 text-sm">LinkedIn</a>
           )}
         </div>
       </div>

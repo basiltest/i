@@ -47,14 +47,20 @@ export default function Pipeline() {
           <h1 className="text-xl font-extrabold">Idea Pipeline</h1>
           <p className="mt-0.5 text-sm text-muted">From idea to incubation: G1 to G6, with a mentor.</p>
         </div>
-        <button className="btn-primary inline-flex items-center gap-1.5" onClick={() => setFormOpen(true)} disabled={locked}>
-          <Plus size={16} /> Apply
+        <button
+          className="btn-primary inline-flex items-center gap-1.5"
+          onClick={() => setFormOpen(true)}
+          disabled={locked}
+          title={locked ? 'Submissions are closed right now.' : undefined}
+          aria-describedby={locked ? 'pipeline-locked-note' : undefined}
+        >
+          <Plus size={16} aria-hidden="true" /> Apply
         </button>
       </div>
 
       {locked && (
-        <div className="mt-4 flex items-center gap-2 rounded-lg border border-line bg-card px-3 py-2.5 text-sm text-muted">
-          <Lock size={15} /> Submissions are closed right now. Existing applications keep moving.
+        <div id="pipeline-locked-note" className="mt-4 flex items-center gap-2 rounded-lg border border-line bg-card px-3 py-2.5 text-sm text-muted">
+          <Lock size={15} aria-hidden="true" /> Submissions are closed right now. Existing applications keep moving.
         </div>
       )}
       {error && <div role="alert" className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
@@ -76,13 +82,22 @@ export default function Pipeline() {
         <PipelineListSkeleton />
       ) : rows.length === 0 ? (
         <div className="card mt-4 p-8 text-center">
-          <Workflow size={28} className="mx-auto text-faint" />
+          <Workflow size={28} aria-hidden="true" className="mx-auto text-faint" />
           <p className="mt-2 font-semibold">No applications yet.</p>
           <p className="mt-1 text-sm text-muted">File an application and a mentor will pick it up from the queue.</p>
-          <button className="btn-primary mt-4" onClick={() => setFormOpen(true)} disabled={locked}>Apply now</button>
+          <button
+            className="btn-primary mt-4"
+            onClick={() => setFormOpen(true)}
+            disabled={locked}
+            title={locked ? 'Submissions are closed right now.' : undefined}
+            aria-describedby={locked ? 'pipeline-locked-note' : undefined}
+          >
+            Apply now
+          </button>
         </div>
       ) : (
-        <div className="card mt-4 divide-y divide-line">
+        <section aria-labelledby="pipeline-apps-heading" className="card mt-4 divide-y divide-line">
+          <h2 id="pipeline-apps-heading" className="sr-only">Your applications</h2>
           {rows.map((r) => {
             const w = waitingChip(r.waiting_on)
             const st = STATES[r.pipeline_state]
@@ -90,7 +105,7 @@ export default function Pipeline() {
               <button
                 key={r.id}
                 onClick={() => navigate(`/pipeline/${r.id}`)}
-                className="block w-full p-4 text-left hover:bg-black/5"
+                className="block w-full p-4 text-left hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-inset"
               >
                 <div className="flex items-center gap-2">
                   <span className="rounded-md bg-line px-2 py-0.5 text-[11px] font-bold text-muted">{ifnTag(r.ifn)}</span>
@@ -108,7 +123,7 @@ export default function Pipeline() {
               </button>
             )
           })}
-        </div>
+        </section>
       )}
 
       {formOpen && (

@@ -22,24 +22,42 @@ const GENERIC_ERR = 'Something went wrong. Please try again.'
 function Kebab({ children }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
+  const menuRef = useRef(null)
   useEffect(() => {
     function onDoc(e) {
       if (ref.current && !ref.current.contains(e.target)) setOpen(false)
     }
+    function onKey(e) {
+      if (e.key === 'Escape') setOpen(false)
+    }
     document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
   }, [])
+  // move focus into the menu on open so keyboard users land on the first item
+  useEffect(() => {
+    if (open) menuRef.current?.querySelector('button')?.focus()
+  }, [open])
   return (
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label="More options"
-        className="rounded-full p-1.5 text-muted transition-colors hover:bg-black/5"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="rounded-full p-2 text-muted transition-colors hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2"
       >
         <MoreHorizontal size={20} />
       </button>
       {open && (
-        <div className="absolute right-0 z-30 mt-1 min-w-[160px] rounded-xl border border-line bg-card p-1 shadow-pop">
+        <div
+          ref={menuRef}
+          role="menu"
+          className="absolute right-0 z-30 mt-1 min-w-[160px] rounded-xl border border-line bg-card p-1 shadow-pop"
+        >
           {children(() => setOpen(false))}
         </div>
       )}
@@ -145,6 +163,7 @@ export default function ProblemDetail() {
   }
 
   async function deleteSolution(sid, mine) {
+    if (!window.confirm('Delete this solution?')) return
     // own solutions delete via RLS; others (admin moderation) via the admin RPC
     const { error } = mine
       ? await supabase.from('problem_solutions').delete().eq('id', sid)
@@ -184,7 +203,7 @@ export default function ProblemDetail() {
 
   return (
     <div className="max-w-2xl">
-      <button onClick={() => navigate(-1)} className="mb-4 inline-flex items-center gap-1 text-sm font-semibold text-muted hover:text-ink">
+      <button onClick={() => navigate(-1)} className="mb-4 inline-flex items-center gap-1 rounded text-sm font-semibold text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50">
         <ArrowLeft size={16} /> Back
       </button>
 
@@ -263,7 +282,7 @@ export default function ProblemDetail() {
             <button
               onClick={() => vote(1)}
               aria-label="Upvote"
-              className={`rounded-full p-1.5 transition-colors hover:bg-black/5 ${myVote === 1 ? 'text-accent' : 'text-muted'}`}
+              className={`rounded-full p-2 transition-colors hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${myVote === 1 ? 'text-accent' : 'text-muted'}`}
             >
               <ArrowBigUp size={20} fill={myVote === 1 ? 'currentColor' : 'none'} />
             </button>
@@ -273,7 +292,7 @@ export default function ProblemDetail() {
             <button
               onClick={() => vote(-1)}
               aria-label="Downvote"
-              className={`rounded-full p-1.5 transition-colors hover:bg-black/5 ${myVote === -1 ? 'text-down' : 'text-muted'}`}
+              className={`rounded-full p-2 transition-colors hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${myVote === -1 ? 'text-down' : 'text-muted'}`}
             >
               <ArrowBigDown size={20} fill={myVote === -1 ? 'currentColor' : 'none'} />
             </button>
@@ -281,18 +300,17 @@ export default function ProblemDetail() {
 
           {/* solutions header + sort */}
           <div className="mb-3 mt-6 flex items-center justify-between gap-2">
-            <h3 className="inline-flex items-center gap-1.5 text-sm font-bold">
+            <h2 className="inline-flex items-center gap-1.5 text-sm font-bold">
               <MessageCircle size={16} className="text-muted" /> {solutions.length} {solutions.length === 1 ? 'Solution' : 'Solutions'}
-            </h3>
+            </h2>
             {solutions.length > 1 && (
-              <div className="inline-flex rounded-lg border border-line p-0.5" role="tablist" aria-label="Sort solutions">
+              <div className="inline-flex rounded-lg border border-line p-0.5" role="group" aria-label="Sort solutions">
                 {SSORTS.map((o) => (
                   <button
                     key={o.s}
-                    role="tab"
-                    aria-selected={ssort === o.s}
+                    aria-pressed={ssort === o.s}
                     onClick={() => setSsort(o.s)}
-                    className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                    className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
                       ssort === o.s ? 'bg-accent-soft text-accent' : 'text-muted hover:text-ink'
                     }`}
                   >
@@ -311,6 +329,7 @@ export default function ProblemDetail() {
           ) : (
             <form onSubmit={addSolution} className="mb-4">
               <textarea
+                aria-label="Propose a solution"
                 className="input min-h-[44px] resize-y"
                 placeholder="Propose a solution: your approach, why it fits, what it would take"
                 maxLength={3000}
@@ -357,16 +376,16 @@ export default function ProblemDetail() {
                         {(mine || isAdmin) && (
                           <span className="ml-auto flex items-center gap-2">
                             {mine && editingId !== s.id && (
-                              <button onClick={() => startEdit(s)} className="text-faint hover:text-ink">edit</button>
+                              <button onClick={() => startEdit(s)} className="inline-flex min-h-9 items-center rounded px-1 text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50">edit</button>
                             )}
-                            <button onClick={() => deleteSolution(s.id, mine)} className="text-faint hover:text-down">delete</button>
+                            <button onClick={() => deleteSolution(s.id, mine)} className="inline-flex min-h-9 items-center rounded px-1 text-muted hover:text-down focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50">delete</button>
                           </span>
                         )}
                       </div>
-                      {s.title && <h4 className="mt-1 text-sm font-extrabold">{s.title}</h4>}
+                      {s.title && <h3 className="mt-1 text-sm font-extrabold">{s.title}</h3>}
                       {editingId === s.id ? (
                         <div className="mt-1.5">
-                          <textarea className="input min-h-[80px] resize-y" maxLength={3000} value={editBody} onChange={(e) => setEditBody(e.target.value)} />
+                          <textarea aria-label="Edit your solution" className="input min-h-[80px] resize-y" maxLength={3000} value={editBody} onChange={(e) => setEditBody(e.target.value)} />
                           {s.reviewed_at && <p className="mt-1 text-xs text-warnink">Saving clears your Impact/Feasibility score; a mentor will re-review.</p>}
                           <div className="mt-2 flex justify-end gap-2">
                             <button className="btn-outline px-3 py-1 text-xs" onClick={() => setEditingId(null)} disabled={busy}>Cancel</button>
@@ -439,7 +458,7 @@ function ReviewForm({ solutionId, onReviewed }) {
 
   return (
     <div className="mt-2 rounded-lg bg-page px-3 py-2">
-      {error && <div className="mb-2 text-xs text-down">{error}</div>}
+      {error && <div role="alert" className="mb-2 text-xs text-down">{error}</div>}
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted">
           Impact
@@ -457,7 +476,7 @@ function ReviewForm({ solutionId, onReviewed }) {
           {busy ? 'Scoring...' : 'Score'}
         </button>
       </div>
-      <input className="input mt-2" maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Review note (optional)" />
+      <input aria-label="Review note" className="input mt-2" maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Review note (optional)" />
     </div>
   )
 }

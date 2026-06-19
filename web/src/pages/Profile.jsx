@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { cloneElement, useEffect, useId, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import { REGIONS, SECTORS, DOMAINS } from '../lib/options'
@@ -19,6 +19,12 @@ export default function Profile() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [msg, setMsg] = useState('')
+  const errorRef = useRef(null)
+
+  // Surface validation/save errors that may sit above the fold on a long edit form.
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [error])
 
   useEffect(() => {
     if (!userId) return
@@ -67,7 +73,7 @@ export default function Profile() {
     if (phone && !/^[+\d][\d\s().-]{5,19}$/.test(phone)) return setError('Enter a valid phone number.')
     if (linkedin && !/^https?:\/\/\S+$/i.test(linkedin)) return setError('LinkedIn must be a full URL (https://...).')
     if (startup.length > 80) return setError('Startup must be 80 characters or fewer.')
-    if (bio.length > 500) return setError('About must be 500 characters or fewer.')
+    if (bio.length > 160) return setError('About must be 160 characters or fewer.')
     setSaving(true)
     try {
       const updates = {
@@ -130,9 +136,9 @@ export default function Profile() {
             {/* details */}
             <div className="card p-5">
               <div className="mb-4 flex items-center justify-between border-b border-line pb-2">
-                <h3 className="text-sm font-bold text-accent">Basic info</h3>
+                <h3 className="text-base font-semibold text-ink">Basic info</h3>
                 {!editing && (
-                  <button className="btn-outline px-3 py-1.5 text-xs" onClick={startEdit}>Edit profile</button>
+                  <button className="btn-outline min-h-9 px-3 py-1.5 text-xs" onClick={startEdit}>Edit profile</button>
                 )}
               </div>
 
@@ -140,7 +146,7 @@ export default function Profile() {
                 <div role="status" className="mb-4 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">{msg}</div>
               )}
               {error && (
-                <div role="alert" className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>
+                <div ref={errorRef} role="alert" className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>
               )}
 
               {!editing ? (
@@ -223,10 +229,11 @@ function Field({ label, value }) {
 }
 
 function Edit({ label, children }) {
+  const id = useId()
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-medium text-muted">{label}</label>
-      {children}
+      <label htmlFor={id} className="text-xs font-medium text-muted">{label}</label>
+      {cloneElement(children, { id })}
     </div>
   )
 }

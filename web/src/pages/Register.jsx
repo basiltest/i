@@ -39,6 +39,10 @@ export default function Register() {
   const [captchaToken, setCaptchaToken] = useState('')
   const fileRef = useRef(null)
   const turnstileRef = useRef(null)
+  const nameRef = useRef(null)
+  const emailRef = useRef(null)
+  const memberTypeRef = useRef(null)
+  const errorRef = useRef(null)
 
   function clearFile() {
     setCert(null)
@@ -69,11 +73,12 @@ export default function Register() {
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    if (form.name.trim().length < 2) return setError('Enter your full name.')
-    if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) return setError('Enter a valid email.')
-    if (!form.member_type) return setError('Pick what you are registering as.')
-    if (certRequired && !cert) return setError('A graduate certificate is required for your email.')
-    if (captchaEnabled && !captchaToken) return setError('Please complete the verification below.')
+    const fail = (msg, ref) => { setError(msg); ref?.current?.focus(); return undefined }
+    if (form.name.trim().length < 2) return fail('Enter your full name.', nameRef)
+    if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) return fail('Enter a valid email.', emailRef)
+    if (!form.member_type) return fail('Pick what you are registering as.', memberTypeRef)
+    if (certRequired && !cert) return fail('A graduate certificate is required for your email.', fileRef)
+    if (captchaEnabled && !captchaToken) return fail('Please complete the verification below.', errorRef)
 
     setLoading(true)
     try {
@@ -110,10 +115,10 @@ export default function Register() {
 
   if (done) {
     return (
-      <div className="min-h-screen grid place-items-center px-6">
+      <main className="min-h-screen grid place-items-center px-6">
         <div className="card w-full max-w-sm p-8 text-center animate-pop-in">
           <div aria-hidden="true" className="mx-auto mb-4 grid h-11 w-11 place-items-center rounded-full bg-success/15 text-success text-xl font-bold">✓</div>
-          <h2 className="text-lg font-semibold">Request received</h2>
+          <h1 className="text-lg font-semibold">Request received</h1>
           <p className="mt-1 break-words text-sm text-muted">
             Thanks, <span className="font-semibold text-ink">{form.name.trim()}</span>. Our team will review your request and email <span className="font-semibold text-ink">{form.email.trim()}</span> with the outcome.
           </p>
@@ -122,19 +127,19 @@ export default function Register() {
             <Link to="/login" className="font-semibold text-accent hover:underline">Log in</Link>
           </p>
         </div>
-      </div>
+      </main>
     )
   }
 
   return (
-    <div className="min-h-screen grid place-items-center px-6 py-10">
+    <main className="min-h-screen grid place-items-center px-6 py-10">
       <form onSubmit={handleSubmit} noValidate className="card w-full max-w-sm p-8 animate-pop-in">
         <Logo className="mb-5 h-12 w-auto" />
-        <h2 className="text-lg font-semibold">Request access</h2>
+        <h1 className="text-lg font-semibold">Request access</h1>
         <p className="mb-5 text-sm text-muted">Tell us about you. An admin reviews every request before your account is created.</p>
 
         {error && (
-          <div role="alert" className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>
+          <div ref={errorRef} id="register-error" tabIndex={-1} role="alert" className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down outline-none">{error}</div>
         )}
 
         {/* honeypot: hidden from humans, bots fill it */}
@@ -143,23 +148,23 @@ export default function Register() {
           style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }} />
 
         <div className="mb-3.5 flex flex-col gap-1.5">
-          <label htmlFor="name" className="text-xs font-medium text-muted">Full name</label>
-          <input id="name" className="input" maxLength={50} value={form.name} onChange={set('name')} />
+          <label htmlFor="name" className="text-xs font-medium text-muted">Full name <span className="text-down" aria-hidden="true">*</span></label>
+          <input ref={nameRef} id="name" className="input" maxLength={50} required aria-required="true" aria-invalid={!!error} aria-describedby={error ? 'register-error' : undefined} value={form.name} onChange={set('name')} />
         </div>
 
         <div className="mb-3.5 flex flex-col gap-1.5">
-          <label htmlFor="email" className="text-xs font-medium text-muted">Email</label>
-          <input id="email" type="email" className="input" maxLength={254} value={form.email} autoComplete="email" onChange={set('email')} />
+          <label htmlFor="email" className="text-xs font-medium text-muted">Email <span className="text-down" aria-hidden="true">*</span></label>
+          <input ref={emailRef} id="email" type="email" className="input" maxLength={254} required aria-required="true" aria-invalid={!!error} aria-describedby={error ? 'register-error' : undefined} value={form.email} autoComplete="email" onChange={set('email')} />
         </div>
 
         <div className="mb-3.5 flex flex-col gap-1.5">
-          <label htmlFor="phone" className="text-xs font-medium text-muted">Phone <span className="text-faint">(optional)</span></label>
+          <label htmlFor="phone" className="text-xs font-medium text-muted">Phone <span className="text-muted">(optional)</span></label>
           <input id="phone" type="tel" className="input" maxLength={20} value={form.phone} autoComplete="tel" onChange={set('phone')} />
         </div>
 
         <div className="mb-3.5 flex flex-col gap-1.5">
-          <label htmlFor="member_type" className="text-xs font-medium text-muted">Registering as</label>
-          <select id="member_type" className="input" value={form.member_type} onChange={set('member_type')}>
+          <label htmlFor="member_type" className="text-xs font-medium text-muted">Registering as <span className="text-down" aria-hidden="true">*</span></label>
+          <select ref={memberTypeRef} id="member_type" className="input" required aria-required="true" value={form.member_type} onChange={set('member_type')}>
             <option value="">Select...</option>
             {MEMBER_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
@@ -167,16 +172,16 @@ export default function Register() {
 
         {form.member_type === 'Other' && (
           <div className="mb-3.5 flex flex-col gap-1.5">
-            <label htmlFor="other_text" className="text-xs font-medium text-muted">Tell us more <span className="text-faint">(optional)</span></label>
+            <label htmlFor="other_text" className="text-xs font-medium text-muted">Tell us more <span className="text-muted">(optional)</span></label>
             <input id="other_text" className="input" maxLength={120} value={form.other_text} onChange={set('other_text')} placeholder="What describes you" />
           </div>
         )}
 
         <div className="mb-4 flex flex-col gap-1.5">
           <label htmlFor="cert" className="text-xs font-medium text-muted">
-            Last graduate certificate {certRequired ? <span className="text-down">*</span> : <span className="text-faint">(optional)</span>}
+            Last graduate certificate {certRequired ? <span className="text-down" aria-hidden="true">*</span> : <span className="text-muted">(optional)</span>}
           </label>
-          <input ref={fileRef} id="cert" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={onFile} className="hidden" />
+          <input ref={fileRef} id="cert" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={onFile} required={certRequired} aria-required={certRequired} aria-describedby="cert-hint" className="peer sr-only" />
           {cert ? (
             <div className="flex items-center gap-2.5 rounded-lg border border-line bg-page px-3 py-2.5">
               <FileText size={18} className="shrink-0 text-accent" />
@@ -190,12 +195,12 @@ export default function Register() {
               </button>
             </div>
           ) : (
-            <label htmlFor="cert"
-              className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-line bg-card px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:border-accent/50 hover:bg-accent-soft/40 hover:text-ink">
+            <button type="button" tabIndex={-1} aria-hidden="true" onClick={() => fileRef.current?.click()}
+              className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-line bg-card px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:border-accent/50 hover:bg-accent-soft/40 hover:text-ink peer-focus-visible:border-accent peer-focus-visible:ring-2 peer-focus-visible:ring-accent/50">
               <Upload size={16} /> Choose a file
-            </label>
+            </button>
           )}
-          <span className="text-xs text-faint">
+          <span id="cert-hint" className="text-xs text-muted">
             {isStudentDomain ? `Optional for @${STUDENT_DOMAIN} emails.` : 'PDF, JPG, or PNG, up to 5 MB.'}
           </span>
         </div>
@@ -213,7 +218,7 @@ export default function Register() {
           </div>
         )}
 
-        <button type="submit" disabled={loading} className="btn-primary w-full">
+        <button type="submit" disabled={loading} aria-busy={loading} className="btn-primary w-full">
           {loading ? 'Submitting...' : 'Submit request'}
         </button>
 
@@ -222,6 +227,6 @@ export default function Register() {
           <Link to="/login" className="font-semibold text-accent hover:underline">Log in</Link>
         </p>
       </form>
-    </div>
+    </main>
   )
 }

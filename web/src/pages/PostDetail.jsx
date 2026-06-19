@@ -7,6 +7,7 @@ import AuthorLink from '../components/AuthorLink'
 import Dropdown, { MenuItem } from '../components/Dropdown'
 import PostDetailSkeleton from '../components/PostDetailSkeleton'
 import CreatePostModal from '../components/CreatePostModal'
+import ConfirmModal from '../components/ConfirmModal'
 import PollBlock from '../components/PollBlock'
 import { timeAgo } from '../lib/format'
 import { errMessage } from '../lib/errors'
@@ -25,20 +26,29 @@ function Kebab({ children }) {
     function onDoc(e) {
       if (ref.current && !ref.current.contains(e.target)) setOpen(false)
     }
+    function onKey(e) {
+      if (e.key === 'Escape') setOpen(false)
+    }
     document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
   }, [])
   return (
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label="More options"
-        className="rounded-full p-1.5 text-muted transition-colors hover:bg-black/5"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="rounded-full p-1.5 text-muted transition-colors hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
       >
         <MoreHorizontal size={20} />
       </button>
       {open && (
-        <div className="absolute right-0 z-30 mt-1 min-w-[160px] rounded-xl border border-line bg-card p-1 shadow-pop">
+        <div role="menu" className="absolute right-0 z-30 mt-1 min-w-[160px] rounded-xl border border-line bg-card p-1 shadow-pop">
           {children(() => setOpen(false))}
         </div>
       )}
@@ -64,6 +74,8 @@ export default function PostDetail() {
   const [updateBody, setUpdateBody] = useState('')
   const [busy, setBusy] = useState(false)
   const [csort, setCsort] = useState('new')
+  // pending destructive action awaiting confirmation: { title, message, run }
+  const [confirm, setConfirm] = useState(null)
 
   // post vote state (optimistic, same model as PostCard)
   const [score, setScore] = useState(0)
@@ -133,6 +145,14 @@ export default function PostDetail() {
     setComments(data || [])
   }
 
+  function confirmDeleteComment(cid, mine) {
+    setConfirm({
+      title: 'Delete comment?',
+      message: 'This comment will be permanently removed. This cannot be undone.',
+      run: () => deleteComment(cid, mine),
+    })
+  }
+
   async function deleteComment(cid, mine) {
     // own comments delete via RLS; others (admin moderation) via the admin RPC
     const { error } = mine
@@ -154,6 +174,14 @@ export default function PostDetail() {
     setUpdateBody('')
     const { data } = await supabase.rpc('post_subthreads', { p_id: id })
     setUpdates(data || [])
+  }
+
+  function confirmDeleteUpdate(sid) {
+    setConfirm({
+      title: 'Delete update?',
+      message: 'This update will be permanently removed. This cannot be undone.',
+      run: () => deleteUpdate(sid),
+    })
   }
 
   async function deleteUpdate(sid) {
@@ -310,7 +338,7 @@ export default function PostDetail() {
               <button
                 onClick={() => vote(1)}
                 aria-label="Upvote"
-                className={`rounded-full p-1.5 transition-colors hover:bg-black/5 ${myVote === 1 ? 'text-accent' : 'text-muted'}`}
+                className={`rounded-full p-1.5 transition-colors hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${myVote === 1 ? 'text-accent' : 'text-muted'}`}
               >
                 <ArrowBigUp size={20} fill={myVote === 1 ? 'currentColor' : 'none'} />
               </button>
@@ -320,7 +348,7 @@ export default function PostDetail() {
               <button
                 onClick={() => vote(-1)}
                 aria-label="Downvote"
-                className={`rounded-full p-1.5 transition-colors hover:bg-black/5 ${myVote === -1 ? 'text-down' : 'text-muted'}`}
+                className={`rounded-full p-1.5 transition-colors hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${myVote === -1 ? 'text-down' : 'text-muted'}`}
               >
                 <ArrowBigDown size={20} fill={myVote === -1 ? 'currentColor' : 'none'} />
               </button>
@@ -333,11 +361,12 @@ export default function PostDetail() {
 
           {/* creator updates (unchanged feature) */}
           <section className="mt-6">
-            <h3 className="mb-2 text-sm font-bold">Updates from the creator</h3>
+            <h2 className="mb-2 text-sm font-bold">Updates from the creator</h2>
             {post.is_mine && (
               <form onSubmit={addUpdate} className="mb-3 flex gap-2">
                 <input
                   className="input" placeholder="Post an update..." maxLength={2000}
+                  aria-label="Post an update"
                   value={updateBody} onChange={(e) => setUpdateBody(e.target.value)}
                 />
                 <button className="btn-primary shrink-0" disabled={busy}>Add</button>
@@ -353,7 +382,14 @@ export default function PostDetail() {
                       <span className="font-semibold text-ink">{u.author_name || 'Anonymous Founder'}</span>
                       <span>· {timeAgo(u.created_at)}</span>
                       {u.is_mine && (
-                        <button onClick={() => deleteUpdate(u.id)} className="ml-auto text-faint hover:text-down">delete</button>
+                        <button
+                          type="button"
+                          onClick={() => confirmDeleteUpdate(u.id)}
+                          aria-label="Delete update"
+                          className="ml-auto rounded p-1 text-faint transition-colors hover:text-down focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                        >
+                          delete
+                        </button>
                       )}
                     </div>
                     <p className="mt-1 whitespace-pre-wrap break-words text-sm text-ink">{u.body}</p>
@@ -365,7 +401,7 @@ export default function PostDetail() {
 
           {/* comments header + sort */}
           <div className="mb-3 mt-6 flex items-center justify-between">
-            <h3 className="text-sm font-bold">{comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}</h3>
+            <h2 className="text-sm font-bold">{comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}</h2>
             {comments.length > 1 && (
               <Dropdown label={`Sort: ${CSORTS.find((o) => o.s === csort).label}`}>
                 {(close) =>
@@ -385,8 +421,9 @@ export default function PostDetail() {
           ) : (
             <form onSubmit={addComment} className="mb-4">
               <input
-                className="w-full rounded-lg border border-line bg-card px-4 py-2.5 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none"
+                className="input"
                 placeholder="Add a comment"
+                aria-label="Add a comment"
                 maxLength={2000}
                 value={commentBody}
                 onChange={(e) => setCommentBody(e.target.value)}
@@ -422,7 +459,14 @@ export default function PostDetail() {
                       <AuthorLink id={c.author_id} className="font-semibold text-ink">{c.author_name || 'Member'}</AuthorLink>
                       <span>· {timeAgo(c.created_at)}</span>
                       {(c.is_mine || isAdmin) && (
-                        <button onClick={() => deleteComment(c.id, c.is_mine)} className="ml-auto text-faint hover:text-down">delete</button>
+                        <button
+                          type="button"
+                          onClick={() => confirmDeleteComment(c.id, c.is_mine)}
+                          aria-label="Delete comment"
+                          className="ml-auto rounded p-1 text-faint transition-colors hover:text-down focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                        >
+                          delete
+                        </button>
                       )}
                     </div>
                     <p className="mt-1 whitespace-pre-wrap break-words text-sm text-ink">{c.body}</p>
@@ -446,6 +490,17 @@ export default function PostDetail() {
             onClose={() => setEditOpen(false)}
             onUpdated={() => { setEditOpen(false); load() }}
           />
+
+          {confirm && (
+            <ConfirmModal
+              title={confirm.title}
+              message={confirm.message}
+              confirmLabel="Delete"
+              tone="danger"
+              onConfirm={async () => { await confirm.run(); setConfirm(null) }}
+              onClose={() => setConfirm(null)}
+            />
+          )}
         </>
       )}
     </div>

@@ -4,6 +4,7 @@ import { ArrowLeft, Paperclip, Download, Send, CheckCircle2, Circle, CalendarClo
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import { DossierSkeleton } from '../components/PipelineSkeleton'
+import ConfirmModal from '../components/ConfirmModal'
 import { ApplicationModal } from './Pipeline'
 import { timeAgo } from '../lib/format'
 import { googleCalUrl, downloadICS, actionEvent } from '../lib/calendar'
@@ -134,7 +135,7 @@ export default function PipelineIdea() {
       {idea.pipeline_state === 'refine' && (
         <div className="mt-4 rounded-lg border border-accent/30 bg-accent-soft px-3 py-2.5 text-sm text-accent">
           <div className="font-semibold">Sent back: refine &amp; retry{lastRejection?.reason ? ` - ${lastRejection.reason}` : ''}</div>
-          <div className="mt-0.5 text-xs text-accent/80">Editing and resubmitting re-enters the idea at G1 to climb the gates again — your IFN number stays the same.</div>
+          <div className="mt-0.5 text-xs text-accent">Editing and resubmitting re-enters the idea at G1 to climb the gates again — your IFN number stays the same.</div>
           {mine && (
             <div className="mt-2 flex items-center gap-2">
               <button onClick={() => setEditOpen(true)} className="btn-outline px-3 py-1.5 text-xs">Edit application</button>
@@ -243,22 +244,35 @@ function exportDossier(d) {
 // The founder can pull their application out entirely (deletes the whole dossier).
 function WithdrawButton({ ideaId, ifn, onDone }) {
   const [busy, setBusy] = useState(false)
+  const [confirming, setConfirming] = useState(false)
   async function withdraw() {
-    if (!window.confirm(`Withdraw ${ifnTag(ifn)}? This deletes the application, its submissions, reviews, files and thread. This cannot be undone.`)) return
     setBusy(true)
     const { error } = await supabase.rpc('withdraw_application', { p_idea: ideaId })
     setBusy(false)
+    setConfirming(false)
     if (error) { console.error(error); return alert(GENERIC_ERR) }
     onDone()
   }
   return (
-    <button
-      onClick={withdraw}
-      disabled={busy}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-down/40 px-3.5 py-2 text-xs font-semibold text-down hover:bg-down/10"
-    >
-      <Trash2 size={13} /> {busy ? 'Withdrawing...' : 'Withdraw application'}
-    </button>
+    <>
+      <button
+        onClick={() => setConfirming(true)}
+        disabled={busy}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-down/40 px-3.5 py-2 text-xs font-semibold text-down hover:bg-down/10 focus-visible:ring-2 focus-visible:ring-accent/50"
+      >
+        <Trash2 size={13} /> {busy ? 'Withdrawing...' : 'Withdraw application'}
+      </button>
+      {confirming && (
+        <ConfirmModal
+          title={`Withdraw ${ifnTag(ifn)}?`}
+          message="This deletes the application, its submissions, reviews, files and thread. This cannot be undone."
+          confirmLabel="Withdraw application"
+          tone="danger"
+          onConfirm={withdraw}
+          onClose={() => setConfirming(false)}
+        />
+      )}
+    </>
   )
 }
 
@@ -267,7 +281,7 @@ function QA({ q, a }) {
   if (!a) return null
   return (
     <>
-      <div className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-muted">{q}</div>
+      <div className="mt-3 text-xs font-semibold text-muted">{q}</div>
       <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-ink">{a}</p>
     </>
   )
@@ -276,6 +290,14 @@ function QA({ q, a }) {
 function GateBar({ gate, state, status }) {
   const [sel, setSel] = useState(null)
   const shown = GATES.find((g) => g.g === (sel || gate))
+  const gateStatus = (g) => {
+    if (g.g < gate) return 'done'
+    if (g.g > gate) return 'upcoming'
+    if (state === 'rejected') return 'rejected'
+    if (status === 'submitted') return 'in review'
+    if (status === 'approved') return 'approved'
+    return 'your move'
+  }
   return (
     <div className="card mt-4 p-4">
       <div className="flex items-center">
@@ -285,7 +307,8 @@ function GateBar({ gate, state, status }) {
             <button
               onClick={() => setSel(g.g === sel ? null : g.g)}
               title={g.label}
-              className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-bold transition-colors ${
+              aria-label={`Gate ${g.g}, ${g.label} — ${gateStatus(g)}`}
+              className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-bold transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 ${
                 g.g < gate ? 'bg-accent text-onaccent'
                 : g.g === gate ? stepDotClass(status, state)
                 : 'border border-line bg-card text-muted hover:border-accent'
@@ -569,7 +592,7 @@ function ReviewForm({ d, onDone }) {
               <label key={r.k} className="flex items-center justify-between gap-3 rounded-lg bg-page px-3 py-2">
                 <span className="text-sm">{r.label}</span>
                 <span className="flex items-center gap-2">
-                  <input type="range" min="1" max="5" className="accent-accent" value={scores[r.k]} onChange={(e) => setScores({ ...scores, [r.k]: Number(e.target.value) })} />
+                  <input type="range" min="1" max="5" className="accent-accent focus-visible:ring-2 focus-visible:ring-accent/50" aria-label={r.label} aria-valuetext={`${scores[r.k]} of 5`} value={scores[r.k]} onChange={(e) => setScores({ ...scores, [r.k]: Number(e.target.value) })} />
                   <span className="w-4 text-center text-sm font-bold text-accent">{scores[r.k]}</span>
                 </span>
               </label>
@@ -647,7 +670,7 @@ function ActionItems({ d, mine, mentorView, onChanged }) {
   return (
     <section className="mt-6">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-bold">Action items</h3>
+        <h2 className="text-sm font-bold">Action items</h2>
         {mentorView && d.idea.pipeline_state === 'active' && (
           <button className="btn-outline px-3 py-1.5 text-xs" onClick={() => setAdding((v) => !v)}>{adding ? 'Cancel' : 'Add action'}</button>
         )}
@@ -671,11 +694,11 @@ function ActionItems({ d, mine, mentorView, onChanged }) {
               <div className="flex items-start gap-2.5">
                 {a.status === 'done'
                   ? <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-success" />
-                  : <Circle size={18} className="mt-0.5 shrink-0 text-faint" />}
+                  : <Circle size={18} className="mt-0.5 shrink-0 text-muted" />}
                 <div className="min-w-0 flex-1">
                   <div className={`text-sm font-semibold ${a.status === 'done' ? 'text-muted line-through' : ''}`}>{a.label}</div>
                   {a.details && <div className="text-xs text-muted">{a.details}</div>}
-                  <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-faint">
+                  <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted">
                     <span>by {a.created_by_name || 'mentor'}</span>
                     {a.due_date && (
                       <span className={`inline-flex items-center gap-1 ${overdue(a) ? 'font-bold text-down' : ''}`}>
@@ -761,7 +784,7 @@ function Files({ d, mine, onChanged }) {
   return (
     <section className="mt-6">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-bold">Files</h3>
+        <h2 className="text-sm font-bold">Files</h2>
         {mine && d.idea.pipeline_state === 'active' && (
           <label className={`btn-outline cursor-pointer px-3 py-1.5 text-xs ${busy ? 'opacity-50' : ''}`}>
             <Paperclip size={13} className="mr-1 inline" /> {busy ? 'Uploading...' : 'Upload (PDF / DOC / PPT)'}
@@ -779,7 +802,7 @@ function Files({ d, mine, onChanged }) {
               <Paperclip size={15} className="shrink-0 text-faint" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-semibold">{f.file_name}</div>
-                <div className="text-[11px] text-faint">G{f.gate} · {(f.size_bytes / 1048576).toFixed(1)}MB · {timeAgo(f.created_at)}</div>
+                <div className="text-[11px] text-muted">G{f.gate} · {(f.size_bytes / 1048576).toFixed(1)}MB · {timeAgo(f.created_at)}</div>
               </div>
               <button className="btn-outline shrink-0 px-2.5 py-1.5 text-xs" onClick={() => download(f.bucket_path)} aria-label={`Download ${f.file_name}`}>
                 <Download size={13} />
@@ -815,7 +838,7 @@ function Thread({ d, mentorView, onChanged }) {
 
   return (
     <section className="mt-6">
-      <h3 className="mb-2 text-sm font-bold">Mentor thread <span className="font-normal text-muted">(private: founder, mentor, admins)</span></h3>
+      <h2 className="mb-2 text-sm font-bold">Mentor thread <span className="font-normal text-muted">(private: founder, mentor, admins)</span></h2>
       {msgs.length === 0 ? (
         <p className="text-sm text-muted">No messages yet. Questions, blockers, and meeting notes live here.</p>
       ) : (
@@ -824,7 +847,7 @@ function Thread({ d, mentorView, onChanged }) {
             <li key={m.id} className={`card p-3 ${m.kind === 'meeting' ? 'border-accent/40' : ''}`}>
               <div className="flex items-center gap-2 text-xs text-muted">
                 <span className="font-semibold text-ink">{m.author_name || 'Member'}</span>
-                {m.kind === 'meeting' && <span className="rounded-md bg-accent-soft px-2 py-0.5 text-[10px] font-bold text-accent">MEETING LOG</span>}
+                {m.kind === 'meeting' && <span className="rounded-md bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-accent">MEETING LOG</span>}
                 <span className="ml-auto">{timeAgo(m.created_at)}</span>
               </div>
               <p className="mt-1 whitespace-pre-wrap break-words text-sm text-ink">{m.body}</p>
@@ -867,7 +890,7 @@ function History({ d }) {
   if (items.length === 0) return null
   return (
     <section className="mt-6">
-      <h3 className="mb-2 text-sm font-bold">History</h3>
+      <h2 className="mb-2 text-sm font-bold">History</h2>
       <ul className="card divide-y divide-line">
         {items.map((it) => <li key={it.id} className="p-3">{it.el}</li>)}
       </ul>
@@ -960,6 +983,7 @@ function AdminControls({ d, onChanged, onDeleted }) {
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [confirm, setConfirm] = useState(null) // 'reject' | 'delete' | null
 
   useEffect(() => {
     supabase.rpc('admin_mentor_load').then(({ data }) => setMentors(data || []))
@@ -981,13 +1005,23 @@ function AdminControls({ d, onChanged, onDeleted }) {
   const move = () => run(async (r) =>
     (await supabase.rpc('admin_move_gate', { p_idea: idea.id, p_gate: Number(gate), p_reason: r })).error)
   const reject = (final) => {
-    if (final && !window.confirm('Reject this application permanently? The pipeline run ends.')) return
+    if (final) {
+      if (!reason.trim()) return setError('A reason is required for every admin action (it is audited).')
+      return setConfirm('reject')
+    }
     run(async (r) => (await supabase.rpc('admin_reject_idea', { p_idea: idea.id, p_final: final, p_reason: r })).error)
   }
+  async function rejectFinal() {
+    setConfirm(null)
+    await run(async (r) => (await supabase.rpc('admin_reject_idea', { p_idea: idea.id, p_final: true, p_reason: r })).error)
+  }
   // delete bypasses run(): on success the dossier is gone, so we navigate away instead of reloading
-  async function deleteIdea() {
+  function deleteIdea() {
     if (!reason.trim()) return setError('A reason is required for every admin action (it is audited).')
-    if (!window.confirm(`Delete ${ifnTag(idea.ifn)} permanently? This removes the application, its submissions, reviews, files and thread for everyone. This cannot be undone.`)) return
+    setConfirm('delete')
+  }
+  async function deleteConfirmed() {
+    setConfirm(null)
     setBusy(true)
     setError('')
     const { error: e } = await supabase.rpc('admin_delete_pipeline_idea', { p_idea: idea.id, p_reason: reason.trim() })
@@ -1004,7 +1038,7 @@ function AdminControls({ d, onChanged, onDeleted }) {
     <div className="card mt-4 border-accent/30 p-4">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-bold uppercase tracking-wide text-accent">Admin controls</span>
-        <span className="text-[11px] text-faint">viewing changes nothing - state only moves via the buttons below</span>
+        <span className="text-[11px] text-muted">viewing changes nothing - state only moves via the buttons below</span>
       </div>
       {/* current state, highlighted so assignment/pickup status is obvious at a glance */}
       <div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-accent-soft px-3 py-1.5 text-xs font-bold text-accent">
@@ -1041,6 +1075,26 @@ function AdminControls({ d, onChanged, onDeleted }) {
           </button>
         </div>
       </div>
+      {confirm === 'reject' && (
+        <ConfirmModal
+          title="Reject this application permanently?"
+          message="The pipeline run ends. Your audited reason will be recorded."
+          confirmLabel="Reject (final)"
+          tone="danger"
+          onConfirm={rejectFinal}
+          onClose={() => setConfirm(null)}
+        />
+      )}
+      {confirm === 'delete' && (
+        <ConfirmModal
+          title={`Delete ${ifnTag(idea.ifn)} permanently?`}
+          message="This removes the application, its submissions, reviews, files and thread for everyone. This cannot be undone."
+          confirmLabel="Delete permanently"
+          tone="danger"
+          onConfirm={deleteConfirmed}
+          onClose={() => setConfirm(null)}
+        />
+      )}
     </div>
   )
 }

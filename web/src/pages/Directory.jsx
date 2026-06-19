@@ -73,7 +73,7 @@ export default function Directory() {
 
       <div className="relative mt-4">
         <Search size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
-        <input className="input pl-9" aria-label="Search members" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or startup..." />
+        <input className="input pl-9 placeholder:text-muted" aria-label="Search members" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or startup..." />
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -91,9 +91,10 @@ export default function Directory() {
         )}
       </div>
 
+      <div aria-live="polite" aria-busy={loading}>
       {error ? (
-        <div className="card mt-4 p-6 text-center">
-          <p className="text-sm text-down">{GENERIC_ERR}</p>
+        <div className="card mt-4 p-6 text-center" role="alert">
+          <p className="text-sm text-down">{error}</p>
           <button className="btn-outline mt-3" onClick={load}>Retry</button>
         </div>
       ) : loading ? (
@@ -105,9 +106,9 @@ export default function Directory() {
           <p className="font-semibold">No members match these filters.</p>
         </div>
       ) : (
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <ul role="list" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {members.map((m) => (
-            <div key={m.id} className={`card flex flex-col p-4 ${m.pinned ? 'border-accent/40' : ''}`}>
+            <li key={m.id} className={`card flex flex-col p-4 ${m.pinned ? 'border-accent/40' : ''}`}>
               <div className="flex items-center gap-3">
                 <AuthorLink id={m.id} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent-soft text-base font-bold text-accent">
                   {(m.name || '?').charAt(0).toUpperCase()}
@@ -153,12 +154,13 @@ export default function Directory() {
                 {m.linkedin && (
                   <a href={m.linkedin} target="_blank" rel="noreferrer" className="btn-outline px-3 py-1.5 text-xs">LinkedIn</a>
                 )}
-                {m.id === uid && <span className="px-1 py-1.5 text-xs text-faint">This is you</span>}
+                {m.id === uid && <span className="px-1 py-1.5 text-xs text-muted">This is you</span>}
               </div>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
+      </div>
 
       <ContactModal member={contact} onClose={() => setContact(null)} />
     </div>

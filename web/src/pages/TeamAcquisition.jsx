@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Plus, Search, X, Trash2, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import ModalShell from '../components/ModalShell'
+import ConfirmModal from '../components/ConfirmModal'
 import { useAuth } from '../lib/AuthProvider'
 import AuthorLink from '../components/AuthorLink'
 import Spinner from '../components/Spinner'
@@ -25,6 +26,7 @@ export default function TeamAcquisition() {
   const [applicantsFor, setApplicantsFor] = useState(null)
   const [detail, setDetail] = useState(null)
   const [notice, setNotice] = useState('')
+  const [confirm, setConfirm] = useState(null)
 
   useEffect(() => {
     const id = setTimeout(() => setDebounced(q.trim()), 300)
@@ -42,7 +44,6 @@ export default function TeamAcquisition() {
   function flash(msg) { setNotice(msg); setTimeout(() => setNotice(''), 3000) }
 
   async function deletePost(id, mine) {
-    if (!window.confirm('Delete this role need?')) return
     const { error: e } = mine
       ? await supabase.from('team_posts').delete().eq('id', id)
       : await supabase.rpc('admin_delete_team_post', { p_id: id })
@@ -58,7 +59,6 @@ export default function TeamAcquisition() {
   }
 
   async function withdraw(postId) {
-    if (!window.confirm('Withdraw your application?')) return
     const { error: e } = await supabase
       .from('team_applications')
       .delete()
@@ -95,6 +95,10 @@ export default function TeamAcquisition() {
         <div role="status" className="mt-4 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">{notice}</div>
       )}
 
+      <div aria-live="polite" className="sr-only">
+        {!loading && !error && `${posts.length} ${posts.length === 1 ? 'role' : 'roles'} match`}
+      </div>
+
       {loading ? (
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TeamCardSkeleton />
@@ -115,10 +119,14 @@ export default function TeamAcquisition() {
       ) : (
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {posts.map((t) => (
-            <button
+            <div
               key={t.id}
+              role="button"
+              tabIndex={0}
+              aria-label={`View role: ${t.title}`}
               onClick={() => setDetail(t)}
-              className={`card flex h-52 cursor-pointer flex-col overflow-hidden p-4 text-left transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-pop ${t.closed ? 'opacity-60' : ''}`}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDetail(t) } }}
+              className={`card flex h-52 cursor-pointer flex-col overflow-hidden p-4 text-left transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-pop focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${t.closed ? 'opacity-60' : ''}`}
             >
               <div className="mb-2 flex items-center gap-2">
                 <AuthorLink id={t.author_id} className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
@@ -155,10 +163,10 @@ export default function TeamAcquisition() {
                     ? `${Number(t.app_count)} ${Number(t.app_count) === 1 ? 'applicant' : 'applicants'}`
                     : t.i_applied
                       ? <span className="text-accent">Applied</span>
-                      : 'Tap to view and apply'}
+                      : 'View and apply'}
                 <ChevronRight size={16} className="ml-auto text-faint" />
               </div>
-            </button>
+            </div>
           ))}
         </div>
       )}
@@ -169,11 +177,31 @@ export default function TeamAcquisition() {
           isAdmin={isAdmin}
           onClose={() => setDetail(null)}
           onApply={() => { setApplyTo(detail); setDetail(null) }}
-          onWithdraw={() => { withdraw(detail.id); setDetail(null) }}
+          onWithdraw={() => {
+            const d = detail
+            setDetail(null)
+            setConfirm({
+              title: 'Withdraw application?',
+              message: 'Your application to this role will be removed.',
+              confirmLabel: 'Withdraw',
+              tone: 'danger',
+              onConfirm: async () => { await withdraw(d.id); setConfirm(null) },
+            })
+          }}
           onEdit={() => { setEditPost(detail); setDetail(null) }}
           onApplicants={() => { setApplicantsFor(detail); setDetail(null) }}
           onToggleClosed={() => { toggleClosed(detail); setDetail(null) }}
-          onDelete={() => { deletePost(detail.id, detail.is_mine); setDetail(null) }}
+          onDelete={() => {
+            const d = detail
+            setDetail(null)
+            setConfirm({
+              title: 'Delete this role need?',
+              message: 'This permanently removes the role and its applications.',
+              confirmLabel: 'Delete',
+              tone: 'danger',
+              onConfirm: async () => { await deletePost(d.id, d.is_mine); setConfirm(null) },
+            })
+          }}
         />
       )}
 
@@ -199,6 +227,16 @@ export default function TeamAcquisition() {
       )}
       {applicantsFor && (
         <ApplicantsModal post={applicantsFor} onClose={() => setApplicantsFor(null)} />
+      )}
+      {confirm && (
+        <ConfirmModal
+          title={confirm.title}
+          message={confirm.message}
+          confirmLabel={confirm.confirmLabel}
+          tone={confirm.tone}
+          onConfirm={confirm.onConfirm}
+          onClose={() => setConfirm(null)}
+        />
       )}
     </div>
   )
@@ -272,24 +310,24 @@ function DetailModal({ post, isAdmin, onClose, onApply, onWithdraw, onEdit, onAp
 
 function TeamCardSkeleton() {
   return (
-    <div className="card animate-pulse p-4">
+    <div className="card flex h-52 animate-pulse flex-col overflow-hidden p-4">
       <div className="mb-3 flex items-center gap-2">
         <div className="h-7 w-7 rounded-full bg-line" />
         <div className="h-3 w-24 rounded bg-line" />
         <div className="ml-auto h-2.5 w-10 rounded bg-line" />
       </div>
       <div className="h-4 w-3/5 rounded bg-line" />
-      <div className="mt-2 h-5 w-20 rounded-full bg-line" />
+      <div className="mt-2 h-5 w-20 rounded-md bg-line" />
       <div className="mt-3 space-y-2">
         <div className="h-3 w-full rounded bg-line" />
         <div className="h-3 w-4/5 rounded bg-line" />
       </div>
       <div className="mt-4 flex gap-1.5">
-        <div className="h-6 w-14 rounded-full bg-line" />
-        <div className="h-6 w-16 rounded-full bg-line" />
-        <div className="h-6 w-12 rounded-full bg-line" />
+        <div className="h-6 w-14 rounded-md bg-line" />
+        <div className="h-6 w-16 rounded-md bg-line" />
+        <div className="h-6 w-12 rounded-md bg-line" />
       </div>
-      <div className="mt-4 h-9 w-24 rounded-full bg-line" />
+      <div className="mt-auto h-9 w-24 rounded-md bg-line" />
     </div>
   )
 }
@@ -326,6 +364,7 @@ function PostNeedModal({ edit, onClose, onSaved }) {
   const [skillInput, setSkillInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const initialRef = useRef(JSON.stringify({ ...f, skills: edit?.skills || [] }))
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
   const valid = f.title.trim() && f.looking_for.trim() && f.description.trim()
@@ -333,7 +372,7 @@ function PostNeedModal({ edit, onClose, onSaved }) {
   function requestClose() {
     if (busy) return
     const dirty = JSON.stringify({ ...f, skills }) !== initialRef.current || skillInput.trim() !== ''
-    if (dirty && !window.confirm(edit ? 'Discard your changes?' : 'Discard this role need? Your text will be lost.')) return
+    if (dirty) { setConfirmDiscard(true); return }
     onClose()
   }
 
@@ -367,6 +406,7 @@ function PostNeedModal({ edit, onClose, onSaved }) {
   }
 
   return (
+    <>
     <Shell title={edit ? 'Edit role need' : 'Post a role need'} onClose={requestClose}>
       {error && <div role="alert" className="mt-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>}
       <div className="mt-4 space-y-3">
@@ -408,6 +448,17 @@ function PostNeedModal({ edit, onClose, onSaved }) {
         </button>
       </div>
     </Shell>
+    {confirmDiscard && (
+      <ConfirmModal
+        title={edit ? 'Discard your changes?' : 'Discard this role need?'}
+        message="Your unsaved text will be lost."
+        confirmLabel="Discard"
+        tone="danger"
+        onConfirm={() => { setConfirmDiscard(false); onClose() }}
+        onClose={() => setConfirmDiscard(false)}
+      />
+    )}
+    </>
   )
 }
 
@@ -416,10 +467,11 @@ function ApplyModal({ post, onClose, onSent }) {
   const [contact, setContact] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
 
   function requestClose() {
     if (busy) return
-    if ((msg.trim() || contact.trim()) && !window.confirm('Discard this application? Your text will be lost.')) return
+    if (msg.trim() || contact.trim()) { setConfirmDiscard(true); return }
     onClose()
   }
 
@@ -438,6 +490,7 @@ function ApplyModal({ post, onClose, onSent }) {
   }
 
   return (
+    <>
     <Shell title={`Apply: ${post.title}`} onClose={requestClose}>
       <p className="mt-3 text-sm text-muted">
         Applying to <span className="font-bold text-ink">{post.author_name}</span>
@@ -467,6 +520,17 @@ function ApplyModal({ post, onClose, onSent }) {
         </button>
       </div>
     </Shell>
+    {confirmDiscard && (
+      <ConfirmModal
+        title="Discard this application?"
+        message="Your unsaved text will be lost."
+        confirmLabel="Discard"
+        tone="danger"
+        onConfirm={() => { setConfirmDiscard(false); onClose() }}
+        onClose={() => setConfirmDiscard(false)}
+      />
+    )}
+    </>
   )
 }
 
@@ -507,7 +571,7 @@ function ApplicantsModal({ post, onClose }) {
               </div>
               {r.applicant_linkedin && (
                 <a href={r.applicant_linkedin} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm font-semibold text-accent hover:underline">
-                  View LinkedIn
+                  View LinkedIn<span className="sr-only"> (opens in new tab)</span>
                 </a>
               )}
             </li>

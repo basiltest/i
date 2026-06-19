@@ -1,18 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthProvider';
 import { SECTORS } from '../lib/options';
 import Combobox from '../components/Combobox';
+import ModalShell from '../components/ModalShell';
+import ConfirmModal from '../components/ConfirmModal';
 
 export default function AutopsyLibrary() {
   const { session, isAdmin } = useAuth();
   const uid = session?.user?.id;
   const [autopsies, setAutopsies] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [reading, setReading] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   // Form State
   const [projectName, setProjectName] = useState('');
@@ -25,25 +29,18 @@ export default function AutopsyLibrary() {
   const [keyLessons, setKeyLessons] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     fetchAutopsies();
   }, []);
 
-  // Esc closes whichever overlay is open; lock body scroll while one is.
-  useEffect(() => {
-    const open = isModalOpen || reading;
-    if (!open) return;
-    function onKey(e) {
-      if (e.key === 'Escape') { setIsModalOpen(false); setReading(null); }
-    }
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [isModalOpen, reading]);
-
   async function fetchAutopsies() {
     try {
       setLoading(true);
+      setIsError(false);
       const { data, error } = await supabase
         .from('idea_autopsies')
         .select('*')
@@ -54,6 +51,7 @@ export default function AutopsyLibrary() {
       setAutopsies(data || []);
     } catch (err) {
       console.error('Error fetching autopsies:', err.message);
+      setIsError(true);
     } finally {
       setLoading(false);
     }
@@ -62,9 +60,10 @@ export default function AutopsyLibrary() {
   async function handleSubmit(e) {
     e.preventDefault();
     if (!projectName || !rootCause || !keyLessons || !domain || !category) {
-      alert('Please fill out all mandatory fields.');
+      setFormError('Please fill out all mandatory fields.');
       return;
     }
+    setFormError('');
 
     try {
       setSubmitting(true);
@@ -88,22 +87,23 @@ export default function AutopsyLibrary() {
 
       if (error) throw error;
 
-      alert('Autopsy submitted successfully! It is now pending admin verification.');
+      setSuccessMsg('Autopsy submitted successfully! It is now pending admin verification.');
       setIsModalOpen(false);
       resetForm();
     } catch (err) {
-      alert(err.message);
+      setFormError(err.message);
     } finally {
       setSubmitting(false);
     }
   }
 
   async function deleteAutopsy(autopsy) {
-    if (!window.confirm(`Delete "${autopsy.project_name}"? This cannot be undone.`)) return
+    setDeleteError('');
     const { error } = await supabase.from('idea_autopsies').delete().eq('id', autopsy.id)
-    if (error) { console.error(error); alert('Could not delete. Try again.'); return }
+    if (error) { console.error(error); setDeleteError('Could not delete. Try again.'); return }
     setAutopsies((prev) => prev.filter((a) => a.id !== autopsy.id))
     if (reading?.id === autopsy.id) setReading(null)
+    setConfirmDelete(null)
   }
 
   function resetForm() {
@@ -116,6 +116,7 @@ export default function AutopsyLibrary() {
     setStory('');
     setKeyLessons('');
     setIsAnonymous(false);
+    setFormError('');
   }
 
 
@@ -142,6 +143,38 @@ export default function AutopsyLibrary() {
         </button>
       </div>
 
+      {successMsg && (
+        <div
+          role="status"
+          className="mb-6 flex items-start justify-between gap-3 rounded-lg border border-success/30 bg-success/10 p-4 text-sm text-ink"
+        >
+          <span>{successMsg}</span>
+          <button
+            onClick={() => setSuccessMsg('')}
+            className="shrink-0 rounded font-semibold text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+            aria-label="Dismiss message"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {deleteError && (
+        <div
+          role="alert"
+          className="mb-6 flex items-start justify-between gap-3 rounded-lg border border-down/30 bg-down/10 p-4 text-sm text-ink"
+        >
+          <span>{deleteError}</span>
+          <button
+            onClick={() => setDeleteError('')}
+            className="shrink-0 rounded font-semibold text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+            aria-label="Dismiss message"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       {/* Category filter — searchable sector picker (empty = all sectors) */}
       <div className="mb-8 border-b border-line pb-5">
         <div className="max-w-xs">
@@ -152,6 +185,13 @@ export default function AutopsyLibrary() {
       {/* List */}
       {loading ? (
         <p className="py-12 text-center text-muted">Loading case studies…</p>
+      ) : isError ? (
+        <div className="py-12 text-center" role="alert">
+          <p className="text-muted">Couldn’t load the autopsy library. Check your connection and try again.</p>
+          <button onClick={fetchAutopsies} className="btn-outline mt-4">
+            Retry
+          </button>
+        </div>
       ) : filteredAutopsies.length === 0 ? (
         <p className="py-12 text-center text-muted">No autopsies found matching the criteria.</p>
       ) : (
@@ -195,16 +235,16 @@ export default function AutopsyLibrary() {
                   <div className="flex items-center gap-3">
                     {(autopsy.user_id === uid || isAdmin) && (
                       <button
-                        onClick={() => deleteAutopsy(autopsy)}
-                        className="flex items-center gap-1 text-faint hover:text-down"
-                        aria-label="Delete autopsy"
+                        onClick={() => setConfirmDelete(autopsy)}
+                        className="flex items-center gap-1 rounded text-faint hover:text-down focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                        aria-label={`Delete ${autopsy.project_name}`}
                       >
                         <Trash2 size={13} /> Delete
                       </button>
                     )}
                     <button
                       onClick={() => setReading(autopsy)}
-                      className="font-semibold text-accent hover:underline"
+                      className="rounded font-semibold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
                     >
                       Read full autopsy →
                     </button>
@@ -218,27 +258,22 @@ export default function AutopsyLibrary() {
 
       {/* Detail modal */}
       {reading && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in"
-          onClick={() => setReading(null)}
-          role="dialog"
-          aria-modal="true"
-          aria-label={`${reading.project_name} autopsy`}
+        <ModalShell
+          onRequestClose={() => setReading(null)}
+          labelledBy="autopsy-detail-title"
+          className="max-h-[90vh] max-w-2xl overflow-y-auto p-7"
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="card max-h-[90vh] w-full max-w-2xl overflow-y-auto p-7 shadow-pop animate-pop-in"
-          >
+          <div>
             <div className="mb-5 flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-2xl font-bold text-ink">{reading.project_name}</h3>
+                <h2 id="autopsy-detail-title" className="text-2xl font-bold text-ink">{reading.project_name}</h2>
                 <p className="mt-1 text-sm text-muted">
                   {reading.category}{reading.domain ? ` · ${reading.domain}` : ''}
                 </p>
               </div>
               <button
                 onClick={() => setReading(null)}
-                className="-mr-1 -mt-1 rounded-full p-2 text-muted transition-colors hover:bg-black/5 hover:text-ink"
+                className="-mr-1 -mt-1 rounded-full p-2 text-muted transition-colors hover:bg-black/5 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
                 aria-label="Close"
               >
                 <X size={20} />
@@ -259,13 +294,13 @@ export default function AutopsyLibrary() {
             </dl>
 
             <section className="mb-6 rounded-lg border border-down/20 bg-down/10 p-4">
-              <h4 className="mb-1 text-xs font-bold uppercase tracking-wide text-down">Root cause</h4>
+              <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-down">Root cause</h3>
               <p className="text-sm font-medium text-ink">{reading.root_cause}</p>
             </section>
 
             {reading.story && (
               <section className="mb-6">
-                <h4 className="mb-2 text-sm font-bold text-ink">The story</h4>
+                <h3 className="mb-2 text-sm font-bold text-ink">The story</h3>
                 <p className="whitespace-pre-line text-sm leading-relaxed text-muted [text-wrap:pretty]">
                   {reading.story}
                 </p>
@@ -274,7 +309,7 @@ export default function AutopsyLibrary() {
 
             {lessonsOf(reading).length > 0 && (
               <section>
-                <h4 className="mb-2 text-sm font-bold text-ink">Key lessons</h4>
+                <h3 className="mb-2 text-sm font-bold text-ink">Key lessons</h3>
                 <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted">
                   {lessonsOf(reading).map((lesson, idx) => (
                     <li key={idx}>{lesson}</li>
@@ -283,50 +318,47 @@ export default function AutopsyLibrary() {
               </section>
             )}
           </div>
-        </div>
+        </ModalShell>
       )}
 
       {/* Share Your Autopsy modal */}
       {isModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in"
-          onClick={() => { setIsModalOpen(false); resetForm(); }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Share your autopsy"
+        <ModalShell
+          onRequestClose={() => { setIsModalOpen(false); resetForm(); }}
+          labelledBy="autopsy-share-title"
+          className="max-h-[90vh] overflow-y-auto"
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="card max-h-[90vh] w-full max-w-lg overflow-y-auto p-6 shadow-pop animate-pop-in"
-          >
-            <h3 className="mb-4 text-xl font-bold text-ink">Share Your Idea Autopsy</h3>
+          <h2 id="autopsy-share-title" className="mb-4 text-xl font-bold text-ink">Share Your Idea Autopsy</h2>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-muted">Project name *</label>
+                  <label htmlFor="autopsy-project" className="text-xs font-medium text-muted">Project name *</label>
                   <input
+                    id="autopsy-project"
                     type="text" required value={projectName} onChange={(e) => setProjectName(e.target.value)}
                     placeholder="e.g. QuickDrop" className="input"
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-muted">Category *</label>
+                  <label htmlFor="autopsy-cat" className="text-xs font-medium text-muted">Category *</label>
                   <Combobox value={category} onChange={setCategory} options={SECTORS} placeholder="Select sector..." id="autopsy-cat" />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-muted">Domain *</label>
+                  <label htmlFor="autopsy-domain" className="text-xs font-medium text-muted">Domain *</label>
                   <input
+                    id="autopsy-domain"
                     type="text" required value={domain} onChange={(e) => setDomain(e.target.value)}
                     placeholder="e.g. Marketplace" className="input"
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-muted">Duration</label>
+                  <label htmlFor="autopsy-duration" className="text-xs font-medium text-muted">Duration</label>
                   <input
+                    id="autopsy-duration"
                     type="text" value={duration} onChange={(e) => setDuration(e.target.value)}
                     placeholder="e.g. 18 months" className="input"
                   />
@@ -334,32 +366,36 @@ export default function AutopsyLibrary() {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-muted">Total investment</label>
+                <label htmlFor="autopsy-investment" className="text-xs font-medium text-muted">Total investment</label>
                 <input
+                  id="autopsy-investment"
                   type="text" value={investment} onChange={(e) => setInvestment(e.target.value)}
                   placeholder="e.g. $500k or 500 hours" className="input"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-muted">Root cause of failure *</label>
+                <label htmlFor="autopsy-rootcause" className="text-xs font-medium text-muted">Root cause of failure *</label>
                 <input
+                  id="autopsy-rootcause"
                   type="text" required value={rootCause} onChange={(e) => setRootCause(e.target.value)}
                   placeholder="One sentence summary of why it failed" className="input"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-muted">The story</label>
+                <label htmlFor="autopsy-story" className="text-xs font-medium text-muted">The story</label>
                 <textarea
+                  id="autopsy-story"
                   rows="3" value={story} onChange={(e) => setStory(e.target.value)}
                   placeholder="What happened, in detail?" className="input"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-muted">Key lessons (one per line) *</label>
+                <label htmlFor="autopsy-lessons" className="text-xs font-medium text-muted">Key lessons (one per line) *</label>
                 <textarea
+                  id="autopsy-lessons"
                   rows="3" required value={keyLessons} onChange={(e) => setKeyLessons(e.target.value)}
                   placeholder={'Lesson 1\nLesson 2'} className="input"
                 />
@@ -373,6 +409,10 @@ export default function AutopsyLibrary() {
                 <span className="text-sm font-medium text-ink">Post this autopsy anonymously</span>
               </label>
 
+              {formError && (
+                <p role="alert" className="text-sm font-medium text-down">{formError}</p>
+              )}
+
               <div className="flex justify-end gap-3 border-t border-line pt-4">
                 <button
                   type="button" onClick={() => { setIsModalOpen(false); resetForm(); }}
@@ -384,9 +424,19 @@ export default function AutopsyLibrary() {
                   {submitting ? 'Submitting…' : 'Submit Autopsy'}
                 </button>
               </div>
-            </form>
-          </div>
-        </div>
+          </form>
+        </ModalShell>
+      )}
+
+      {confirmDelete && (
+        <ConfirmModal
+          title="Delete this autopsy?"
+          message={`“${confirmDelete.project_name}” will be permanently removed. This cannot be undone.`}
+          confirmLabel="Delete"
+          tone="danger"
+          onConfirm={() => deleteAutopsy(confirmDelete)}
+          onClose={() => setConfirmDelete(null)}
+        />
       )}
     </div>
   );

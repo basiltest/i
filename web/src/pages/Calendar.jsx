@@ -5,6 +5,7 @@ import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { supabase } from '../lib/supabase'
 import ModalShell from '../components/ModalShell'
+import ConfirmModal from '../components/ConfirmModal'
 import { useAuth } from '../lib/AuthProvider'
 import Spinner from '../components/Spinner'
 import { EVENT_TYPES, typeClass, googleCalUrl, downloadICS, actionEvent } from '../lib/calendar'
@@ -26,6 +27,7 @@ export default function Calendar() {
   const [detail, setDetail] = useState(null)
   const [deadlineDetail, setDeadlineDetail] = useState(null)
   const [formEvent, setFormEvent] = useState(undefined) // undefined = closed, null = new, obj = edit
+  const [confirmDelete, setConfirmDelete] = useState(null) // event pending delete confirmation
 
   // 6-week grid starting on the Sunday on/before the 1st
   const gridStart = useMemo(() => {
@@ -70,11 +72,12 @@ export default function Calendar() {
   }, [events, deadlines])
 
   const todayKey = dayKey(new Date())
+  const isEmptyMonth = !loading && !error && events.length === 0 && deadlines.length === 0
 
   async function deleteEvent(id) {
-    if (!window.confirm('Delete this event?')) return
     const { error: e } = await supabase.rpc('admin_delete_event', { p_id: id })
-    if (e) { console.error(e); return setError('Could not delete the event. Try again.') }
+    if (e) { console.error(e); setError('Could not delete the event. Try again.'); return }
+    setConfirmDelete(null)
     setDetail(null)
     load()
   }
@@ -99,7 +102,7 @@ export default function Calendar() {
           {month.toLocaleDateString([], { month: 'long', year: 'numeric' })}
         </h2>
         <button onClick={() => setMonth(addMonths(month, 1))} aria-label="Next month" className="rounded-full p-2 text-muted hover:bg-black/5"><ChevronRight size={18} /></button>
-        <button onClick={() => { const d = new Date(); setMonth(new Date(d.getFullYear(), d.getMonth(), 1)) }} className="btn-outline ml-2 px-3 py-1.5 text-xs">Today</button>
+        <button onClick={() => { const d = new Date(); setMonth(new Date(d.getFullYear(), d.getMonth(), 1)) }} className="btn-outline ml-2 px-3 py-2 text-xs">Today</button>
         {loading && <Spinner size={16} />}
       </div>
 
@@ -114,8 +117,8 @@ export default function Calendar() {
           const isToday = dayKey(d) === todayKey
           const list = byDay[dayKey(d)] || []
           return (
-            <div key={d.toISOString()} className={`min-h-[92px] bg-card p-1.5 ${inMonth ? '' : 'opacity-40'}`}>
-              <div className={`mb-1 text-right text-xs font-semibold ${isToday ? 'text-accent' : 'text-muted'}`}>
+            <div key={d.toISOString()} className="min-h-[92px] bg-card p-1.5" aria-current={isToday ? 'date' : undefined}>
+              <div className={`mb-1 text-right text-xs font-semibold ${isToday ? 'text-accent' : inMonth ? 'text-muted' : 'text-faint'}`}>
                 {isToday ? <span className="inline-grid h-5 w-5 place-items-center rounded-full bg-accent text-onaccent">{d.getDate()}</span> : d.getDate()}
               </div>
               <div className="space-y-1">
@@ -124,16 +127,17 @@ export default function Calendar() {
                     <button
                       key={it.ev.id}
                       onClick={() => setDetail(it.ev)}
-                      className={`flex w-full items-center gap-1 truncate rounded px-1 py-0.5 text-left text-[11px] font-semibold ${typeClass(it.ev.type)}`}
-                      title={it.ev.title}
+                      className={`flex w-full items-center gap-1 truncate rounded px-1 py-1 text-left text-[11px] font-semibold ${typeClass(it.ev.type)}`}
+                      title={`${it.ev.type}: ${it.ev.title}`}
                     >
+                      <span className="sr-only">{it.ev.type}:</span>
                       <span className="truncate">{it.ev.title}</span>
                     </button>
                   ) : (
                     <button
                       key={it.a.id}
                       onClick={() => setDeadlineDetail(it.a)}
-                      className="flex w-full items-center gap-1 truncate rounded border border-dashed border-down/50 bg-down/10 px-1 py-0.5 text-left text-[11px] font-semibold text-down"
+                      className="flex w-full items-center gap-1 truncate rounded border border-dashed border-down/50 bg-down/10 px-1 py-1 text-left text-[11px] font-semibold text-down"
                       title={`${it.a.label} (only you can see this)`}
                     >
                       <Flag size={10} className="shrink-0" />
@@ -148,13 +152,30 @@ export default function Calendar() {
         })}
       </div>
 
+      {isEmptyMonth && (
+        <p className="mt-3 text-center text-sm text-muted">
+          No events this month.
+          {isAdmin && <> <button className="font-semibold text-accent underline-offset-2 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50" onClick={() => setFormEvent(null)}>Add one</button>.</>}
+        </p>
+      )}
+
       {detail && (
         <EventDetailModal
           ev={detail}
           isAdmin={isAdmin}
           onClose={() => setDetail(null)}
           onEdit={() => { setFormEvent(detail); setDetail(null) }}
-          onDelete={() => deleteEvent(detail.id)}
+          onDelete={() => setConfirmDelete(detail)}
+        />
+      )}
+      {confirmDelete && (
+        <ConfirmModal
+          title="Delete this event?"
+          message={`"${confirmDelete.title}" will be removed from everyone's calendar. This cannot be undone.`}
+          confirmLabel="Delete"
+          tone="danger"
+          onConfirm={() => deleteEvent(confirmDelete.id)}
+          onClose={() => setConfirmDelete(null)}
         />
       )}
       {deadlineDetail && (
@@ -246,6 +267,7 @@ function EventFormModal({ ev, onClose, onSaved }) {
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const initialRef = useRef(JSON.stringify({
     title: ev?.title || '', type: ev?.type || 'Workshop', location: ev?.location || '',
     description: ev?.description || '',
@@ -261,7 +283,7 @@ function EventFormModal({ ev, onClose, onSaved }) {
       starts: f.starts ? f.starts.toISOString() : null,
       ends: f.ends ? f.ends.toISOString() : null,
     })
-    if (now !== initialRef.current && !window.confirm(editing ? 'Discard your changes?' : 'Discard this event? Your input will be lost.')) return
+    if (now !== initialRef.current) { setConfirmDiscard(true); return }
     onClose()
   }
 
@@ -329,6 +351,16 @@ function EventFormModal({ ev, onClose, onSaved }) {
         <button className="btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
         <button className="btn-primary" onClick={save} disabled={busy}>{busy ? 'Saving...' : editing ? 'Save changes' : 'Add event'}</button>
       </div>
+      {confirmDiscard && (
+        <ConfirmModal
+          title={editing ? 'Discard your changes?' : 'Discard this event?'}
+          message={editing ? 'Your edits will be lost.' : 'Your input will be lost.'}
+          confirmLabel="Discard"
+          tone="danger"
+          onConfirm={() => { setConfirmDiscard(false); onClose() }}
+          onClose={() => setConfirmDiscard(false)}
+        />
+      )}
     </Shell>
   )
 }

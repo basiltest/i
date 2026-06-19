@@ -4,6 +4,7 @@ import { Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
 import MemberTypeBadge from '../components/MemberTypeBadge'
+import ConfirmModal from '../components/ConfirmModal'
 
 const NOTIF_ROWS = [
   { key: 'pipeline', label: 'Idea Pipeline', desc: 'Gate decisions, reviews, action items, and messages on your ideas.' },
@@ -32,13 +33,14 @@ export default function Settings() {
   const [pwBusy, setPwBusy] = useState(false)
   const [pwError, setPwError] = useState('')
   const [pwOk, setPwOk] = useState(false)
+  const [confirmGlobalOut, setConfirmGlobalOut] = useState(false)
 
   useEffect(() => {
     if (!userId) return
     let active = true
     supabase
       .from('profiles')
-      .select('name, role, directory_visible, contactable, notification_prefs')
+      .select('name, role, member_type, directory_visible, contactable, notification_prefs')
       .eq('id', userId)
       .single()
       .then(({ data }) => {
@@ -103,7 +105,7 @@ export default function Settings() {
   }
 
   async function signOutEverywhere() {
-    if (!window.confirm('Sign out of every device? You will need to log in again everywhere, including here.')) return
+    setConfirmGlobalOut(false)
     await supabase.auth.signOut({ scope: 'global' })
   }
 
@@ -136,7 +138,7 @@ export default function Settings() {
           </div>
           <Link to="/profile" className="btn-outline ml-auto px-3 py-1.5 text-xs">Edit in Profile</Link>
         </div>
-        <p className="mt-3 text-xs text-faint">
+        <p className="mt-3 text-xs text-muted">
           Email and role are managed by IFN. An Admin can change a member's role.
         </p>
       </section>
@@ -181,7 +183,7 @@ export default function Settings() {
             disabled={loading}
           />
         </div>
-        {!listed && <p className="mt-3 text-xs text-faint">You are hidden from the Directory. Turn the first toggle on to appear.</p>}
+        {!listed && <p className="mt-3 text-xs text-muted">You are hidden from the Directory. Turn the first toggle on to appear.</p>}
       </section>
 
       {/* Security */}
@@ -189,7 +191,7 @@ export default function Settings() {
         <h2 className="mb-3 text-base font-bold">Security</h2>
         <form onSubmit={changePassword} className="space-y-3">
           <div className="text-sm font-semibold">Change password</div>
-          {pwError && <div role="alert" className="rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{pwError}</div>}
+          {pwError && <div id="pw-error" role="alert" className="rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{pwError}</div>}
           {pwOk && (
             <div role="status" className="flex items-center gap-1.5 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">
               <Check size={15} /> Password updated.
@@ -198,11 +200,11 @@ export default function Settings() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-muted">New password</span>
-              <input className="input" type="password" autoComplete="new-password" value={pw1} onChange={(e) => setPw1(e.target.value)} placeholder="At least 8 characters" />
+              <input className="input" type="password" autoComplete="new-password" value={pw1} onChange={(e) => setPw1(e.target.value)} placeholder="At least 8 characters" aria-invalid={!!pwError} aria-describedby={pwError ? 'pw-error' : undefined} />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-muted">Confirm new password</span>
-              <input className="input" type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="Repeat it" />
+              <input className="input" type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="Repeat it" aria-invalid={!!pwError} aria-describedby={pwError ? 'pw-error' : undefined} />
             </label>
           </div>
           <div className="flex justify-end">
@@ -211,12 +213,21 @@ export default function Settings() {
             </button>
           </div>
         </form>
-        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-line pt-4">
-          <div className="min-w-0">
-            <div className="text-sm font-semibold">Sign out everywhere</div>
-            <div className="text-xs text-muted">End your session on every device, including shared lab machines.</div>
+        <div className="mt-4 space-y-3 border-t border-line pt-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold">Log out (this device)</div>
+              <div className="text-xs text-muted">End your session here only.</div>
+            </div>
+            <button className="btn-outline ml-auto shrink-0" onClick={() => supabase.auth.signOut()}>Log out</button>
           </div>
-          <button className="btn-outline ml-auto shrink-0" onClick={signOutEverywhere}>Sign out everywhere</button>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold">Sign out everywhere</div>
+              <div className="text-xs text-muted">End your session on every device, including shared lab machines.</div>
+            </div>
+            <button className="btn-outline ml-auto shrink-0" onClick={() => setConfirmGlobalOut(true)}>Sign out everywhere</button>
+          </div>
         </div>
       </section>
 
@@ -231,12 +242,16 @@ export default function Settings() {
         />
       </section>
 
-      {/* Session */}
-      <section className="card p-5">
-        <h2 className="mb-1 text-base font-bold">Session</h2>
-        <p className="mb-3 text-sm text-muted">Sign out of this device.</p>
-        <button className="btn-outline" onClick={() => supabase.auth.signOut()}>Log out</button>
-      </section>
+      {confirmGlobalOut && (
+        <ConfirmModal
+          title="Sign out everywhere?"
+          message="You will need to log in again on every device, including here."
+          confirmLabel="Sign out everywhere"
+          tone="danger"
+          onConfirm={signOutEverywhere}
+          onClose={() => setConfirmGlobalOut(false)}
+        />
+      )}
     </div>
   )
 }
@@ -251,8 +266,10 @@ function Row({ label, desc, on, status, onToggle, disabled }) {
         <div className="text-xs text-muted">{desc}</div>
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-2">
-        {status === 'saved' && <span role="status" className="text-xs font-semibold text-success">Saved</span>}
-        {status === 'error' && <span role="alert" className="text-xs font-semibold text-down">Not saved</span>}
+        <span aria-live="polite" className="text-xs font-semibold">
+          {status === 'saved' && <span className="text-success">Saved</span>}
+          {status === 'error' && <span className="text-down">Not saved</span>}
+        </span>
         <Toggle on={on} onClick={onToggle} ariaLabel={label} disabled={disabled} />
       </div>
     </div>

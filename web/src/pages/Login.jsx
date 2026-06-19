@@ -20,7 +20,9 @@ export default function Login() {
   const [error, setError] = useState('')
   const [cooldown, setCooldown] = useState(0)
   const [captchaToken, setCaptchaToken] = useState('')
+  const [invalidField, setInvalidField] = useState('')
   const turnstileRef = useRef(null)
+  const errorRef = useRef(null)
   const navigate = useNavigate()
 
   // Turnstile tokens are single-use: GoTrue spends the token on every signin attempt, so a
@@ -42,6 +44,16 @@ export default function Login() {
   async function handleSubmit(e) {
     e.preventDefault()
     if (loading || cooldown > 0) return
+    // Pre-submit guard: catch empty fields client-side so the user gets an instant,
+    // field-tied error instead of a blank request and a generic server round-trip.
+    if (!email.trim() || !password) {
+      const missing = !email.trim() ? 'email' : 'password'
+      setInvalidField(missing)
+      setError('Enter your email and password.')
+      document.getElementById(missing)?.focus()
+      return
+    }
+    setInvalidField('')
     if (captchaEnabled && !captchaToken) {
       setError('Please complete the verification below.')
       return
@@ -61,6 +73,9 @@ export default function Login() {
         // mapped to our own copy so the UI never renders a vendor string verbatim.
         if (isRateLimitError(signInError)) setCooldown(COOLDOWN_SECONDS)
         setError(authErrorMessage(signInError))
+        // Pull focus to the alert so the failure is announced and seen near the action,
+        // not stranded at the top of the form on short mobile viewports.
+        requestAnimationFrame(() => errorRef.current?.focus())
         return
       }
       navigate('/', { replace: true })
@@ -73,24 +88,20 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen grid place-items-center px-6">
+    <main className="min-h-screen grid place-items-center px-6">
       <form onSubmit={handleSubmit} noValidate className="card w-full max-w-sm p-8 animate-pop-in">
         <Logo className="mb-5 h-12 w-auto" />
-        <h2 className="text-lg font-semibold">Back to the Network</h2>
+        <h1 className="text-lg font-semibold">Back to the Network</h1>
         <p className="mb-5 text-sm text-muted">Sign in to continue.</p>
-
-        {error && (
-          <div role="alert" className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">
-            {error}
-          </div>
-        )}
 
         <div className="mb-3.5 flex flex-col gap-1.5">
           <label htmlFor="email" className="text-xs font-medium text-muted">Email</label>
           <input
             id="email" type="email" className="input" value={email}
             autoComplete="email"
-            onChange={(e) => setEmail(e.target.value)}
+            aria-invalid={invalidField === 'email' || undefined}
+            aria-describedby={error ? 'login-error' : undefined}
+            onChange={(e) => { setEmail(e.target.value); if (invalidField === 'email') setInvalidField('') }}
           />
         </div>
 
@@ -99,12 +110,12 @@ export default function Login() {
           <PasswordInput
             id="password" value={password}
             autoComplete="current-password"
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => { setPassword(e.target.value); if (invalidField === 'password') setInvalidField('') }}
           />
         </div>
 
         <div className="mb-4 text-right">
-          <Link to="/forgot-password" className="text-xs font-semibold text-accent hover:underline">
+          <Link to="/forgot-password" className="inline-block -my-1 py-1 text-sm font-semibold text-accent hover:underline">
             Forgot password?
           </Link>
         </div>
@@ -122,6 +133,18 @@ export default function Login() {
           </div>
         )}
 
+        {error && (
+          <div
+            ref={errorRef}
+            id="login-error"
+            role="alert"
+            tabIndex={-1}
+            className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+          >
+            {error}
+          </div>
+        )}
+
         <button type="submit" disabled={loading || cooldown > 0} className="btn-primary w-full">
           {cooldown > 0 ? `Try again in ${cooldown}s` : loading ? 'Signing in...' : 'Log in'}
         </button>
@@ -131,6 +154,6 @@ export default function Login() {
           <Link to="/register" className="font-semibold text-accent hover:underline">Register</Link>
         </p>
       </form>
-    </div>
+    </main>
   )
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { Plus, Search, CalendarClock, MessageCircle, ArrowBigUp, ArrowBigDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthProvider'
@@ -10,7 +10,6 @@ import { timeAgo } from '../lib/format'
 const GENERIC_ERR = 'Something went wrong. Please try again.'
 
 export default function ProblemHub() {
-  const navigate = useNavigate()
   const { session } = useAuth()
 
   const [problems, setProblems] = useState([])
@@ -112,19 +111,15 @@ export default function ProblemHub() {
           {problems.map((p) => (
             <article
               key={p.id}
-              onClick={() => navigate(`/problem-hub/${p.id}`)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/problem-hub/${p.id}`) } }}
-              role="link"
-              tabIndex={0}
-              className={`card cursor-pointer p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-pop ${p.closed ? 'opacity-60' : ''}`}
+              className={`card relative p-5 transition focus-within:ring-2 focus-within:ring-accent/50 hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-pop ${p.closed ? 'opacity-60' : ''}`}
             >
               <header className="flex items-center gap-2">
-                <AuthorLink id={p.author_id} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent">
+                <AuthorLink id={p.author_id} className="relative z-10 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent">
                   {(p.author_name || '?').charAt(0).toUpperCase()}
                 </AuthorLink>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <AuthorLink id={p.author_id} className="truncate text-sm font-bold">{p.author_name}</AuthorLink>
+                    <AuthorLink id={p.author_id} className="relative z-10 truncate text-sm font-bold">{p.author_name}</AuthorLink>
                   </div>
                   <div className="text-xs text-muted">{timeAgo(p.created_at)}</div>
                 </div>
@@ -135,7 +130,14 @@ export default function ProblemHub() {
                 </span>
               </header>
 
-              <h3 className="mt-3 break-words text-base font-bold">{p.title}</h3>
+              <h3 className="mt-3 break-words text-base font-bold">
+                <Link
+                  to={`/problem-hub/${p.id}`}
+                  className="after:absolute after:inset-0 after:rounded-[inherit] focus-visible:outline-none"
+                >
+                  {p.title}
+                </Link>
+              </h3>
               {p.deadline && (
                 <div className="mt-0.5 flex items-center gap-1 text-xs text-muted">
                   <CalendarClock size={13} />
@@ -153,26 +155,32 @@ export default function ProblemHub() {
               )}
 
               <footer className="mt-3 flex items-center gap-2">
-                <div onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-0.5 rounded-lg bg-page px-1 py-0.5">
+                <div onClick={(e) => e.stopPropagation()} className="relative z-10 inline-flex items-center gap-1 rounded-lg bg-line/40 px-1 py-0.5">
                   <button
                     onClick={(e) => vote(e, p.id, 1)}
                     aria-label="Upvote"
-                    className={`rounded-full p-1.5 transition-colors hover:bg-black/5 ${p.my_vote === 1 ? 'text-accent' : 'text-muted'}`}
+                    aria-pressed={p.my_vote === 1}
+                    className={`grid min-h-9 min-w-9 place-items-center rounded-full transition-colors hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${p.my_vote === 1 ? 'text-accent' : 'text-muted'}`}
                   >
                     <ArrowBigUp size={20} fill={p.my_vote === 1 ? 'currentColor' : 'none'} />
                   </button>
-                  <span className={`min-w-[2ch] text-center text-sm font-bold ${p.my_vote > 0 ? 'text-accent' : p.my_vote < 0 ? 'text-down' : 'text-ink'}`}>
+                  <span
+                    aria-live="polite"
+                    aria-label={`${Number(p.score) || 0} points`}
+                    className={`min-w-[2ch] text-center text-sm font-bold ${p.my_vote > 0 ? 'text-accent' : p.my_vote < 0 ? 'text-down' : 'text-ink'}`}
+                  >
                     {Number(p.score) || 0}
                   </span>
                   <button
                     onClick={(e) => vote(e, p.id, -1)}
                     aria-label="Downvote"
-                    className={`rounded-full p-1.5 transition-colors hover:bg-black/5 ${p.my_vote === -1 ? 'text-down' : 'text-muted'}`}
+                    aria-pressed={p.my_vote === -1}
+                    className={`grid min-h-9 min-w-9 place-items-center rounded-full transition-colors hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${p.my_vote === -1 ? 'text-down' : 'text-muted'}`}
                   >
                     <ArrowBigDown size={20} fill={p.my_vote === -1 ? 'currentColor' : 'none'} />
                   </button>
                 </div>
-                <span className="inline-flex items-center gap-1.5 rounded-lg bg-page px-3 py-2 text-sm font-semibold text-muted">
+                <span className="relative z-10 inline-flex items-center gap-1.5 rounded-lg bg-line/40 px-3 py-2 text-sm font-semibold text-muted">
                   <MessageCircle size={18} /> {Number(p.solution_count)} {Number(p.solution_count) === 1 ? 'solution' : 'solutions'}
                 </span>
                 {p.i_solved && <span className="text-xs font-semibold text-accent">You replied</span>}

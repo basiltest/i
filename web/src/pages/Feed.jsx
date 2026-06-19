@@ -231,6 +231,7 @@ export default function Feed() {
 
   return (
     <div>
+      <h1 className="sr-only">Feed</h1>
       {/* search + create */}
       <div className="mb-3 flex items-center gap-2">
         <div className="relative flex-1">
@@ -278,14 +279,14 @@ export default function Feed() {
       {/* controls: sort */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {/* sort: segmented control, all options visible + self-labeling */}
-        <div className="inline-flex rounded-lg border border-line p-0.5" role="tablist" aria-label="Sort posts">
+        <div className="inline-flex rounded-lg border border-line p-0.5" role="radiogroup" aria-label="Sort posts">
           {SORTS.map((o) => (
             <button
               key={o.s}
-              role="tab"
-              aria-selected={sort === o.s}
+              role="radio"
+              aria-checked={sort === o.s}
               onClick={() => setSort(o.s)}
-              className={`rounded-md px-3.5 py-1.5 text-sm font-semibold transition-colors ${
+              className={`rounded-md px-3.5 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
                 sort === o.s ? 'bg-accent-soft text-accent' : 'text-muted hover:text-ink'
               }`}
             >
@@ -296,14 +297,14 @@ export default function Feed() {
 
         {/* Top needs a window, else it silently rots into all-time */}
         {sort === 'top' && (
-          <div className="inline-flex rounded-lg border border-line p-0.5" role="tablist" aria-label="Top window">
+          <div className="inline-flex rounded-lg border border-line p-0.5" role="radiogroup" aria-label="Top window">
             {TOP_WINDOWS.map((t) => (
               <button
                 key={t.w}
-                role="tab"
-                aria-selected={topWindow === t.w}
+                role="radio"
+                aria-checked={topWindow === t.w}
                 onClick={() => setTopWindow(t.w)}
-                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                className={`rounded-md px-3 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
                   topWindow === t.w ? 'bg-accent-soft text-accent' : 'text-muted hover:text-ink'
                 }`}
               >
@@ -320,7 +321,11 @@ export default function Feed() {
           {filters.tags.map((t) => (
             <span key={t} className="chip">
               #{t}
-              <button onClick={() => removeTag(t)} aria-label={`Remove ${t}`}><X size={12} /></button>
+              <button
+                onClick={() => removeTag(t)}
+                aria-label={`Remove ${t}`}
+                className="relative inline-flex items-center justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 before:absolute before:left-1/2 before:top-1/2 before:h-9 before:w-9 before:-translate-x-1/2 before:-translate-y-1/2 before:content-['']"
+              ><X size={12} /></button>
             </span>
           ))}
         </div>
