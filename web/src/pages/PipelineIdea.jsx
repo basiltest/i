@@ -776,7 +776,7 @@ function Files({ d, mine, onChanged }) {
   }
 
   async function download(path) {
-    const { data } = await supabase.storage.from('idea-files').createSignedUrl(path, 3600)
+    const { data } = await supabase.storage.from('idea-files').createSignedUrl(path, 3600, { download: true })
     if (data?.signedUrl) window.open(data.signedUrl, '_blank')
   }
 

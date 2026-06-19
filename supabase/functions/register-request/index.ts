@@ -44,6 +44,14 @@ const STUDENT_DOMAIN = 'ifheindia.org'
 const ALLOWED_TYPES = ['Founder', 'Student', 'Mentor', 'Investor', 'Network Enabler', 'Service Provider', 'Incubator', 'Other']
 const CERT_MIME: Record<string, string> = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png' }
 const MAX_CERT_BYTES = 5 * 1024 * 1024
+
+// Verify a file's true type from its magic bytes — never trust the client-declared Content-Type.
+function sniffCertType(b: Uint8Array): 'application/pdf' | 'image/jpeg' | 'image/png' | null {
+  if (b.length >= 4 && b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) return 'application/pdf' // %PDF
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg'                       // JPEG SOI
+  if (b.length >= 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png'        // \x89PNG
+  return null
+}
 const RATE_LIMIT_PER_HOUR = 5
 
 function json(body: unknown, status = 200) {
@@ -120,15 +128,17 @@ Deno.serve(async (req) => {
   // Certificate upload (private bucket).
   let certPath: string | null = null
   if (cert?.dataBase64) {
-    const ext = CERT_MIME[cert.contentType || '']
-    if (!ext) return json({ error: 'Certificate must be a PDF, JPG, or PNG.' }, 400)
+    if (!CERT_MIME[cert.contentType || '']) return json({ error: 'Certificate must be a PDF, JPG, or PNG.' }, 400)
     let bytes: Uint8Array
     try { bytes = Uint8Array.from(atob(cert.dataBase64), (c) => c.charCodeAt(0)) }
     catch { return json({ error: 'Could not read the uploaded file.' }, 400) }
     if (bytes.byteLength === 0) return json({ error: 'The uploaded file is empty.' }, 400)
     if (bytes.byteLength > MAX_CERT_BYTES) return json({ error: 'Certificate must be 5 MB or smaller.' }, 400)
-    certPath = `${crypto.randomUUID()}.${ext}`
-    const { error: upErr } = await admin.storage.from('registration-certs').upload(certPath, bytes, { contentType: cert.contentType })
+    // Trust the bytes, not the client: derive the type + extension from the magic bytes.
+    const realType = sniffCertType(bytes)
+    if (!realType) return json({ error: 'Certificate must be a real PDF, JPG, or PNG file.' }, 400)
+    certPath = `${crypto.randomUUID()}.${CERT_MIME[realType]}`
+    const { error: upErr } = await admin.storage.from('registration-certs').upload(certPath, bytes, { contentType: realType })
     if (upErr) { console.error('cert upload failed:', upErr); return json({ error: 'Could not store the certificate. Try again.' }, 500) }
   }
 
