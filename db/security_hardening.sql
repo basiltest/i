@@ -115,3 +115,41 @@ create policy "posts update own" on public.posts
 -- -- Status transitions (approve/reject) must be admin-only. Either keep the
 -- -- column revoked and move AdminPanel's approve/reject to a SECURITY DEFINER
 -- -- RPC (admin_review_autopsy), or add an UPDATE policy gated on public.is_admin().
+
+-- ---------------------------------------------------------------------------
+-- [CONSISTENCY] Extend the can_write() read-only guard to the remaining content
+-- write policies that were missing it (problem_votes, problems, team_posts,
+-- sub_threads), matching posts. Banned / read-only users can browse but cannot
+-- post, edit, or vote via direct PostgREST calls. (DELETE-own and notifications
+-- mark-read stay allowed in read-only mode. idea_autopsies lives only in the
+-- cloud dashboard schema, so its equivalent guard is applied there, not here.)
+
+drop policy if exists "upsert own vote" on public.problem_votes;
+create policy "upsert own vote" on public.problem_votes
+  for insert to authenticated
+  with check (user_id = auth.uid() and public.can_write(auth.uid()));
+
+drop policy if exists "update own vote" on public.problem_votes;
+create policy "update own vote" on public.problem_votes
+  for update to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid() and public.can_write(auth.uid()));
+
+drop policy if exists "problems update own" on public.problems;
+create policy "problems update own" on public.problems
+  for update to authenticated
+  using (author_id = auth.uid())
+  with check (author_id = auth.uid() and public.can_write(auth.uid()));
+
+drop policy if exists "team_posts update own" on public.team_posts;
+create policy "team_posts update own" on public.team_posts
+  for update to authenticated
+  using (author_id = auth.uid())
+  with check (author_id = auth.uid() and public.can_write(auth.uid()));
+
+drop policy if exists "sub_threads insert by post author" on public.sub_threads;
+create policy "sub_threads insert by post author" on public.sub_threads
+  for insert to authenticated
+  with check (author_id = auth.uid()
+    and auth.uid() = (select posts.author_id from public.posts where posts.id = sub_threads.post_id)
+    and public.can_write(auth.uid()));
