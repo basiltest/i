@@ -27,3 +27,4 @@ skills-lock.json
 *.sln
 *.sw?
 .vercel
+nohup.out
