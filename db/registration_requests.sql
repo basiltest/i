@@ -51,10 +51,15 @@ language sql security definer set search_path = public as $$
 $$;
 grant execute on function public.admin_list_registration_requests() to authenticated;
 
--- 4. Private bucket for certificates.
-insert into storage.buckets (id, name, public)
-values ('registration-certs', 'registration-certs', false)
-on conflict (id) do nothing;
+-- 4. Private bucket for certificates. Only the register-request edge function (service role)
+-- writes here, and it already validates type/size/magic-bytes; the bucket-level limits below
+-- are defense-in-depth (5 MB, PDF/JPG/PNG only). on-conflict updates so existing buckets get them.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('registration-certs', 'registration-certs', false, 5242880,
+        array['application/pdf','image/jpeg','image/png'])
+on conflict (id) do update
+  set file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
 
 -- Admins can read cert objects (so the Requests tab can mint signed URLs). The edge
 -- functions upload/delete with the service role, which bypasses RLS.
