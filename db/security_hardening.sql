@@ -165,3 +165,15 @@ create policy "sub_threads insert by post author" on public.sub_threads
 -- authenticated keeps its explicit grants; service_role/postgres are untouched.
 revoke execute on all functions in schema public from anon;
 revoke execute on all functions in schema public from public;
+
+-- ---------------------------------------------------------------------------
+-- [SEARCH_PATH] Pin search_path on 6 functions the linter flagged as mutable
+-- (function_search_path_mutable). Defense against search_path hijacking of a
+-- SECURITY DEFINER function. The source definitions should also add
+-- `set search_path = public`; these ALTERs are the idempotent backstop.
+alter function public.check_application(p_title text, p_sectors text[], p_problem text, p_solution text, p_application jsonb) set search_path = public;
+alter function public.contact_daily_cap() set search_path = public;
+alter function public.idea_path_uuid(p_name text) set search_path = public;
+alter function public.notif_category(p_kind text) set search_path = public;
+alter function public.pipeline_waiting_on(p public.pipeline_ideas) set search_path = public;
+alter function public.student_domain() set search_path = public;
