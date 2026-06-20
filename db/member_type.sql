@@ -39,6 +39,10 @@ as $$
          or coalesce(p.startup, '') ilike '%' || p_search || '%')
   order by coalesce(p.directory_pinned, false) desc, p.name
 $$;
+-- Lock to logged-in members: Postgres grants function EXECUTE to PUBLIC by default, and
+-- directory() has no auth.uid() gate, so without this revoke the anon role (public key, no
+-- login) could call it and harvest the whole member list incl. emails. Members only.
+revoke execute on function public.directory(text, text, text, text, text, text) from anon, public;
 grant execute on function public.directory(text, text, text, text, text, text) to authenticated;
 
 -- public_profile: add member_type.
@@ -59,6 +63,7 @@ as $$
   join auth.users u on u.id = p.id
   where p.id = p_user and coalesce(p.banned, false) = false
 $$;
+revoke execute on function public.public_profile(uuid) from anon, public;
 grant execute on function public.public_profile(uuid) to authenticated;
 
 -- admin_get_profile: add member_type.
