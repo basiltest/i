@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { X, ArrowUp } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { errMessage } from '../lib/errors'
 import PostCard from '../components/PostCard'
 import PostCardSkeleton from '../components/PostCardSkeleton'
 import CreatePostModal from '../components/CreatePostModal'
@@ -116,7 +117,7 @@ export default function Feed() {
         p_offset: off,
         p_top_days: sort === 'top' ? (TOP_WINDOWS.find((t) => t.w === topWindow)?.days ?? null) : null,
       })
-      if (e) { console.error('feed_posts failed:', e); setError(e.message); return 0 }
+      if (e) { console.error('feed_posts failed:', e); setError(errMessage(e, 'Could not load the feed. Check your connection and try again.')); return 0 }
       setError('')
       const rows = data || []
       setPosts((prev) => (replace ? rows : [...prev, ...rows]))

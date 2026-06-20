@@ -995,7 +995,7 @@ function AdminControls({ d, onChanged, onDeleted }) {
     setError('')
     const e = await fn(reason.trim())
     setBusy(false)
-    if (e) { console.error(e); return setError(e.message || GENERIC_ERR) }
+    if (e) { console.error(e); return setError(errMessage(e, GENERIC_ERR)) }
     setReason('')
     onChanged()
   }
@@ -1025,7 +1025,7 @@ function AdminControls({ d, onChanged, onDeleted }) {
     setBusy(true)
     setError('')
     const { error: e } = await supabase.rpc('admin_delete_pipeline_idea', { p_idea: idea.id, p_reason: reason.trim() })
-    if (e) { setBusy(false); console.error(e); return setError(e.message || GENERIC_ERR) }
+    if (e) { setBusy(false); console.error(e); return setError(errMessage(e, GENERIC_ERR)) }
     onDeleted()
   }
 

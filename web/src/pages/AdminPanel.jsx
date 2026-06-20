@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { Users, SlidersHorizontal, Search, Workflow, UserPlus, Copy, Check, Inbox, ExternalLink, FolderHeart } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { errMessage } from '../lib/errors'
 import ModalShell from '../components/ModalShell'
 import ConfirmModal from '../components/ConfirmModal'
 import Combobox from '../components/Combobox'
@@ -436,7 +437,7 @@ export default function AdminPanel() {
     setBusy(true)
     const { error: e } = await supabase.rpc('admin_bulk_assign', { p_ideas: [...sel], p_mentor: bulkMentor, p_reason: bulkReason.trim() })
     setBusy(false)
-    if (e) { console.error(e); return setError(e.message || GENERIC_ERR) }
+    if (e) { console.error(e); return setError(errMessage(e, GENERIC_ERR)) }
     setBulkReason('')
     load()
   }
@@ -462,7 +463,7 @@ export default function AdminPanel() {
         setBusy(true)
         const { error: e } = await supabase.rpc('admin_delete_pipeline_idea', { p_idea: r.id, p_reason: reason })
         setBusy(false)
-        if (e) { console.error(e); setError(e.message || GENERIC_ERR) } else load()
+        if (e) { console.error(e); setError(errMessage(e, GENERIC_ERR)) } else load()
         setConfirm(null)
       },
     })

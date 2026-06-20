@@ -36,7 +36,7 @@ export default function Profile() {
       .single()
       .then(({ data, error: e }) => {
         if (!active) return
-        if (e) setError(e.message)
+        if (e) setError(errMessage(e, 'Could not load your profile. Refresh and try again.'))
         else setProfile(data)
         setLoading(false)
       })

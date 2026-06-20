@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { X, Plus } from 'lucide-react'
 import ModalShell from './ModalShell'
 import { supabase } from '../lib/supabase'
+import { errMessage } from '../lib/errors'
 
 const MIN_OPTIONS = 2
 const MAX_OPTIONS = 8
@@ -39,7 +40,7 @@ export default function CreatePollModal({ open, onClose, onCreated }) {
       p_tags: [],
     })
     setBusy(false)
-    if (e2) { console.error(e2); return setError(e2.message || 'Could not create the poll. Try again.') }
+    if (e2) { console.error(e2); return setError(errMessage(e2, 'Could not create the poll. Try again.')) }
     onCreated?.()
   }
 

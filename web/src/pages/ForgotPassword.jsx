@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { authErrorMessage } from '../lib/authErrors'
 import Logo from '../components/Logo'
 
 export default function ForgotPassword() {
@@ -23,7 +24,7 @@ export default function ForgotPassword() {
         redirectTo: `${window.location.origin}/reset-password`,
       })
       if (resetError) {
-        setError(resetError.message)
+        setError(authErrorMessage(resetError))
         return
       }
       // Generic success regardless of whether the account exists (no enumeration).

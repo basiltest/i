@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { errMessage } from '../lib/errors';
 import { useAuth } from '../lib/AuthProvider';
 import { SECTORS } from '../lib/options';
 import Combobox from '../components/Combobox';
@@ -91,7 +92,7 @@ export default function AutopsyLibrary() {
       setIsModalOpen(false);
       resetForm();
     } catch (err) {
-      setFormError(err.message);
+      setFormError(errMessage(err, 'Could not submit your autopsy. Try again.'));
     } finally {
       setSubmitting(false);
     }
