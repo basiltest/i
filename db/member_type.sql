@@ -28,6 +28,7 @@ as $$
   from public.profiles p
   join auth.users u on u.id = p.id
   where coalesce(p.banned, false) = false
+    and coalesce(p.onboarded, false) = true
     and coalesce(p.directory_visible, true) = true
     and (p_role is null or p.role = p_role)
     and (p_member_type is null or p.member_type = p_member_type)
