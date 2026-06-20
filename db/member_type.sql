@@ -15,14 +15,18 @@ create function public.directory(
 )
 returns table (
   id uuid, name text, role text, member_type text, startup text,
-  region text, sector text, domain text, linkedin text, bio text, pinned boolean, contactable boolean
+  region text, sector text, domain text, linkedin text, bio text, pinned boolean, contactable boolean, email text
 )
 language sql stable security definer set search_path = public
 as $$
+  -- email is surfaced (gated on contactable) so members reach each other by email/LinkedIn
+  -- directly; the in-app email relay was removed 2026-06-20.
   select
     p.id, p.name, p.role, p.member_type, p.startup, p.region, p.sector, p.domain, p.linkedin,
-    p.bio, coalesce(p.directory_pinned, false), coalesce(p.contactable, true)
+    p.bio, coalesce(p.directory_pinned, false), coalesce(p.contactable, true),
+    case when coalesce(p.contactable, true) then u.email::text else null end
   from public.profiles p
+  join auth.users u on u.id = p.id
   where coalesce(p.banned, false) = false
     and coalesce(p.directory_visible, true) = true
     and (p_role is null or p.role = p_role)
@@ -43,14 +47,16 @@ create function public.public_profile(p_user uuid)
 returns table (
   id uuid, name text, role text, member_type text, startup text, region text, sector text, domain text,
   linkedin text, bio text, contactable boolean, directory_visible boolean,
-  incubation_interest boolean, is_self boolean, created_at timestamptz
+  incubation_interest boolean, is_self boolean, created_at timestamptz, email text
 )
 language sql stable security definer set search_path = public
 as $$
   select p.id, p.name, p.role, p.member_type, p.startup, p.region, p.sector, p.domain,
          p.linkedin, p.bio, coalesce(p.contactable, true), coalesce(p.directory_visible, true),
-         coalesce(p.incubation_interest, false), (p.id = auth.uid()), p.created_at
+         coalesce(p.incubation_interest, false), (p.id = auth.uid()), p.created_at,
+         case when coalesce(p.contactable, true) or p.id = auth.uid() then u.email::text else null end
   from public.profiles p
+  join auth.users u on u.id = p.id
   where p.id = p_user and coalesce(p.banned, false) = false
 $$;
 grant execute on function public.public_profile(uuid) to authenticated;

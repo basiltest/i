@@ -1,18 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
-import { ArrowLeft, MessageSquare, Pencil } from 'lucide-react'
+import { ArrowLeft, Mail, Pencil } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import MemberTypeBadge from '../components/MemberTypeBadge'
 import PostCard from '../components/PostCard'
 import PostCardSkeleton from '../components/PostCardSkeleton'
-import ContactModal from '../components/ContactModal'
 
 export default function UserProfile() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [profile, setProfile] = useState(undefined) // undefined = loading, null = not found
   const [posts, setPosts] = useState(null)
-  const [contact, setContact] = useState(null)
 
   const load = useCallback(async () => {
     setProfile(undefined); setPosts(null)
@@ -94,10 +92,10 @@ export default function UserProfile() {
           {profile.is_self ? (
             <Link to="/profile" className="btn-outline inline-flex items-center gap-1.5 px-3 py-2 text-sm"><Pencil size={14} /> Edit profile</Link>
           ) : (
-            profile.contactable && (
-              <button className="btn-primary inline-flex items-center gap-1.5 px-3 py-2 text-sm" onClick={() => setContact(profile)}>
-                <MessageSquare size={14} /> Message
-              </button>
+            profile.email && (
+              <a href={`mailto:${profile.email}`} className="btn-primary inline-flex items-center gap-1.5 px-3 py-2 text-sm">
+                <Mail size={14} /> Email
+              </a>
             )
           )}
           {profile.linkedin && (
@@ -117,7 +115,6 @@ export default function UserProfile() {
         </div>
       )}
 
-      <ContactModal member={contact} onClose={() => setContact(null)} />
     </div>
   )
 }

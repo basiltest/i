@@ -5,7 +5,6 @@ import { REGIONS, SECTORS, DOMAINS, MEMBER_TYPES } from '../lib/options'
 import MemberTypeBadge from '../components/MemberTypeBadge'
 import AuthorLink from '../components/AuthorLink'
 import Dropdown, { MenuItem } from '../components/Dropdown'
-import ContactModal from '../components/ContactModal'
 import { useAuth } from '../lib/AuthProvider'
 
 const GENERIC_ERR = 'Something went wrong. Please try again.'
@@ -30,7 +29,6 @@ function FilterDropdown({ label, value, options, onChange }) {
 export default function Directory() {
   const { isAdmin, session } = useAuth()
   const uid = session?.user?.id
-  const [contact, setContact] = useState(null)
   const [q, setQ] = useState('')
   const [debounced, setDebounced] = useState('')
   const [memberType, setMemberType] = useState('')
@@ -148,8 +146,8 @@ export default function Directory() {
               )}
 
               <div className="mt-3 flex flex-wrap gap-2">
-                {m.id !== uid && m.contactable && (
-                  <button className="btn-outline px-3 py-1.5 text-xs" onClick={() => setContact(m)}>Message</button>
+                {m.id !== uid && m.email && (
+                  <a href={`mailto:${m.email}`} className="btn-outline px-3 py-1.5 text-xs">Email</a>
                 )}
                 {m.linkedin && (
                   <a href={m.linkedin} target="_blank" rel="noreferrer" className="btn-outline px-3 py-1.5 text-xs">LinkedIn</a>
@@ -162,7 +160,6 @@ export default function Directory() {
       )}
       </div>
 
-      <ContactModal member={contact} onClose={() => setContact(null)} />
     </div>
   )
 }
