@@ -15,7 +15,7 @@ DBROOT="$REPO/db"
 
 ORDER="profiles readonly posts votes tags comments feed admin teamboard calendar directory \
 onboarding notifications pipeline notifications_admin polls problemhub problem_upvotes \
-problem_votes_v2 invites registration_requests member_type security_hardening"
+problem_votes_v2 invites registration_requests member_type autopsies security_hardening"
 
 fail=0
 for f in $ORDER; do
