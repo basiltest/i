@@ -153,3 +153,15 @@ create policy "sub_threads insert by post author" on public.sub_threads
   with check (author_id = auth.uid()
     and auth.uid() = (select posts.author_id from public.posts where posts.id = sub_threads.post_id)
     and public.can_write(auth.uid()));
+
+-- ---------------------------------------------------------------------------
+-- [ANON LOCKDOWN] Postgres grants function EXECUTE to PUBLIC by default, and
+-- Supabase's default privileges also grant it to `anon`. Combined with
+-- SECURITY DEFINER read functions that lack an auth.uid() gate (e.g. directory()),
+-- this let the anon role (public key, no login) call RPCs and read member data.
+-- The logged-out pages call ZERO database RPCs (they use GoTrue auth + edge
+-- functions only), so anon needs no function access at all. Revoke it from every
+-- public function. Runs LAST so it covers all functions; re-run after adding any.
+-- authenticated keeps its explicit grants; service_role/postgres are untouched.
+revoke execute on all functions in schema public from anon;
+revoke execute on all functions in schema public from public;
